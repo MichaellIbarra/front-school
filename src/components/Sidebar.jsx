@@ -201,15 +201,27 @@ const Sidebar = (props) => {
                   </li>
                 )}
 
-                {/* Ejemplo - Solo isTeacher */}
+                {/* Sección para Teachers - Calificaciones y Notificaciones */}
                 {isTeacher() && (
-                     <li>
-                    <Link to="/teacher/prueba">
+                  <li className="submenu">
+                    <Link to="#" id="menu-item-grades" onClick={(e) => handleClick(e, "menu-item-grades", "menu-items-grades")}>
                       <span className="menu-side">
                         <img src={menuicon16} alt="" />
                       </span>{" "}
-                      <span>pruebaTeacher</span>
+                      <span>Calificaciones</span> <span className="menu-arrow" />
                     </Link>
+                    <ul style={{ display: "none" }} className="menu-items-grades">
+                      <li>
+                        <Link className={props?.activeClassName === 'grades-list' ? 'active' : ''} to="/teacher/grades">
+                          Lista de Calificaciones
+                        </Link>
+                      </li>
+                      <li>
+                        <Link className={props?.activeClassName === 'notifications-list' ? 'active' : ''} to="/teacher/notifications">
+                          Notificaciones
+                        </Link>
+                      </li>
+                    </ul>
                   </li>
                 )}
 

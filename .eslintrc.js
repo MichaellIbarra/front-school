@@ -2,7 +2,8 @@ module.exports = {
     "env": {
         "browser": true,
         "es2021": true,
-        "jest": true
+        "jest": true,
+        "node": true
     },
     "extends": [
         "eslint:recommended",
@@ -30,5 +31,13 @@ module.exports = {
     ],
     "rules": {
         "react/react-in-jsx-scope": "off"
+    },
+    "settings": {
+        "react": {
+            "version": "detect"
+        }
+    },
+    "globals": {
+        "process": "readonly"
     }
 }

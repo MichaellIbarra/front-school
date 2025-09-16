@@ -69,6 +69,10 @@ import EnrollmentForm from "./pages/secretary/enrollments/enrollmentForm";
 import AuxiliaryAttendanceListPage from "./pages/auxiliary/attendance/AttendanceListPage";
 import AuxiliaryJustificationManagementPage from "./pages/auxiliary/attendance/JustificationManagementPage";
 import Fut from "./pages/secretary/fut";
+// Grades and Notifications
+import GradeList from "./pages/teacher/grades/gradeList";
+import NotificationList from "./pages/teacher/grades/notificationList";
+
 //Accounts
 const Approuter = () => {
   return (
@@ -229,6 +233,20 @@ const Approuter = () => {
           <Route path="/teacher/leave" element={
             <TeacherRoute>
               <Leave />
+            </TeacherRoute>
+          } />
+
+          {/* Rutas de Calificaciones */}
+          <Route path="/teacher/grades" element={
+            <TeacherRoute>
+              <GradeList />
+            </TeacherRoute>
+          } />
+
+          {/* Rutas de Notificaciones */}
+          <Route path="/teacher/notifications" element={
+            <TeacherRoute>
+              <NotificationList />
             </TeacherRoute>
           } />
 
