@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { periodService } from '../../../../services/academic/periodService';
-import { PeriodRequest } from '../../../../types/academic/period.types';
+import { PeriodRequest, periodTypeToBackend, periodTypeFromBackend } from '../../../../types/academic/period.types';
 import Header from '../../../../components/Header';
 import Sidebar from '../../../../components/Sidebar';
 
@@ -46,6 +46,12 @@ const EditPeriod = () => {
     { value: 'SEMESTRE', label: 'Semestre' },
     { value: 'ANUAL', label: 'Anual' }
   ];
+
+  // Mapeo de valores del frontend (español) al backend (inglés)
+  const periodTypeMapping = periodTypeToBackend;
+
+  // Mapeo inverso del backend (inglés) al frontend (español)
+  const periodTypeMappingReverse = periodTypeFromBackend;
 
   // Generar años académicos (año actual + 2 años hacia atrás y adelante)
   const generateAcademicYears = () => {
@@ -95,12 +101,12 @@ const EditPeriod = () => {
       if (result.success && result.data) {
         const period = result.data;
         
-        // Formatear fechas para inputs de tipo date
+        // Formatear fechas para inputs de tipo date y convertir periodType a español
         const formattedData = {
           institutionId: period.institutionId || '',
           level: period.level || '',
           period: period.period || '',
-          periodType: period.periodType || '',
+          periodType: periodTypeMappingReverse[period.periodType] || period.periodType,
           academicYear: period.academicYear || '',
           startDate: period.startDate ? new Date(period.startDate).toISOString().split('T')[0] : '',
           endDate: period.endDate ? new Date(period.endDate).toISOString().split('T')[0] : '',
@@ -208,7 +214,13 @@ const EditPeriod = () => {
 
     setLoading(true);
     try {
-      const periodRequest = new PeriodRequest(formData);
+      // Convertir valores del frontend (español) al backend (inglés)
+      const backendFormData = {
+        ...formData,
+        periodType: periodTypeMapping[formData.periodType] || formData.periodType
+      };
+      
+      const periodRequest = new PeriodRequest(backendFormData);
       const result = await periodService.updatePeriod(id, periodRequest);
       
       if (result.success) {
@@ -312,7 +324,7 @@ const EditPeriod = () => {
                         name="institutionId"
                         value={formData.institutionId}
                         onChange={handleInputChange}
-                        placeholder="Ingrese el ID de la institución"
+                        placeholder="Ej: inst-001, inst-002"
                         disabled={loading}
                       />
                       {validationErrors.institutionId && (
@@ -321,7 +333,7 @@ const EditPeriod = () => {
                         </div>
                       )}
                       <small className="form-text text-muted">
-                        Identificador único de la institución educativa
+                        Ingrese el ID de la institución (consulte con el administrador si no lo conoce)
                       </small>
                     </div>
                   </div>

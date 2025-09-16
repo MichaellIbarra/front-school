@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { periodService } from '../../../../services/academic/periodService';
-import { PeriodRequest } from '../../../../types/academic/period.types';
+import { PeriodRequest, periodTypeToBackend } from '../../../../types/academic/period.types';
 import Header from '../../../../components/Header';
 import Sidebar from '../../../../components/Sidebar';
 
@@ -43,6 +43,9 @@ const AddPeriod = () => {
     { value: 'SEMESTRE', label: 'Semestre' },
     { value: 'ANUAL', label: 'Anual' }
   ];
+
+  // Mapeo de valores del frontend (español) al backend (inglés)
+  const periodTypeMapping = periodTypeToBackend;
 
   // Generar años académicos (año actual + 2 años hacia atrás y adelante)
   const generateAcademicYears = () => {
@@ -170,7 +173,13 @@ const AddPeriod = () => {
 
     setLoading(true);
     try {
-      const periodRequest = new PeriodRequest(formData);
+      // Convertir valores del frontend (español) al backend (inglés)
+      const backendFormData = {
+        ...formData,
+        periodType: periodTypeMapping[formData.periodType] || formData.periodType
+      };
+      
+      const periodRequest = new PeriodRequest(backendFormData);
       const result = await periodService.createPeriod(periodRequest);
       
       if (result.success) {
@@ -242,7 +251,7 @@ const AddPeriod = () => {
                         name="institutionId"
                         value={formData.institutionId}
                         onChange={handleInputChange}
-                        placeholder="Ingrese el ID de la institución"
+                        placeholder="Ej: inst-001, inst-002"
                         disabled={loading}
                       />
                       {validationErrors.institutionId && (
@@ -251,7 +260,7 @@ const AddPeriod = () => {
                         </div>
                       )}
                       <small className="form-text text-muted">
-                        Identificador único de la institución educativa
+                        Ingrese el ID de la institución (consulte con el administrador si no lo conoce)
                       </small>
                     </div>
                   </div>

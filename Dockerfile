@@ -2,15 +2,19 @@
 # Etapa 1: Build de la aplicación
 FROM node:20-alpine AS builder
 
+# Build arguments
+ARG NODE_OPTIONS="--max-old-space-size=2048 --no-warnings"
+
 # Establecer directorio de trabajo
 WORKDIR /app
 
 # Configurar variables de entorno para optimizar el build
-ENV NODE_OPTIONS="--max-old-space-size=8192 --no-warnings"
+ENV NODE_OPTIONS=$NODE_OPTIONS
 ENV CI=true
 ENV GENERATE_SOURCEMAP=false
 ENV NODE_ENV=production
 ENV DISABLE_ESLINT_PLUGIN=true
+ENV SKIP_PREFLIGHT_CHECK=true
 
 # Copiar package.json y package-lock.json (si existe)
 COPY package*.json ./
@@ -19,16 +23,16 @@ COPY package*.json ./
 RUN npm cache clean --force
 
 # Instalar dependencias optimizado para CI
-RUN npm ci --legacy-peer-deps --silent --no-audit --no-fund || \
-    npm install --legacy-peer-deps --silent --no-audit --no-fund
+RUN npm ci --legacy-peer-deps --silent --no-audit --no-fund --prefer-offline || \
+    npm install --legacy-peer-deps --silent --no-audit --no-fund --prefer-offline
 
 # Copiar solo archivos necesarios para el build
 COPY public/ ./public/
 COPY src/ ./src/
 COPY .env ./
 
-# Construir la aplicación para producción con timeout más largo
-RUN timeout 900s npm run build || (echo "Build failed or timed out after 15 minutes" && exit 1)
+# Construir la aplicación para producción
+RUN NODE_OPTIONS="--max-old-space-size=2048" npm run build
 
 # Limpiar caché y dependencias dev para liberar espacio
 RUN npm cache clean --force && \
