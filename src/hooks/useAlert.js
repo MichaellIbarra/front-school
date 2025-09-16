@@ -100,8 +100,7 @@ const useAlert = () => {
       message,
       type: 'success',
       showCancel: false,
-      autoClose: true,
-      autoCloseTime: 2000,
+      autoClose: false, // Cambiar a false para que el usuario tenga control
       ...options
     });
   };

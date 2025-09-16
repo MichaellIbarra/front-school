@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Table, Button, Input, Select, Space, Dropdown, Tag, Tooltip, Menu } from "antd";
-import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, UndoOutlined, CheckOutlined, CloseOutlined, EyeOutlined, HomeOutlined, FileTextOutlined, DownloadOutlined } from "@ant-design/icons";
+import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, UndoOutlined, CheckOutlined, CloseOutlined, EyeOutlined, HomeOutlined, FileTextOutlined, DownloadOutlined, UserOutlined } from "@ant-design/icons";
 import FeatherIcon from "feather-icons-react";
 import { MoreHorizontal, Filter } from "react-feather";
 import Header from "../../../components/Header";
@@ -304,6 +304,12 @@ Creado: ${new Date(institution.createdAt).toLocaleDateString()}
             label: 'Sedes',
             icon: <HomeOutlined />,
             onClick: () => navigate(`/admin/institution/${record.id}/headquarters`),
+          },
+          {
+            key: 'directors',
+            label: 'Directores',
+            icon: <UserOutlined />,
+            onClick: () => navigate(`/admin/institution/${record.id}/directors`),
           },
           {
             key: 'toggle',

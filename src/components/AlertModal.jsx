@@ -7,9 +7,31 @@ import { CheckCircleOutlined, CloseCircleOutlined, ExclamationCircleOutlined, In
  * Componente de Alerta Personalizada
  * Se integra con el hook useAlert para mostrar alertas consistentes en toda la aplicación
  */
-const AlertModal = ({ alert, onConfirm, onCancel }) => {
+const AlertModal = ({ 
+  alert, 
+  visible: propVisible, 
+  title: propTitle, 
+  message: propMessage, 
+  type: propType, 
+  showCancel: propShowCancel, 
+  confirmText: propConfirmText, 
+  cancelText: propCancelText,
+  onConfirm, 
+  onCancel 
+}) => {
   
-  if (!alert) return null;
+  // Soporte para ambas interfaces: objeto alert o propiedades directas
+  const alertData = alert || {
+    visible: propVisible,
+    title: propTitle,
+    message: propMessage,
+    type: propType,
+    showCancel: propShowCancel,
+    confirmText: propConfirmText,
+    cancelText: propCancelText
+  };
+  
+  if (!alertData || !alertData.visible) return null;
   
   const {
     visible = false,
@@ -19,7 +41,7 @@ const AlertModal = ({ alert, onConfirm, onCancel }) => {
     showCancel = true,
     confirmText = 'Aceptar',
     cancelText = 'Cancelar'
-  } = alert;
+  } = alertData;
   
   // Configuración de iconos y colores según el tipo
   const getAlertConfig = (alertType) => {
@@ -120,6 +142,14 @@ AlertModal.propTypes = {
     confirmText: PropTypes.string,
     cancelText: PropTypes.string
   }),
+  // Propiedades directas como alternativa
+  visible: PropTypes.bool,
+  title: PropTypes.string,
+  message: PropTypes.string,
+  type: PropTypes.oneOf(['success', 'error', 'warning', 'info']),
+  showCancel: PropTypes.bool,
+  confirmText: PropTypes.string,
+  cancelText: PropTypes.string,
   onConfirm: PropTypes.func,
   onCancel: PropTypes.func
 };

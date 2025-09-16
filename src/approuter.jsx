@@ -35,6 +35,8 @@ import InstitutionList from "./pages/admin/institutions/institution";
 import InstitutionAdd from "./pages/admin/institutions/institutionAdd";
 import HeadquarterList from "./pages/admin/institutions/headquarter";
 import HeadquarterAdd from "./pages/admin/institutions/headquarterAdd";
+import InstitutionDirectorsList from "./pages/admin/institutions/institutionDirectors";
+import InstitutionDirectorAdd from "./pages/admin/institutions/institutionDirectorAdd";
 import InstitutionHeadquartersReport from "./pages/admin/institutions/institutionHeadquartersReportSimple";
 //Admin Director Users
 import AdminDirectorUserList from "./pages/admin/adminDirector/AdminDirectorUserList";
@@ -145,6 +147,19 @@ const Approuter = () => {
           <Route path="/admin/institution/:institutionId/headquarters/edit/:id" element={
             <AdminRoute>
               <HeadquarterAdd />
+            </AdminRoute>
+          } />
+
+          {/* Rutas de Directores */}
+          <Route path="/admin/institution/:institutionId/directors" element={
+            <AdminRoute>
+              <InstitutionDirectorsList />
+            </AdminRoute>
+          } />
+
+          <Route path="/admin/institution/:institutionId/directors/add" element={
+            <AdminRoute>
+              <InstitutionDirectorAdd />
             </AdminRoute>
           } />
 

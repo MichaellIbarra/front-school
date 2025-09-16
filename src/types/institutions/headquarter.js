@@ -107,3 +107,5 @@ export const formatHeadquarterContact = (headquarter) => {
     address: headquarter.address
   };
 };
+
+// nuevo cambio

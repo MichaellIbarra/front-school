@@ -415,6 +415,87 @@ class InstitutionService {
       createdAt: new Date().toISOString()
     };
   }
+
+  /**
+   * Obtiene todos los directores de una institución
+   * GET /api/v1/institutions/{institutionId}/directors
+   */
+  async getDirectorsByInstitutionId(institutionId) {
+    try {
+      if (!institutionId) {
+        throw new Error('ID de institución requerido');
+      }
+
+      return await this.executeWithRetry(async () => {
+        const response = await fetch(`${this.baseURL}/${institutionId}/directors`, {
+          method: 'GET',
+          headers: this.getAuthHeaders(),
+        });
+
+        const data = await this.handleResponse(response);
+        return {
+          success: true,
+          data: data || []
+        };
+      });
+    } catch (error) {
+      console.error('Error al obtener directores por institución:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener los directores',
+        data: []
+      };
+    }
+  }
+
+  /**
+   * Asigna un director a una institución
+   * PUT /api/v1/institutions/assign/{institutionId}
+   */
+  async assignDirector(institutionId, directorData) {
+    try {
+      if (!institutionId) {
+        throw new Error('ID de institución requerido');
+      }
+
+      // Validar los datos del director
+      if (!directorData.username || !directorData.email || !directorData.firstname || 
+          !directorData.lastname || !directorData.documentNumber) {
+        throw new Error('Todos los campos del director son requeridos');
+      }
+
+      const payload = {
+        username: directorData.username,
+        email: directorData.email,
+        firstname: directorData.firstname,
+        lastname: directorData.lastname,
+        documentType: directorData.documentType || 'DNI',
+        documentNumber: directorData.documentNumber,
+        phone: directorData.phone || ''
+      };
+
+      return await this.executeWithRetry(async () => {
+        const response = await fetch(`${this.baseURL}/assign/${institutionId}`, {
+          method: 'PUT',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify(payload),
+        });
+
+        const data = await this.handleResponse(response);
+        return {
+          success: true,
+          data: data,
+          message: data.data?.createMessage || 'Director asignado exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('Error al asignar director:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al asignar el director'
+      };
+    }
+  }
 }
 
 export default new InstitutionService();

@@ -21,6 +21,25 @@ export {
   formatHeadquarterContact
 } from './headquarter';
 
+// Modelos de Director
+export {
+  Director,
+  DirectorStatus,
+  DirectorDocumentType,
+  DirectorPasswordStatus,
+  CreateDirectorModel,
+  validateDirector,
+  createNewDirector,
+  formatDirectorFullName,
+  getDirectorAssignmentStatus,
+  getDirectorAssignmentDate,
+  DirectorStatusLabels,
+  DirectorDocumentTypeLabels,
+  DirectorPasswordStatusLabels,
+  getDirectorStatusColor,
+  getDirectorPasswordStatusColor
+} from './director';
+
 // Tipos comunes para administración
 export const AdminModuleConstants = {
   MAX_INSTITUTIONS_PER_PAGE: 10,
