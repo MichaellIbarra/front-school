@@ -5,7 +5,7 @@
  * @property {string} level - Nivel educativo (INICIAL, PRIMARIA, SECUNDARIA, SUPERIOR)
  * @property {string} period - Período (1-5 para primaria, 1-6 para secundaria)
  * @property {string} academicYear - Año académico
- * @property {string} periodType - Tipo de período (SEMESTER, TRIMESTER, BIMESTER)
+ * @property {string} periodType - Tipo de período en frontend: BIMESTRE, TRIMESTRE, SEMESTRE, ANUAL (convertido al backend)
  * @property {string} startDate - Fecha de inicio
  * @property {string} endDate - Fecha de fin
  * @property {string} status - Estado (A: Activo, I: Inactivo)
@@ -178,9 +178,32 @@ export const PeriodLevels = {
 };
 
 export const PeriodTypes = {
-    SEMESTER: 'SEMESTER',
+    // Valores para el frontend (español)
+    BIMESTRE: 'BIMESTRE',
+    TRIMESTRE: 'TRIMESTRE', 
+    SEMESTRE: 'SEMESTRE',
+    ANUAL: 'ANUAL',
+    // Valores para el backend (inglés)  
+    BIMESTER: 'BIMESTER',
     TRIMESTER: 'TRIMESTER',
-    BIMESTER: 'BIMESTER'
+    SEMESTER: 'SEMESTER',
+    ANNUAL: 'ANNUAL'
+};
+
+// Mapeo para conversión frontend -> backend
+export const periodTypeToBackend = {
+    'BIMESTRE': 'BIMESTER',
+    'TRIMESTRE': 'TRIMESTER',
+    'SEMESTRE': 'SEMESTER',
+    'ANUAL': 'ANNUAL'
+};
+
+// Mapeo para conversión backend -> frontend  
+export const periodTypeFromBackend = {
+    'BIMESTER': 'BIMESTRE',
+    'TRIMESTER': 'TRIMESTRE',
+    'SEMESTER': 'SEMESTRE',
+    'ANNUAL': 'ANUAL'
 };
 
 export const PeriodValidationMessages = {
