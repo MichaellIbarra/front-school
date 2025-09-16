@@ -1,0 +1,80 @@
+# Dependencias
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Archivos de producción
+build
+dist
+
+# Archivos de desarrollo y configuración
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs
+*.log
+
+# Coverage directory usado por tools como istanbul
+coverage
+
+# Directorio de dependencias de nyc test coverage
+.nyc_output
+
+# Archivos de configuración del IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# CI/CD
+.gitlab-ci.yml
+.github
+.travis.yml
+.circleci
+
+# Archivos de documentación
+README.md
+*.md
+LICENSE
+CHANGELOG.md
+
+# Scripts de utilidad
+docker.sh
+docker.ps1
+*.sh
+*.ps1
+
+# Archivos de configuración local
+.eslintrc*
+.prettierrc*
+.editorconfig
+# .env  # Comentado porque necesitamos el .env principal para el build
+.env.example
+
+# Archivos temporales
+*.tmp
+*.temp
+*.cache

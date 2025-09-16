@@ -1,0 +1,328 @@
+/* Estilos para Reportes de Instituciones */
+
+.institution-report-stats .ant-card {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.institution-report-stats .ant-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.institution-report-stats .ant-statistic-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #8c8c8c;
+  margin-bottom: 8px;
+}
+
+.institution-report-stats .ant-statistic-content {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.chart-container {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 24px;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.chart-header h5 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #262626;
+}
+
+.chart-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.report-table {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.report-table .table {
+  margin-bottom: 0;
+}
+
+.report-table .table th {
+  background-color: #fafafa;
+  font-weight: 600;
+  color: #262626;
+  border-bottom: 2px solid #f0f0f0;
+  padding: 16px 12px;
+  font-size: 14px;
+}
+
+.report-table .table td {
+  padding: 12px;
+  vertical-align: middle;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.report-table .table tr:hover {
+  background-color: #f5f5f5;
+}
+
+.stats-item {
+  padding: 20px;
+  text-align: center;
+  border-radius: 8px;
+  background: #fafafa;
+  margin-bottom: 16px;
+  transition: all 0.3s ease;
+}
+
+.stats-item:hover {
+  background: #f0f0f0;
+  transform: translateY(-2px);
+}
+
+.stats-item h4 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.stats-item p {
+  margin: 8px 0 0 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #8c8c8c;
+}
+
+.progress-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progress {
+  flex-grow: 1;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: #f0f0f0;
+}
+
+.progress-bar {
+  height: 100%;
+  transition: width 0.3s ease;
+  border-radius: 4px;
+}
+
+.badge {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 16px;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.actions {
+  display: flex;
+  gap: 4px;
+}
+
+.actions .btn {
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.actions .btn:hover {
+  transform: translateY(-1px);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #8c8c8c;
+}
+
+.empty-state i {
+  display: block;
+  margin-bottom: 16px;
+  color: #d9d9d9;
+}
+
+.empty-state h5 {
+  margin-bottom: 8px;
+  color: #595959;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .institution-report-stats .ant-col {
+    margin-bottom: 16px;
+  }
+  
+  .chart-header {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  
+  .chart-controls {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  
+  .stats-item {
+    padding: 16px;
+  }
+  
+  .stats-item h4 {
+    font-size: 24px;
+  }
+  
+  .report-table .table th,
+  .report-table .table td {
+    padding: 8px;
+    font-size: 12px;
+  }
+  
+  .actions {
+    flex-direction: column;
+    gap: 2px;
+  }
+  
+  .actions .btn {
+    width: 100%;
+    padding: 4px 8px;
+  }
+}
+
+@media (max-width: 576px) {
+  .chart-container {
+    padding: 15px;
+  }
+  
+  .institution-report-stats .ant-statistic-content {
+    font-size: 20px;
+  }
+  
+  .stats-item h4 {
+    font-size: 20px;
+  }
+  
+  .avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+}
+
+/* Estilos específicos para gráficos ApexCharts */
+.apexcharts-canvas {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.apexcharts-legend {
+  font-size: 12px !important;
+}
+
+.apexcharts-tooltip {
+  background: #fff !important;
+  border: 1px solid #e8e8e8 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.apexcharts-datalabel-label {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+}
+
+.apexcharts-datalabel-value {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+/* Animaciones */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chart-container,
+.report-table,
+.institution-report-stats .ant-card {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+/* Print Styles */
+@media print {
+  .btn, .ant-select, .ant-btn {
+    display: none !important;
+  }
+  
+  .chart-container,
+  .report-table {
+    box-shadow: none !important;
+    border: 1px solid #ddd !important;
+  }
+  
+  .page-wrapper {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  .chart-header {
+    border-bottom: 2px solid #333 !important;
+  }
+  
+  .report-table .table th {
+    background-color: #f5f5f5 !important;
+    border: 1px solid #333 !important;
+  }
+  
+  .report-table .table td {
+    border: 1px solid #ddd !important;
+  }
+}
