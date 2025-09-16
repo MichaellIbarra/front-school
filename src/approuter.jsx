@@ -68,7 +68,7 @@ import EnrollmentList from "./pages/secretary/enrollments/enrollmentList";
 import EnrollmentForm from "./pages/secretary/enrollments/enrollmentForm";
 import AuxiliaryAttendanceListPage from "./pages/auxiliary/attendance/AttendanceListPage";
 import AuxiliaryJustificationManagementPage from "./pages/auxiliary/attendance/JustificationManagementPage";
-
+import Fut from "./pages/secretary/fut";
 //Accounts
 const Approuter = () => {
   return (
@@ -251,6 +251,14 @@ const Approuter = () => {
             </SecretaryRoute>
           } />
 
+          {/* Ruta de FUT - Solo para Secretary */}
+          <Route path="/fut" element={
+            <SecretaryRoute>
+              <Fut />
+            </SecretaryRoute>
+          } />
+
+        
           {/* Rutas de Estudiantes */}
           <Route path="/secretary/students" element={
             <SecretaryRoute>

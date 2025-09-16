@@ -101,6 +101,23 @@ const Sidebar = (props) => {
                   </ul>
                 </li>
 
+                {/* Gestión de FUTS - Solo Secretary */}
+                {isSecretary() && (
+                  <li className="submenu">
+                    <Link to="#" id="menu-item-fut" onClick={(e) => handleClick(e, "menu-item-fut", "menu-items-fut")}>
+                      <span className="menu-side">
+                        <img src={menuicon09} alt="" />
+                      </span>{" "}
+                      <span> Gestión de FUTS </span> <span className="menu-arrow" />
+                    </Link>
+                    <ul style={{ display: "none" }} className="menu-items-fut">
+                      <li>
+                        <Link className={props?.activeClassName === 'fut-list' ? 'active' : ''} to="/fut">Listas de futs</Link>
+                      </li>
+                    </ul>
+                  </li>
+                )}
+
                 <li className="submenu">
                   <Link to="#" id="menu-item13" onClick={(e) => handleClick(e, "menu-item13", "menu-items13")}>
                     <span className="menu-side">
@@ -148,8 +165,8 @@ const Sidebar = (props) => {
                   </ul>
                 </li>
                 )}
-                {/* Asistencias - Admin, Secretary y Auxiliary */}
-                {(isAdmin() || isSecretary() || isAuxiliary()) && (
+
+                {(isAuxiliary()) && (
                   <li className="submenu">
                     <Link to="#" id="menu-item-attendance" onClick={(e) => handleClick(e, "menu-item-attendance", "menu-items-attendance")}>
                       <span className="menu-side">
