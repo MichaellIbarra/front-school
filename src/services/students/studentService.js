@@ -164,7 +164,7 @@ class StudentService {
         
         return {
           success: true,
-          data: result.data?.[0] || null,
+          data: result.data || null,
           metadata: result.metadata,
           message: result.metadata?.message || 'Estudiante encontrado'
         };
@@ -175,6 +175,91 @@ class StudentService {
         success: false,
         error: error.message || 'Error al obtener el estudiante',
         data: null
+      };
+    }
+  }
+
+  /**
+   * Obtiene múltiples estudiantes por sus IDs usando llamadas individuales
+   */
+  async getStudentsByIds(studentIds) {
+    try {
+      if (!studentIds || studentIds.length === 0) {
+        return {
+          success: true,
+          data: [],
+          message: 'No hay estudiantes para consultar'
+        };
+      }
+
+      console.log(`📥 Cargando ${studentIds.length} estudiantes individualmente...`);
+      
+      const studentsData = [];
+      const errors = [];
+      
+      // Cargar estudiantes de forma individual pero con control de concurrencia
+      const loadStudent = async (studentId) => {
+        try {
+          const response = await this.getStudentById(studentId);
+          if (response.success && response.data) {
+            return response.data;
+          } else {
+            // Solo agregamos a errores, logging al final
+            errors.push(studentId);
+            return null;
+          }
+        } catch (error) {
+          console.error(`❌ Error cargando estudiante ${studentId}:`, error);
+          errors.push(studentId);
+          return null;
+        }
+      };
+
+      // Procesar en lotes de 3 para no sobrecargar el servidor
+      const batchSize = 3;
+      for (let i = 0; i < studentIds.length; i += batchSize) {
+        const batch = studentIds.slice(i, i + batchSize);
+        const batchPromises = batch.map(id => loadStudent(id));
+        const batchResults = await Promise.all(batchPromises);
+        
+        // Agregar solo los estudiantes válidos
+        batchResults.forEach(student => {
+          if (student) {
+            studentsData.push(student);
+          }
+        });
+        
+        // Pausa pequeña entre lotes
+        if (i + batchSize < studentIds.length) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
+      
+      // Logging resumido y útil
+      if (errors.length > 0) {
+        console.warn(`⚠️ ${errors.length} estudiantes no encontrados de ${studentIds.length} solicitados`);
+        console.log(`✅ ${studentsData.length} estudiantes cargados exitosamente`);
+        if (errors.length <= 5) {
+          console.log('📋 IDs no encontrados:', errors.map(id => id.substring(0, 8) + '...').join(', '));
+        }
+      } else {
+        console.log(`✅ Todos los estudiantes cargados: ${studentsData.length}/${studentIds.length}`);
+      }
+      
+      return {
+        success: true,
+        data: studentsData,
+        message: `${studentsData.length} de ${studentIds.length} estudiantes cargados`,
+        errors: errors.length > 0 ? errors : undefined,
+        notFoundIds: errors // Para fácil acceso a los IDs no encontrados
+      };
+      
+    } catch (error) {
+      console.error('💥 Error general al obtener estudiantes:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener estudiantes',
+        data: []
       };
     }
   }
@@ -756,6 +841,41 @@ class StudentService {
       return {
         success: false,
         error: error.message || 'Error en la carga masiva de estudiantes'
+      };
+    }
+  }
+
+  /**
+   * Eliminación masiva de estudiantes
+   * DELETE /api/v1/students/bulk
+   */
+  async bulkDeleteStudents(studentIds) {
+    try {
+      if (!Array.isArray(studentIds) || studentIds.length === 0) {
+        throw new Error('Se requiere un array de IDs de estudiantes');
+      }
+
+      return await this.executeWithRetry(async () => {
+        const response = await fetch(`${this.baseURL}/bulk`, {
+          method: 'DELETE',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify({ ids: studentIds })
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.data || [],
+          metadata: result.metadata,
+          message: result.metadata?.message || 'Estudiantes eliminados exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('Error en eliminación masiva de estudiantes:', error);
+      return {
+        success: false,
+        error: error.message || 'Error en la eliminación masiva de estudiantes'
       };
     }
   }

@@ -23,7 +23,10 @@ const InstitutionDirectorAdd = () => {
   // Estados
   const [loading, setLoading] = useState(false);
   const [institutionInfo, setInstitutionInfo] = useState(null);
-  const [directorData, setDirectorData] = useState(CreateDirectorModel);
+  const [directorData, setDirectorData] = useState({
+    ...CreateDirectorModel,
+    institutionId: institutionId
+  });
 
   // Cargar información de la institución al montar el componente
   useEffect(() => {
@@ -56,8 +59,21 @@ const InstitutionDirectorAdd = () => {
     setLoading(true);
     
     try {
+      console.log('🔍 Institution ID from URL:', institutionId);
+      console.log('📝 Form values received:', values);
+
+      // Preparar los datos con valores por defecto antes de validar
+      const directorData = {
+        ...values,
+        roles: values.roles || ['director'],
+        status: values.status || 'A',
+        institutionId: institutionId
+      };
+
+      console.log('✅ Director data prepared:', directorData);
+
       // Validar los datos del director
-      const validation = validateDirector(values);
+      const validation = validateDirector(directorData);
       if (!validation.isValid) {
         const errorMessages = Object.values(validation.errors).join('\\n');
         showError('Errores de validación', errorMessages);
@@ -67,14 +83,19 @@ const InstitutionDirectorAdd = () => {
 
       // Preparar los datos para enviar
       const directorPayload = {
-        username: values.username.trim(),
-        email: values.email.trim(),
-        firstname: values.firstname.trim(),
-        lastname: values.lastname.trim(),
-        documentType: values.documentType,
-        documentNumber: values.documentNumber.trim(),
-        phone: values.phone ? values.phone.trim() : ''
+        username: directorData.username.trim(),
+        email: directorData.email.trim(),
+        firstname: directorData.firstname.trim(),
+        lastname: directorData.lastname.trim(),
+        roles: directorData.roles,
+        documentType: directorData.documentType,
+        documentNumber: directorData.documentNumber.trim(),
+        phone: directorData.phone ? directorData.phone.trim() : '',
+        status: directorData.status,
+        institutionId: directorData.institutionId
       };
+
+      console.log('🚀 Final payload to send:', directorPayload);
 
       // Llamar al servicio para asignar el director
       const response = await institutionService.assignDirector(institutionId, directorPayload);

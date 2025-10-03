@@ -24,7 +24,10 @@ const UserInstitutionEdit = () => {
         { value: 'TEACHER', label: 'Profesor' },
         { value: 'AUXILIARY', label: 'Auxiliar' },
         { value: 'DIRECTOR', label: 'Director' },
-        { value: 'ADMINISTRATIVE', label: 'Administrativo' }
+        { value: 'ADMINISTRATIVE', label: 'Administrativo' },
+        { value: 'COORDINATOR', label: 'Coordinador' },
+        { value: 'STUDENT', label: 'Estudiante' },
+        { value: 'VISITOR', label: 'Visitante' }
     ];
 
     const statusOptions = [
@@ -46,17 +49,29 @@ const UserInstitutionEdit = () => {
     const loadUserRelation = async () => {
         try {
             setLoading(true);
+            console.log('Cargando relaciones para usuario:', userId);
+            
             const data = await userInstitutionService.getUserRelations(userId);
+            console.log('Datos recibidos del backend:', data);
+            
             setUserRelation(data);
             
-        const initialFormData = {
-            assignments: data.institutionAssignments || [],
-            status: data.status || 'A'
-        };            setFormData(initialFormData);
+            const initialFormData = {
+                assignments: data.institutionAssignments || [],
+                status: data.status || 'A'
+            };
+            
+            console.log('Datos del formulario inicializados:', initialFormData);
+            
+            setFormData(initialFormData);
             setOriginalData(JSON.parse(JSON.stringify(initialFormData)));
         } catch (error) {
             console.error('Error loading user relation:', error);
-            alert('Error al cargar la relación del usuario');
+            if (error.message.includes('not found') || error.message.includes('no encontrado')) {
+                alert('No se encontraron relaciones para este usuario');
+            } else {
+                alert('Error al cargar la relación del usuario: ' + error.message);
+            }
             navigate('/admin-director/user-institution');
         } finally {
             setLoading(false);
@@ -107,6 +122,7 @@ const UserInstitutionEdit = () => {
             role: 'TEACHER',
             status: 'A',
             assignmentDate: new Date().toISOString(),
+            endDate: '',
             isNew: true
         };
 
@@ -152,6 +168,13 @@ const UserInstitutionEdit = () => {
         }
 
         try {
+            console.log('Cambiando estado de asignación:', {
+                userId,
+                institutionId: assignment.institutionId,
+                currentStatus: assignment.status,
+                action: assignment.status === 'A' ? 'deactivate' : 'activate'
+            });
+
             if (assignment.status === 'A') {
                 await userInstitutionService.deactivateAssignment(userId, assignment.institutionId);
                 alert('Asignación desactivada');
@@ -159,10 +182,12 @@ const UserInstitutionEdit = () => {
                 await userInstitutionService.activateAssignment(userId, assignment.institutionId);
                 alert('Asignación activada');
             }
-            loadUserRelation(); // Recargar datos
+            
+            // Recargar datos después del cambio
+            await loadUserRelation();
         } catch (error) {
             console.error('Error toggling assignment status:', error);
-            alert('Error al cambiar el estado de la asignación');
+            alert('Error al cambiar el estado de la asignación: ' + error.message);
         }
     };
 
@@ -204,25 +229,65 @@ const UserInstitutionEdit = () => {
                 const assignmentData = {
                     institutionId: assignment.institutionId,
                     role: assignment.role,
-                    isActive: assignment.status === 'A'
+                    assignmentDate: assignment.assignmentDate || null,
+                    endDate: assignment.endDate || null,
+                    description: assignment.status === 'A' ? 'Asignación activa' : 'Asignación inactiva'
                 };
+                
+                // Remover campos nulos/vacíos
+                Object.keys(assignmentData).forEach(key => {
+                    if (assignmentData[key] === null || assignmentData[key] === '') {
+                        delete assignmentData[key];
+                    }
+                });
+                
                 await userInstitutionService.assignUserToInstitution(userId, assignmentData);
             }
 
-            // Actualizar roles de asignaciones existentes
+            // Actualizar roles y fechas de asignaciones existentes
             const existingAssignments = formData.assignments.filter(a => !a.isNew);
             const originalAssignments = originalData.assignments;
             
             for (const assignment of existingAssignments) {
                 const original = originalAssignments.find(o => o.institutionId === assignment.institutionId);
-                if (original && original.role !== assignment.role) {
-                    await userInstitutionService.updateUserRole(userId, assignment.institutionId, {
-                        newRole: assignment.role
-                    });
+                if (original) {
+                    const hasRoleChange = original.role !== assignment.role;
+                    const hasDateChange = original.assignmentDate !== assignment.assignmentDate || 
+                                         original.endDate !== assignment.endDate;
+                    
+                    if (hasRoleChange || hasDateChange) {
+                        const updateData = {
+                            newRole: assignment.role,
+                            assignmentDate: assignment.assignmentDate || null,
+                            endDate: assignment.endDate || null
+                        };
+                        
+                        // Remover campos nulos/vacíos
+                        Object.keys(updateData).forEach(key => {
+                            if (updateData[key] === null || updateData[key] === '') {
+                                delete updateData[key];
+                            }
+                        });
+                        
+                        console.log('Actualizando rol para asignación:', {
+                            userId,
+                            institutionId: assignment.institutionId,
+                            updateData,
+                            original,
+                            current: assignment
+                        });
+                        
+                        const updateResult = await userInstitutionService.updateUserRole(userId, assignment.institutionId, updateData);
+                        console.log('Resultado de actualización de rol:', updateResult);
+                    }
                 }
             }
 
             alert('Relación usuario-institución actualizada exitosamente');
+            
+            // Recargar los datos antes de navegar para asegurar consistencia
+            await loadUserRelation();
+            
             navigate('/admin-director/user-institution');
         } catch (error) {
             console.error('Error updating relation:', error);
@@ -312,7 +377,45 @@ const UserInstitutionEdit = () => {
                                     ))}
                                 </select>
                             </div>
-                            <div className="col-md-4 d-flex align-items-end">
+                            <div className="col-md-4 d-flex align-items-end gap-2">
+                                <button
+                                    type="button"
+                                    className="btn btn-outline-secondary"
+                                    onClick={loadUserRelation}
+                                    disabled={loading}
+                                    title="Recargar datos desde el servidor"
+                                >
+                                    <i className="fa fa-refresh me-2"></i>
+                                    {loading ? 'Cargando...' : 'Recargar'}
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn btn-outline-warning"
+                                    onClick={async () => {
+                                        console.log('=== DEBUG INFO ===');
+                                        console.log('UserId:', userId);
+                                        console.log('FormData:', formData);
+                                        console.log('OriginalData:', originalData);
+                                        console.log('UserRelation:', userRelation);
+                                        
+                                        const testResult = await userInstitutionService.testConnection();
+                                        console.log('Test de conexión:', testResult);
+                                        
+                                        if (userId) {
+                                            try {
+                                                const relations = await userInstitutionService.getUserRelations(userId);
+                                                console.log('Relaciones actuales del usuario:', relations);
+                                            } catch (error) {
+                                                console.log('Error obteniendo relaciones:', error);
+                                            }
+                                        }
+                                        
+                                        alert('Check console for debug info');
+                                    }}
+                                    title="Debug - Ver información en consola"
+                                >
+                                    <i className="fa fa-bug me-2"></i>Debug
+                                </button>
                                 <button
                                     type="button"
                                     className="btn btn-outline-primary"
@@ -455,9 +558,52 @@ const UserInstitutionEdit = () => {
                                                             </div>
                                                             {assignment.assignmentDate && (
                                                                 <small className="text-muted d-block mt-1">
-                                                                    Asignado: {new Date(assignment.assignmentDate).toLocaleDateString()}
+                                                                    Asignado: {new Date(assignment.assignmentDate).toLocaleDateString('es-ES')}
                                                                 </small>
                                                             )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Segunda fila con campos de fecha */}
+                                                <div className="row mt-3">
+                                                    <div className="col-md-6">
+                                                        <div className="form-group">
+                                                            <label>
+                                                                Fecha de Asignación
+                                                            </label>
+                                                            <input
+                                                                type="date"
+                                                                className="form-control"
+                                                                value={userInstitutionService.formatDateForInput(assignment.assignmentDate)}
+                                                                onChange={(e) => {
+                                                                    const dateValue = userInstitutionService.convertDateInputToISO(e.target.value, false);
+                                                                    handleAssignmentChange(index, 'assignmentDate', dateValue);
+                                                                }}
+                                                            />
+                                                            <small className="text-muted">
+                                                                Fecha de inicio de la asignación
+                                                            </small>
+                                                        </div>
+                                                    </div>
+                                                    <div className="col-md-6">
+                                                        <div className="form-group">
+                                                            <label>
+                                                                Fecha de Fin (Opcional)
+                                                            </label>
+                                                            <input
+                                                                type="date"
+                                                                className="form-control"
+                                                                value={userInstitutionService.formatDateForInput(assignment.endDate)}
+                                                                onChange={(e) => {
+                                                                    const dateValue = userInstitutionService.convertDateInputToISO(e.target.value, true);
+                                                                    handleAssignmentChange(index, 'endDate', dateValue);
+                                                                }}
+                                                                min={userInstitutionService.formatDateForInput(assignment.assignmentDate)}
+                                                            />
+                                                            <small className="text-muted">
+                                                                Fecha en que termina la asignación
+                                                            </small>
                                                         </div>
                                                     </div>
                                                 </div>

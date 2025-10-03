@@ -15,7 +15,9 @@ const UserInstitutionCreate = () => {
         userId: '',
         institutionId: '',
         role: 'TEACHER',
-        isActive: true
+        isActive: true,
+        assignmentDate: '',
+        endDate: ''
     });
 
     const [errors, setErrors] = useState({});
@@ -24,7 +26,7 @@ const UserInstitutionCreate = () => {
         { value: 'TEACHER', label: 'Profesor' },
         { value: 'AUXILIARY', label: 'Auxiliar' },
         { value: 'DIRECTOR', label: 'Director' },
-        { value: 'ADMINISTRATIVE', label: 'Administrativo' }
+        { value: 'ADMINISTRATIVE', label: 'Administrativo' },
     ];
 
     useEffect(() => {
@@ -68,12 +70,39 @@ const UserInstitutionCreate = () => {
             newErrors.userId = 'Debe seleccionar un usuario';
         }
 
-        if (!formData.institutionId) {
-            newErrors.institutionId = 'Debe seleccionar una institución';
+        if (!formData.institutionId || formData.institutionId.trim() === '') {
+            newErrors.institutionId = 'Debe ingresar el ID de la institución';
+        } else if (formData.institutionId.length < 3) {
+            newErrors.institutionId = 'El ID de la institución debe tener al menos 3 caracteres';
         }
 
         if (!formData.role) {
             newErrors.role = 'Debe seleccionar un rol';
+        }
+
+        // Validar que el rol sea uno de los valores permitidos
+        const validRoles = ['TEACHER', 'AUXILIARY', 'DIRECTOR', 'ADMINISTRATIVE', 'COORDINATOR', 'STUDENT', 'VISITOR'];
+        if (formData.role && !validRoles.includes(formData.role)) {
+            newErrors.role = 'Rol no válido seleccionado';
+        }
+
+        // Validación de fechas
+        if (formData.assignmentDate && formData.endDate) {
+            const assignmentDate = new Date(formData.assignmentDate);
+            const endDate = new Date(formData.endDate);
+            
+            if (endDate <= assignmentDate) {
+                newErrors.endDate = 'La fecha de fin debe ser posterior a la fecha de asignación';
+            }
+        }
+
+        // Validar que el formato de fecha sea válido si se especifica
+        if (formData.assignmentDate) {
+            const assignmentDate = new Date(formData.assignmentDate);
+            
+            if (isNaN(assignmentDate.getTime())) {
+                newErrors.assignmentDate = 'Formato de fecha inválido';
+            }
         }
 
         setErrors(newErrors);
@@ -91,11 +120,23 @@ const UserInstitutionCreate = () => {
         try {
             setLoading(true);
 
+            // Preparar los datos según el formato esperado por el backend
             const assignmentData = {
                 institutionId: formData.institutionId,
                 role: formData.role,
-                isActive: formData.isActive
+                assignmentDate: formData.assignmentDate ? `${formData.assignmentDate}T00:00:00` : null,
+                endDate: formData.endDate ? `${formData.endDate}T23:59:59` : null,
+                description: formData.isActive ? 'Asignación activa' : 'Asignación inactiva'
             };
+
+            // Remover campos nulos/vacíos
+            Object.keys(assignmentData).forEach(key => {
+                if (assignmentData[key] === null || assignmentData[key] === '') {
+                    delete assignmentData[key];
+                }
+            });
+
+            console.log('Enviando datos de asignación:', assignmentData);
 
             await userInstitutionService.assignUserToInstitution(formData.userId, assignmentData);
             alert('Usuario asignado a institución exitosamente');
@@ -109,6 +150,9 @@ const UserInstitutionCreate = () => {
                 alert('Usuario o institución no encontrado');
             } else if (error.response?.status === 403) {
                 alert('El usuario no está activo');
+            } else if (error.response?.status === 400) {
+                const errorMessage = error.response?.data?.message || 'Datos de solicitud inválidos';
+                alert(`Error en la solicitud: ${errorMessage}`);
             } else {
                 alert('Error al asignar usuario a institución');
             }
@@ -216,6 +260,53 @@ const UserInstitutionCreate = () => {
                                 </div>
                             </div>
 
+                            {/* Fecha de Asignación */}
+                            <div className="col-md-6">
+                                <div className="form-group">
+                                    <label htmlFor="assignmentDate">
+                                        Fecha de Asignación
+                                    </label>
+                                    <input
+                                        type="date"
+                                        id="assignmentDate"
+                                        name="assignmentDate"
+                                        className={`form-control ${errors.assignmentDate ? 'is-invalid' : ''}`}
+                                        value={formData.assignmentDate}
+                                        onChange={handleInputChange}
+                                    />
+                                    {errors.assignmentDate && (
+                                        <div className="invalid-feedback">{errors.assignmentDate}</div>
+                                    )}
+                                    <small className="text-muted">
+                                        Si no se especifica, se usará la fecha actual
+                                    </small>
+                                </div>
+                            </div>
+
+                            {/* Fecha de Fin */}
+                            <div className="col-md-6">
+                                <div className="form-group">
+                                    <label htmlFor="endDate">
+                                        Fecha de Fin (Opcional)
+                                    </label>
+                                    <input
+                                        type="date"
+                                        id="endDate"
+                                        name="endDate"
+                                        className={`form-control ${errors.endDate ? 'is-invalid' : ''}`}
+                                        value={formData.endDate}
+                                        onChange={handleInputChange}
+                                        min={formData.assignmentDate || undefined}
+                                    />
+                                    {errors.endDate && (
+                                        <div className="invalid-feedback">{errors.endDate}</div>
+                                    )}
+                                    <small className="text-muted">
+                                        Fecha en que termina la asignación (opcional)
+                                    </small>
+                                </div>
+                            </div>
+
                             {/* Estado Activo */}
                             <div className="col-md-6">
                                 <div className="form-group">
@@ -246,22 +337,47 @@ const UserInstitutionCreate = () => {
                                 <div className="alert alert-info">
                                     <h6><i className="fa fa-info-circle me-2"></i>Resumen de la asignación:</h6>
                                     <div className="row">
-                                        <div className="col-md-4">
+                                        <div className="col-md-6">
                                             <strong>Usuario:</strong><br />
                                             {selectedUser ? `${selectedUser.firstName} ${selectedUser.lastName}` : 'N/A'}<br />
                                             <small className="text-muted">{selectedUser?.email}</small>
                                         </div>
-                                        <div className="col-md-4">
+                                        <div className="col-md-6">
                                             <strong>Institución:</strong><br />
                                             {formData.institutionId || 'N/A'}<br />
                                             <small className="text-muted">ID de institución</small>
                                         </div>
-                                        <div className="col-md-4">
+                                    </div>
+                                    <div className="row mt-3">
+                                        <div className="col-md-3">
                                             <strong>Rol:</strong><br />
                                             {roleOptions.find(opt => opt.value === formData.role)?.label || 'N/A'}<br />
                                             <small className="text-muted">
                                                 Estado: {formData.isActive ? 'Activo' : 'Inactivo'}
                                             </small>
+                                        </div>
+                                        <div className="col-md-3">
+                                            <strong>Fecha de Asignación:</strong><br />
+                                            {formData.assignmentDate ? 
+                                                new Date(formData.assignmentDate).toLocaleDateString('es-ES') : 'Fecha actual'}<br />
+                                            <small className="text-muted">Inicio de la asignación</small>
+                                        </div>
+                                        <div className="col-md-3">
+                                            <strong>Fecha de Fin:</strong><br />
+                                            {formData.endDate ? 
+                                                new Date(formData.endDate).toLocaleDateString('es-ES') : 'Sin fecha de fin'}<br />
+                                            <small className="text-muted">Fin de la asignación</small>
+                                        </div>
+                                        <div className="col-md-3">
+                                            <strong>Duración:</strong><br />
+                                            {formData.assignmentDate && formData.endDate ? (() => {
+                                                const start = new Date(formData.assignmentDate);
+                                                const end = new Date(formData.endDate);
+                                                const diffTime = Math.abs(end - start);
+                                                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                                return `${diffDays} días`;
+                                            })() : 'Indefinida'}<br />
+                                            <small className="text-muted">Duración total</small>
                                         </div>
                                     </div>
                                 </div>

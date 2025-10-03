@@ -141,12 +141,41 @@ const DirectorPersonalCreate = () => {
         }
       });
 
-      await directorUserService.createCompleteUser(userData);
+      console.log('Enviando datos del personal director:', userData);
+
+      const response = await directorUserService.createCompleteUser(userData);
+      console.log('✅ Personal director creado exitosamente:', response);
       
-      alert('Personal director creado correctamente');
+      alert('✅ Personal director creado correctamente');
       navigate('/admin/admin-director/director-personal');
-    } catch (err) {
-      alert('Error al crear personal: ' + err.message);
+      
+    } catch (error) {
+      console.error('❌ Error al crear personal director:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data
+      });
+
+      // Manejar diferentes tipos de errores
+      if (error.response?.status === 504) {
+        // Gateway Timeout - pero el personal podría haberse creado
+        alert('⚠️ El servidor está tardando en responder. El personal director podría haberse creado correctamente. Verifique la lista de personal.');
+        navigate('/admin/admin-director/director-personal');
+      } else if (error.response?.status === 500) {
+        alert('❌ Error interno del servidor. Intente nuevamente.');
+      } else if (error.response?.status === 400) {
+        const errorMsg = error.response?.data?.message || 'Datos inválidos';
+        alert(`❌ Error en los datos: ${errorMsg}`);
+      } else if (error.response?.status === 409) {
+        alert('❌ Ya existe personal con este DNI, email o nombre de usuario.');
+      } else if (!error.response) {
+        // Error de red o timeout del cliente
+        alert('⚠️ Error de conexión. Verifique su conexión a internet y que el personal no se haya duplicado.');
+        navigate('/admin/admin-director/director-personal');
+      } else {
+        alert(`❌ Error al crear personal: ${error.message}`);
+      }
     } finally {
       setLoading(false);
     }

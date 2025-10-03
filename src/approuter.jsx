@@ -66,6 +66,7 @@ import EditPeriod from "./pages/secretary/academicDirector/periods/EditPeriod";
 import StudentList from "./pages/secretary/students/studentList";
 import StudentForm from "./pages/secretary/students/studentForm";
 import StudentEnrollments from "./pages/secretary/students/studentEnrollments";
+import StudentBulkImport from "./pages/secretary/students/studentBulkImport";
 import EnrollmentList from "./pages/secretary/enrollments/enrollmentList";
 import EnrollmentForm from "./pages/secretary/enrollments/enrollmentForm";
 import AuxiliaryAttendanceListPage from "./pages/auxiliary/attendance/AttendanceListPage";
@@ -74,6 +75,7 @@ import Fut from "./pages/secretary/fut";
 // Grades and Notifications
 import GradeList from "./pages/teacher/grades/gradeList";
 import NotificationList from "./pages/teacher/grades/notificationList";
+import EnrollmentAnalytics from "./pages/secretary/enrollments/enrollmentAnalytics";
 
 //Accounts
 const Approuter = () => {
@@ -313,6 +315,11 @@ const Approuter = () => {
               <StudentEnrollments />
             </SecretaryRoute>
           } />
+          <Route path="/secretary/students/bulk-import" element={
+            <SecretaryRoute>
+              <StudentBulkImport />
+            </SecretaryRoute>
+          } />
           {/* Rutas de Matrículas */}
           <Route path="/secretary/enrollments" element={
             <SecretaryRoute>
@@ -362,7 +369,11 @@ const Approuter = () => {
               <EditPeriod />
             </SecretaryRoute>
           } />
-
+          <Route path="/secretary/enrollments/analytics" element={
+            <SecretaryRoute>
+              <EnrollmentAnalytics />
+            </SecretaryRoute>
+          }/>
         </Routes>
       </BrowserRouter>
       <div className="sidebar-overlay"></div>

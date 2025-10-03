@@ -116,23 +116,43 @@ const AdminDirectorUserCreate = () => {
     setLoading(true);
     try {
       const formattedData = adminUserService.formatUserDataForSubmit(formData);
-      console.log('Datos enviados al backend:', formattedData);
+      console.log('Enviando datos al backend:', formattedData);
       
       const response = await adminUserService.createAdminUser(formattedData);
-      console.log('Respuesta del backend:', response);
+      console.log('✅ Usuario creado exitosamente:', response);
       
-      // Verificar si la respuesta indica éxito
-      if (response && (response.success === true || response.message || typeof response === 'string')) {
-        alert('Usuario creado exitosamente');
+      // El usuario fue creado exitosamente si llegamos aquí (no hubo excepción)
+      alert('✅ Usuario creado exitosamente');
+      navigate('/admin/admin-director/users');
+      
+    } catch (error) {
+      console.error('❌ Error al crear usuario:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data
+      });
+
+      // Manejar diferentes tipos de errores
+      if (error.response?.status === 504) {
+        // Gateway Timeout - pero el usuario podría haberse creado
+        alert('⚠️ El servidor está tardando en responder. El usuario podría haberse creado correctamente. Verifique la lista de usuarios.');
+        // Opcionalmente navegar a la lista para verificar
+        navigate('/admin/admin-director/users');
+      } else if (error.response?.status === 500) {
+        alert('❌ Error interno del servidor. Intente nuevamente.');
+      } else if (error.response?.status === 400) {
+        const errorMsg = error.response?.data?.message || 'Datos inválidos';
+        alert(`❌ Error en los datos: ${errorMsg}`);
+      } else if (error.response?.status === 409) {
+        alert('❌ Ya existe un usuario con este email o nombre de usuario.');
+      } else if (!error.response) {
+        // Error de red o timeout del cliente
+        alert('⚠️ Error de conexión. Verifique su conexión a internet y que el usuario no se haya duplicado.');
         navigate('/admin/admin-director/users');
       } else {
-        console.error('Respuesta inesperada del backend:', response);
-        alert('Error: Respuesta inesperada del servidor');
+        alert(`❌ Error al crear usuario: ${error.message}`);
       }
-    } catch (error) {
-      console.error('Error completo:', error);
-      console.error('Error response:', error.response);
-      alert('Error al crear usuario: ' + error.message);
     } finally {
       setLoading(false);
     }

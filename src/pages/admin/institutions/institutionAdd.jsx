@@ -3,13 +3,14 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams, useLocation, Link } from "react-router-dom";
 import { Form, Input, Button, Switch, Select, InputNumber, TimePicker, Card, Upload, Row, Col } from "antd";
-import { SaveOutlined, ArrowLeftOutlined, UploadOutlined } from "@ant-design/icons";
+import { SaveOutlined, ArrowLeftOutlined, UploadOutlined, SearchOutlined, LoadingOutlined } from "@ant-design/icons";
 import moment from "moment";
 import Header from "../../../components/Header";
 import Sidebar from "../../../components/Sidebar";
 import AlertModal from "../../../components/AlertModal";
 import useAlert from "../../../hooks/useAlert";
 import institutionService from "../../../services/institutions/institutionService";
+import escalemineduService from "../../../services/institutions/escalemineduService";
 import { Institution, InstitutionStatus, LogoPosition, GradeScale, validateInstitution } from "../../../types/institutions";
 
 const { Option } = Select;
@@ -21,11 +22,32 @@ const InstitutionAdd = () => {
   const location = useLocation();
   const [form] = Form.useForm();
   const { alertState, showAlert, showSuccess, showError, showWarning, handleConfirm: alertConfirm, handleCancel: alertCancel } = useAlert();
+
+  // Estilos para el componente
+  const styles = {
+    escaleInfo: {
+      padding: '8px 12px',
+      backgroundColor: '#f6ffed',
+      border: '1px solid #b7eb8f',
+      borderRadius: '6px',
+      fontSize: '12px',
+      marginTop: '-16px',
+      marginBottom: '16px'
+    },
+    searchButton: {
+      width: '40px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center'
+    }
+  };
   
   // Estados
   const [loading, setLoading] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
   const [institutionData, setInstitutionData] = useState(Institution);
+  const [searchingEscale, setSearchingEscale] = useState(false);
+  const [escaleData, setEscaleData] = useState(null);
 
   // Verificar si es modo edición
   useEffect(() => {
@@ -161,6 +183,58 @@ const InstitutionAdd = () => {
   };
 
   /**
+   * Busca institución en ESCALE MINEDU por código modular
+   */
+  const handleSearchEscale = async () => {
+    const modularCode = form.getFieldValue('modularCode');
+    
+    if (!modularCode || modularCode.trim().length === 0) {
+      showWarning('Ingrese un código modular para buscar');
+      return;
+    }
+
+    if (!escalemineduService.isValidModularCode(modularCode)) {
+      showWarning('El código modular debe contener solo números y tener entre 5 y 10 dígitos');
+      return;
+    }
+
+    setSearchingEscale(true);
+    
+    try {
+      console.log('🔍 Buscando en ESCALE con código:', modularCode);
+      const response = await escalemineduService.searchInstitutionByCode(modularCode);
+      
+      if (response.success && response.data) {
+        const formattedData = escalemineduService.formatInstitutionData(response.data);
+        console.log('✅ Datos formateados:', formattedData);
+        
+        if (formattedData) {
+          setEscaleData(response.data);
+          
+          // Autocompletar solo los campos especificados
+          form.setFieldsValue({
+            name: formattedData.name,
+            address: formattedData.address
+          });
+          
+          showSuccess(`Institución encontrada: ${formattedData.name}`);
+        } else {
+          showError('Error al procesar los datos de ESCALE MINEDU');
+        }
+      } else {
+        showWarning(response.error || 'No se encontró la institución con el código proporcionado');
+        setEscaleData(null);
+      }
+    } catch (error) {
+      console.error('Error al buscar en ESCALE:', error);
+      showError('Error al consultar ESCALE MINEDU');
+      setEscaleData(null);
+    }
+    
+    setSearchingEscale(false);
+  };
+
+  /**
    * Cancela la operación y regresa al listado
    */
   const handleCancel = () => {
@@ -263,8 +337,38 @@ const InstitutionAdd = () => {
                               { max: 10, message: 'El código modular no puede exceder 10 caracteres' }
                             ]}
                           >
-                            <Input placeholder="Código modular MINEDU" />
+                            <Input.Group compact>
+                              <Input 
+                                placeholder="Código modular MINEDU" 
+                                style={{ width: 'calc(100% - 40px)' }}
+                                onChange={(e) => {
+                                  // Solo permitir números
+                                  const value = e.target.value.replace(/[^\d]/g, '');
+                                  form.setFieldsValue({ modularCode: value });
+                                }}
+                              />
+                              <Button
+                                type="primary"
+                                icon={searchingEscale ? <LoadingOutlined /> : <SearchOutlined />}
+                                onClick={handleSearchEscale}
+                                loading={searchingEscale}
+                                disabled={searchingEscale}
+                                title="Buscar en ESCALE MINEDU"
+                                style={{ width: '40px' }}
+                              />
+                            </Input.Group>
                           </Form.Item>
+                          {escaleData && (
+                            <div style={styles.escaleInfo}>
+                              <div><strong>✅ Encontrado en ESCALE:</strong></div>
+                              <div>📍 UGEL: {escaleData.ugel?.nombreUgel || 'No especificado'}</div>
+                              <div>🎓 Nivel: {escaleData.nivelModalidad?.valor || 'No especificado'}</div>
+                              <div>🏛️ Gestión: {escaleData.gestion || 'No especificado'}</div>
+                              {escaleData.director && (
+                                <div>👤 Director: {escaleData.director}</div>
+                              )}
+                            </div>
+                          )}
                         </Col>
                         <Col span={12}>
                           <Form.Item

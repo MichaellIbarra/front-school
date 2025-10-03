@@ -64,9 +64,12 @@ export const CreateDirectorModel = {
   email: '',
   firstname: '',
   lastname: '',
+  roles: ['director'],
   documentType: 'DNI',
   documentNumber: '',
-  phone: ''
+  phone: '',
+  status: 'A',
+  institutionId: null
 };
 
 /**
@@ -115,6 +118,21 @@ export const validateDirector = (director) => {
   // Validación del teléfono (opcional)
   if (director.phone && director.phone.trim() !== '' && !/^[0-9+\-\s]{7,15}$/.test(director.phone.trim())) {
     errors.phone = 'El número de teléfono debe tener entre 7 y 15 dígitos';
+  }
+  
+  // Validación de roles
+  if (!director.roles || !Array.isArray(director.roles) || director.roles.length === 0) {
+    errors.roles = 'Debe asignar al menos un rol';
+  }
+  
+  // Validación del estado
+  if (!director.status || !/^[AI]$/.test(director.status)) {
+    errors.status = 'El estado debe ser \'A\' (activo) o \'I\' (inactivo)';
+  }
+  
+  // Validación del institutionId
+  if (!director.institutionId) {
+    errors.institutionId = 'El ID de la institución es obligatorio';
   }
   
   return {

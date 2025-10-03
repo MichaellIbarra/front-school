@@ -3,7 +3,8 @@ import { refreshTokenKeycloak } from '../../auth/authService';
 
 // Configuración del cliente API para el microservicio de gestión de usuarios director
 const directorUserApiClient = axios.create({
-  baseURL: `${process.env.REACT_APP_DOMAIN}/api/v1/user-director`, // URL del gateway
+  baseURL:  `${process.env.REACT_APP_DOMAIN}/api/v1/user-director`, // URL del gateway
+  timeout: 60000, // 60 segundos de timeout para operaciones de creación
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
@@ -12,7 +13,16 @@ const directorUserApiClient = axios.create({
 
 // Interceptor para manejar errores globalmente y refresh token
 directorUserApiClient.interceptors.response.use(
-  response => response,
+  response => {
+    console.log('📥 Response DirectorUserService:', {
+      status: response.status,
+      statusText: response.statusText,
+      url: response.config?.url,
+      method: response.config?.method?.toUpperCase(),
+      timestamp: new Date().toISOString()
+    });
+    return response;
+  },
   async error => {
     const originalRequest = error.config;
     
@@ -50,6 +60,15 @@ directorUserApiClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    console.log('📤 Request DirectorUserService:', {
+      method: config.method?.toUpperCase(),
+      url: `${config.baseURL}${config.url}`,
+      headers: { ...config.headers, Authorization: config.headers.Authorization ? '[TOKEN_PRESENT]' : '[NO_TOKEN]' },
+      timeout: config.timeout,
+      timestamp: new Date().toISOString()
+    });
+    
     return config;
   },
   error => Promise.reject(error)
@@ -64,9 +83,35 @@ class DirectorUserService {
    */
   async createCompleteUser(userData) {
     try {
+      console.log('🚀 Iniciando creación de usuario completo (director personal):', {
+        timestamp: new Date().toISOString(),
+        userData: { ...userData, password: userData.password ? '[HIDDEN]' : undefined }
+      });
+      
       const response = await directorUserApiClient.post('/users', userData);
+      
+      console.log('✅ Usuario completo creado exitosamente:', {
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data,
+        timestamp: new Date().toISOString()
+      });
+      
       return response.data;
     } catch (error) {
+      console.error('❌ Error detallado en createCompleteUser:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        config: {
+          method: error.config?.method,
+          url: error.config?.url,
+          baseURL: error.config?.baseURL
+        },
+        timestamp: new Date().toISOString()
+      });
+      
       throw this.handleError(error, 'Error al crear usuario completo');
     }
   }

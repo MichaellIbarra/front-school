@@ -3,6 +3,7 @@ import { refreshTokenKeycloak } from '../../auth/authService';
 // Configuración del cliente API para el microservicio de usuarios
 const userApiClient = axios.create({
   baseURL: `${process.env.REACT_APP_DOMAIN}/api/v1/user-admin`, // URL del gateway
+  timeout: 60000, // 60 segundos de timeout para operaciones de creación
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
@@ -11,7 +12,16 @@ const userApiClient = axios.create({
 
 // Interceptor para manejar errores globalmente y refresh token
 userApiClient.interceptors.response.use(
-  response => response,
+  response => {
+    console.log('📥 Response AdminUserService:', {
+      status: response.status,
+      statusText: response.statusText,
+      url: response.config?.url,
+      method: response.config?.method?.toUpperCase(),
+      timestamp: new Date().toISOString()
+    });
+    return response;
+  },
   async error => {
     const originalRequest = error.config;
     
@@ -49,6 +59,15 @@ userApiClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    console.log('📤 Request AdminUserService:', {
+      method: config.method?.toUpperCase(),
+      url: `${config.baseURL}${config.url}`,
+      headers: { ...config.headers, Authorization: config.headers.Authorization ? '[TOKEN_PRESENT]' : '[NO_TOKEN]' },
+      timeout: config.timeout,
+      timestamp: new Date().toISOString()
+    });
+    
     return config;
   },
   error => Promise.reject(error)
@@ -63,20 +82,35 @@ class AdminUserService {
    */
   async createAdminUser(userData) {
     try {
-      console.log('Enviando datos al backend:', userData);
-      const response = await userApiClient.post('/users', userData);
-      console.log('Respuesta completa del backend:', response);
-      console.log('Status:', response.status);
-      console.log('Data:', response.data);
+      console.log('🚀 Iniciando creación de usuario admin/director:', {
+        timestamp: new Date().toISOString(),
+        userData: { ...userData, password: '[HIDDEN]' }
+      });
       
-      // Verificar que la respuesta sea exitosa
-      if (response.status === 200 || response.status === 201) {
-        return response.data;
-      } else {
-        throw new Error(`Error del servidor: Status ${response.status}`);
-      }
+      const response = await userApiClient.post('/users', userData);
+      
+      console.log('✅ Usuario admin/director creado exitosamente:', {
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data,
+        timestamp: new Date().toISOString()
+      });
+      
+      return response.data;
     } catch (error) {
-      console.error('Error en createAdminUser:', error);
+      console.error('❌ Error detallado en createAdminUser:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        config: {
+          method: error.config?.method,
+          url: error.config?.url,
+          baseURL: error.config?.baseURL
+        },
+        timestamp: new Date().toISOString()
+      });
+      
       throw this.handleError(error, 'Error al crear usuario admin/director');
     }
   }

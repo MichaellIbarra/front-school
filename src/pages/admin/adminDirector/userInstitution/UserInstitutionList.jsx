@@ -185,6 +185,9 @@ const UserInstitutionList = () => {
                                                 <option value="AUXILIARY">Auxiliar</option>
                                                 <option value="DIRECTOR">Director</option>
                                                 <option value="ADMINISTRATIVE">Administrativo</option>
+                                                <option value="COORDINATOR">Coordinador</option>
+                                                <option value="STUDENT">Estudiante</option>
+                                                <option value="VISITOR">Visitante</option>
                                             </select>
                                         </div>
                                         <div className="col-md-2">
@@ -278,7 +281,7 @@ const UserInstitutionList = () => {
                                                                     <div className="actions">
                                                                         <Link
                                                                             className="btn btn-sm bg-success-light me-2"
-                                                                            to={`/admin/admin-director/user-institution/view/${relation.userId}`}
+                                                                            to={`/admin-director/user-institution/view/${relation.userId}`}
                                                                         >
                                                                             <i className="fa fa-eye"></i>
                                                                         </Link>
@@ -286,7 +289,7 @@ const UserInstitutionList = () => {
                                                                         {relation.status !== 'I' && (
                                                                             <Link
                                                                                 className="btn btn-sm bg-danger-light me-2"
-                                                                                to={`/admin/admin-director/user-institution/edit/${relation.userId}`}
+                                                                                to={`/admin-director/user-institution/edit/${relation.userId}`}
                                                                             >
                                                                                 <i className="fa fa-edit"></i>
                                                                             </Link>

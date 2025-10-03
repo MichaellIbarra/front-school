@@ -87,10 +87,10 @@ const InstitutionDirectorsList = () => {
     if (searchText) {
       filtered = filtered.filter(director => {
         const searchTerm = searchText.toLowerCase();
-        const fullName = formatDirectorFullName(director).toLowerCase();
-        const email = director.userDetails?.email?.toLowerCase() || '';
-        const username = director.userDetails?.username?.toLowerCase() || '';
-        const documentNumber = director.userDetails?.documentNumber?.toLowerCase() || '';
+        const fullName = `${director.firstname || ''} ${director.lastname || ''}`.trim().toLowerCase();
+        const email = director.email?.toLowerCase() || '';
+        const username = director.username?.toLowerCase() || '';
+        const documentNumber = director.documentNumber?.toLowerCase() || '';
         
         return fullName.includes(searchTerm) || 
                email.includes(searchTerm) || 
@@ -118,22 +118,23 @@ const InstitutionDirectorsList = () => {
    * Muestra detalles del director
    */
   const handleView = (director) => {
-    const userDetails = director.userDetails || {};
-    const assignment = director.institutionAssignments?.[0] || {};
+    const fullName = `${director.firstname || ''} ${director.lastname || ''}`.trim() || 'No especificado';
     
     showAlert({
       title: 'Detalles del Director',
       message: (
         <div className="director-details">
-          <p><strong>Nombre Completo:</strong> {formatDirectorFullName(director)}</p>
-          <p><strong>Usuario:</strong> {userDetails.username}</p>
-          <p><strong>Email:</strong> {userDetails.email}</p>
-          <p><strong>Documento:</strong> {userDetails.documentType} - {userDetails.documentNumber}</p>
-          <p><strong>Teléfono:</strong> {userDetails.phone || 'No especificado'}</p>
+          <p><strong>Nombre Completo:</strong> {fullName}</p>
+          <p><strong>Usuario:</strong> {director.username || 'No especificado'}</p>
+          <p><strong>Email:</strong> {director.email || 'No especificado'}</p>
+          <p><strong>Documento:</strong> {director.documentType || 'No especificado'} - {director.documentNumber || 'No especificado'}</p>
+          <p><strong>Teléfono:</strong> {director.phone || 'No especificado'}</p>
           <p><strong>Estado:</strong> {DirectorStatusLabels[director.status] || director.status}</p>
-          <p><strong>Estado de Contraseña:</strong> {DirectorPasswordStatusLabels[userDetails.passwordStatus] || userDetails.passwordStatus}</p>
-          <p><strong>Fecha de Asignación:</strong> {assignment.assignmentDate ? new Date(assignment.assignmentDate).toLocaleDateString() : 'No especificada'}</p>
+          <p><strong>Estado de Contraseña:</strong> {DirectorPasswordStatusLabels[director.passwordStatus] || director.passwordStatus}</p>
+          <p><strong>Roles:</strong> {director.roles ? director.roles.join(', ') : 'No especificados'}</p>
+          <p><strong>Keycloak ID:</strong> {director.keycloakId || 'No especificado'}</p>
           <p><strong>Fecha de Creación:</strong> {director.createdAt ? new Date(director.createdAt).toLocaleDateString() : 'No especificada'}</p>
+          <p><strong>Última Actualización:</strong> {director.updatedAt ? new Date(director.updatedAt).toLocaleDateString() : 'No especificada'}</p>
         </div>
       ),
       type: 'info',
@@ -162,32 +163,35 @@ const InstitutionDirectorsList = () => {
       title: 'Director',
       key: 'director',
       render: (_, record) => {
-        const userDetails = record.userDetails || {};
+        const fullName = `${record.firstname || ''} ${record.lastname || ''}`.trim() || 'No especificado';
         return (
           <div>
-            <strong>{formatDirectorFullName(record)}</strong>
+            <strong>{fullName}</strong>
             <br />
-            <small className="text-muted">Usuario: {userDetails.username}</small>
+            <small className="text-muted">Usuario: {record.username || 'No especificado'}</small>
           </div>
         );
       },
-      sorter: (a, b) => formatDirectorFullName(a).localeCompare(formatDirectorFullName(b)),
+      sorter: (a, b) => {
+        const nameA = `${a.firstname || ''} ${a.lastname || ''}`.trim();
+        const nameB = `${b.firstname || ''} ${b.lastname || ''}`.trim();
+        return nameA.localeCompare(nameB);
+      },
     },
     {
       title: 'Email',
       key: 'email',
-      render: (_, record) => record.userDetails?.email || 'No especificado',
-      sorter: (a, b) => (a.userDetails?.email || '').localeCompare(b.userDetails?.email || ''),
+      render: (_, record) => record.email || 'No especificado',
+      sorter: (a, b) => (a.email || '').localeCompare(b.email || ''),
     },
     {
       title: 'Documento',
       key: 'document',
       render: (_, record) => {
-        const userDetails = record.userDetails || {};
         return (
           <div>
-            <div>{userDetails.documentType || 'No especificado'}</div>
-            <small className="text-muted">{userDetails.documentNumber || 'No especificado'}</small>
+            <div>{record.documentType || 'No especificado'}</div>
+            <small className="text-muted">{record.documentNumber || 'No especificado'}</small>
           </div>
         );
       },
@@ -195,7 +199,7 @@ const InstitutionDirectorsList = () => {
     {
       title: 'Teléfono',
       key: 'phone',
-      render: (_, record) => record.userDetails?.phone || 'No especificado',
+      render: (_, record) => record.phone || 'No especificado',
     },
     {
       title: 'Estado',
@@ -216,14 +220,13 @@ const InstitutionDirectorsList = () => {
       title: 'Fecha de Asignación',
       key: 'assignmentDate',
       render: (_, record) => {
-        const assignment = record.institutionAssignments?.[0];
-        return assignment?.assignmentDate 
-          ? new Date(assignment.assignmentDate).toLocaleDateString() 
+        return record.createdAt 
+          ? new Date(record.createdAt).toLocaleDateString() 
           : 'No especificada';
       },
       sorter: (a, b) => {
-        const dateA = a.institutionAssignments?.[0]?.assignmentDate;
-        const dateB = b.institutionAssignments?.[0]?.assignmentDate;
+        const dateA = a.createdAt;
+        const dateB = b.createdAt;
         if (!dateA && !dateB) return 0;
         if (!dateA) return 1;
         if (!dateB) return -1;

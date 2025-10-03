@@ -103,6 +103,7 @@ const EnrollmentForm = () => {
     setLoading(true);
     try {
       const response = await enrollmentService.getEnrollmentById(id);
+      
       if (response.success && response.data) {
         setEnrollment(response.data);
         populateForm(response.data);
@@ -206,8 +207,7 @@ const EnrollmentForm = () => {
 
       let response;
       if (isEdit) {
-        // Para edición, usar updateEnrollmentStatus si solo cambia el estado
-        response = await enrollmentService.updateEnrollmentStatus(id, enrollmentData.status);
+        response = await enrollmentService.updateEnrollment(id, enrollmentData);
       } else {
         response = await enrollmentService.createEnrollment(enrollmentData);
       }
@@ -217,7 +217,6 @@ const EnrollmentForm = () => {
         navigate('/secretary/enrollments');
       } else {
         if (response.validationErrors) {
-          // Mostrar errores de validación
           showError(`Errores de validación: ${response.validationErrors.join(', ')}`);
         } else {
           showError(response.error);

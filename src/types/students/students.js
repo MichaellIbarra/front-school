@@ -257,7 +257,7 @@ export const getStatusText = (status) => {
     [StudentStatus.INACTIVE]: 'Inactivo',
     [StudentStatus.TRANSFERRED]: 'Transferido',
     [StudentStatus.GRADUATED]: 'Graduado',
-    [StudentStatus.DECEASED]: 'Fallecido'
+    [StudentStatus.DECEASED]: 'Retirado'
   };
   
   return statusTexts[status] || status;

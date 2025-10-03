@@ -450,7 +450,7 @@ class InstitutionService {
 
   /**
    * Asigna un director a una institución
-   * PUT /api/v1/institutions/assign/{institutionId}
+   * POST /api/v1/user-admin/users
    */
   async assignDirector(institutionId, directorData) {
     try {
@@ -465,27 +465,42 @@ class InstitutionService {
       }
 
       const payload = {
+        institutionId: institutionId, // Mover al principio para asegurar prioridad
         username: directorData.username,
         email: directorData.email,
         firstname: directorData.firstname,
         lastname: directorData.lastname,
+        roles: directorData.roles || ['director'],
         documentType: directorData.documentType || 'DNI',
         documentNumber: directorData.documentNumber,
-        phone: directorData.phone || ''
+        phone: directorData.phone || '',
+        status: directorData.status || 'A'
       };
 
+      console.log('🔍 SERVICE - Institution ID received:', institutionId);
+      console.log('🔍 SERVICE - Director data received:', directorData);
+      console.log('🚀 SERVICE - Final payload:', JSON.stringify(payload, null, 2));
+
       return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/assign/${institutionId}`, {
-          method: 'PUT',
-          headers: this.getAuthHeaders(),
+        const response = await fetch(`https://lab.vallegrande.edu.pe/school/userdos/api/v1/user-admin/users`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+            // Sin Authorization - la API no lo requiere
+          },
           body: JSON.stringify(payload),
         });
 
+        console.log('🔍 SERVICE - Response status:', response.status);
+        console.log('🔍 SERVICE - Response headers:', response.headers);
+
         const data = await this.handleResponse(response);
+        console.log('🔍 SERVICE - Response data:', data);
+        
         return {
           success: true,
           data: data,
-          message: data.data?.createMessage || 'Director asignado exitosamente'
+          message: data.data?.createMessage || data.message || 'Director asignado exitosamente'
         };
       });
     } catch (error) {

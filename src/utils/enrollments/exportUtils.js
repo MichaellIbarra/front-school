@@ -1,223 +1,271 @@
-import { formatEnrollmentDate, getEnrollmentStatusText } from '../../types/enrollments/enrollments';
+// Utilidades de exportación para matrículas
+import { message } from 'antd';
+import { EnrollmentStatus } from '../../types/enrollments/enrollments';
 
-/**
- * Utilidades para exportar datos de matrículas
- */
-class EnrollmentExportUtils {
-  
+export class EnrollmentExportUtils {
   /**
-   * Exporta datos de matrículas a CSV
+   * Exporta matrículas a formato CSV
+   * @param {Array} enrollments - Array de matrículas
+   * @param {string} filename - Nombre del archivo (opcional)
    */
   static exportEnrollmentsToCSV(enrollments, filename = 'matriculas') {
-    try {
-      // Preparar los datos para CSV
-      const csvData = enrollments.map(enrollment => ({
-        'Numero_Matricula': enrollment.enrollmentNumber,
-        'ID_Estudiante': enrollment.studentId,
-        'ID_Aula': enrollment.classroomId,
-        'Fecha_Matricula': formatEnrollmentDate(enrollment.enrollmentDate),
-        'Estado': getEnrollmentStatusText(enrollment.status),
-        'Fecha_Registro': new Date(enrollment.createdAt).toLocaleDateString(),
-        'Ultima_Actualizacion': enrollment.updatedAt ? new Date(enrollment.updatedAt).toLocaleDateString() : ''
-      }));
+    const headers = [
+      'Número de Matrícula',
+      'Estudiante',
+      'Documento Estudiante',
+      'Grado',
+      'Sección',
+      'Aula',
+      'Año Escolar',
+      'Fecha de Matrícula',
+      'Estado',
+      'Observaciones'
+    ];
 
-      // Crear el contenido CSV
-      const headers = Object.keys(csvData[0]);
+    const mapFunction = (enrollment) => [
+      `"${enrollment.enrollmentNumber || ''}"`,
+      `"${enrollment.studentName || enrollment.student?.firstName || ''} ${enrollment.studentLastName || enrollment.student?.lastName || ''}"`,
+      `"${enrollment.studentDocumentType || enrollment.student?.documentType || ''}: ${enrollment.studentDocumentNumber || enrollment.student?.documentNumber || ''}"`,
+      `"${enrollment.gradeName || enrollment.grade?.name || ''}"`,
+      `"${enrollment.sectionName || enrollment.section?.name || ''}"`,
+      `"${enrollment.classroomName || enrollment.classroom?.name || ''}"`,
+      `"${enrollment.schoolYear || ''}"`,
+      `"${this.formatDateTime(enrollment.enrollmentDate) || ''}"`,
+      `"${this.getStatusText(enrollment.status)}"`,
+      `"${enrollment.observations || ''}"`
+    ];
+
+    this.exportToCSV(enrollments, headers, mapFunction, filename);
+  }
+  /**
+   * Exporta matrículas a formato PDF
+   * @param {Array} enrollments - Array de matrículas
+   * @param {string} title - Título del reporte
+   */
+  static exportEnrollmentsToPDF(enrollments, title = 'Reporte de Matrículas') {
+    const headers = ['Matrícula', 'Estudiante', 'Grado/Sección', 'Año Escolar', 'Estado'];
+    
+    const mapFunction = (enrollment) => `
+      <tr>
+        <td>${enrollment.enrollmentNumber}</td>
+        <td>${enrollment.studentName || enrollment.student?.firstName || ''} ${enrollment.studentLastName || enrollment.student?.lastName || ''}</td>
+        <td>${enrollment.gradeName || enrollment.grade?.name || ''} - ${enrollment.sectionName || enrollment.section?.name || ''}</td>
+        <td>${enrollment.schoolYear}</td>
+        <td>${this.getStatusText(enrollment.status)}</td>
+      </tr>
+    `;
+
+    const subtitle = `Total de matrículas: ${enrollments.length}`;
+    this.exportToPDF(enrollments, headers, mapFunction, title, subtitle);
+  }
+
+  /**
+   * Genera template de matrículas para importación
+   */
+  static downloadEnrollmentTemplate() {
+    const templateData = [
+      {
+        enrollmentNumber: "MAT-2024-001",
+        studentId: 1,
+        gradeId: 1,
+        sectionId: 1,
+        classroomId: 1,
+        schoolYear: "2024",
+        enrollmentDate: "2024-03-01",
+        status: "ACTIVE",
+        observations: "Matrícula regular"
+      }
+    ];
+
+    const jsonContent = JSON.stringify(templateData, null, 2);
+    this.downloadJSON(jsonContent, 'template_matriculas');
+  }
+
+  /**
+   * Exporta estadísticas de matrículas a PDF
+   */
+  static exportEnrollmentStatsToPDF(stats, title = 'Estadísticas de Matrículas') {
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>${title}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          h1 { color: #333; text-align: center; }
+          .stats-container { display: flex; flex-wrap: wrap; gap: 20px; margin: 20px 0; }
+          .stat-card { border: 1px solid #ddd; padding: 15px; border-radius: 5px; min-width: 200px; }
+          .stat-title { font-weight: bold; color: #666; margin-bottom: 10px; }
+          .stat-value { font-size: 24px; color: #333; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          th { background-color: #f2f2f2; }
+          .footer { margin-top: 20px; font-size: 12px; text-align: center; color: #666; }
+        </style>
+      </head>
+      <body>
+        <h1>${title}</h1>
+        
+        <div class="stats-container">
+          <div class="stat-card">
+            <div class="stat-title">Total de Matrículas</div>
+            <div class="stat-value">${stats.total}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">Matrículas Activas</div>
+            <div class="stat-value">${stats.byStatus.ACTIVE || 0}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">Matrículas Inactivas</div>
+            <div class="stat-value">${stats.byStatus.INACTIVE || 0}</div>
+          </div>
+        </div>
+
+        ${stats.byGrade ? `
+        <table>
+          <thead>
+            <tr><th>Grado</th><th>Cantidad de Matrículas</th></tr>
+          </thead>
+          <tbody>
+            ${Object.entries(stats.byGrade).map(([grade, count]) => 
+              `<tr><td>${grade}</td><td>${count}</td></tr>`
+            ).join('')}
+          </tbody>
+        </table>
+        ` : ''}
+
+        <div class="footer">
+          Generado el ${new Date().toLocaleDateString('es-ES')} - Sistema de Gestión Educativa
+        </div>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    this.downloadBlob(blob, `${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.html`);
+    message.success('Reporte de estadísticas generado correctamente');
+  }
+
+  /**
+   * Exporta datos a formato CSV
+   */
+  static exportToCSV(data, headers, mapFunction, filename) {
+    try {
       const csvContent = [
         headers.join(','),
-        ...csvData.map(row => 
-          headers.map(header => {
-            const value = row[header];
-            // Escapar comillas y envolver en comillas si contiene comas
-            return typeof value === 'string' && (value.includes(',') || value.includes('"')) 
-              ? `"${value.replace(/"/g, '""')}"` 
-              : value;
-          }).join(',')
-        )
+        ...data.map(item => mapFunction(item).join(','))
       ].join('\n');
 
-      // Crear y descargar el archivo
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      
-      link.setAttribute('href', url);
-      const timestamp = new Date().toISOString().slice(0, 10);
-      link.setAttribute('download', `${filename}_${timestamp}.csv`);
-      link.style.visibility = 'hidden';
-      
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      return { success: true, message: 'Archivo CSV descargado correctamente' };
+      this.downloadBlob(blob, `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+      message.success('Archivo CSV descargado correctamente');
     } catch (error) {
-      console.error('Error al exportar a CSV:', error);
-      return { success: false, error: 'Error al generar el archivo CSV' };
+      message.error('Error al generar el archivo CSV');
+      console.error('CSV Export Error:', error);
     }
   }
-  
+
   /**
-   * Imprime el reporte usando la función nativa del navegador
+   * Exporta datos a formato PDF
    */
-  static printEnrollmentsReport(enrollments) {
+  static exportToPDF(data, headers, mapFunction, title, subtitle = '') {
     try {
-      // Crear el contenido HTML para imprimir
-      const printContent = `
+      const htmlContent = `
         <!DOCTYPE html>
         <html>
         <head>
-          <title>Reporte de Matrículas</title>
+          <meta charset="utf-8">
+          <title>${title}</title>
           <style>
             body { font-family: Arial, sans-serif; margin: 20px; }
-            .header { text-align: center; margin-bottom: 20px; }
-            .info { margin-bottom: 15px; }
-            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            h1 { color: #333; text-align: center; }
+            h2 { color: #666; text-align: center; font-size: 14px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
             th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #f2f2f2; font-weight: bold; }
-            tr:nth-child(even) { background-color: #f9f9f9; }
-            @media print {
-              body { margin: 0; }
-              .no-print { display: none; }
-            }
+            th { background-color: #f2f2f2; }
+            .footer { margin-top: 20px; font-size: 12px; text-align: center; color: #666; }
           </style>
         </head>
         <body>
-          <div class="header">
-            <h2>Reporte de Matrículas</h2>
-          </div>
-          <div class="info">
-            <p><strong>Fecha de generación:</strong> ${new Date().toLocaleDateString()}</p>
-            <p><strong>Total de matrículas:</strong> ${enrollments.length}</p>
-          </div>
+          <h1>${title}</h1>
+          ${subtitle ? `<h2>${subtitle}</h2>` : ''}
           <table>
             <thead>
-              <tr>
-                <th>Número</th>
-                <th>ID Estudiante</th>
-                <th>ID Aula</th>
-                <th>F. Matrícula</th>
-                <th>Estado</th>
-                <th>F. Registro</th>
-              </tr>
+              <tr>${headers.map(header => `<th>${header}</th>`).join('')}</tr>
             </thead>
             <tbody>
-              ${enrollments.map(enrollment => `
-                <tr>
-                  <td>${enrollment.enrollmentNumber}</td>
-                  <td>${enrollment.studentId}</td>
-                  <td>${enrollment.classroomId}</td>
-                  <td>${formatEnrollmentDate(enrollment.enrollmentDate)}</td>
-                  <td>${getEnrollmentStatusText(enrollment.status)}</td>
-                  <td>${new Date(enrollment.createdAt).toLocaleDateString()}</td>
-                </tr>
-              `).join('')}
+              ${data.map(mapFunction).join('')}
             </tbody>
           </table>
+          <div class="footer">
+            Generado el ${new Date().toLocaleDateString('es-ES')} - Sistema de Gestión Educativa
+          </div>
         </body>
         </html>
       `;
 
-      // Abrir ventana de impresión
-      const printWindow = window.open('', '_blank');
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
-      printWindow.close();
-
-      return { success: true, message: 'Reporte enviado a impresión' };
+      const blob = new Blob([htmlContent], { type: 'text/html' });
+      this.downloadBlob(blob, `${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.html`);
+      message.success('Reporte HTML generado correctamente');
     } catch (error) {
-      console.error('Error al imprimir:', error);
-      return { success: false, error: 'Error al imprimir el reporte' };
+      message.error('Error al generar el reporte PDF');
+      console.error('PDF Export Error:', error);
     }
   }
 
   /**
-   * Genera estadísticas básicas de las matrículas
+   * Descarga contenido JSON
    */
-  static generateEnrollmentStats(enrollments) {
-    const stats = {
-      total: enrollments.length,
-      byStatus: {},
-      byMonth: {},
-      byClassroom: {}
-    };
-
-    // Estadísticas por estado
-    const statuses = ['ACTIVE', 'INACTIVE', 'COMPLETED', 'CANCELLED'];
-    statuses.forEach(status => {
-      stats.byStatus[status] = enrollments.filter(e => e.status === status).length;
-    });
-
-    // Estadísticas por mes
-    enrollments.forEach(enrollment => {
-      let month;
-      if (Array.isArray(enrollment.enrollmentDate)) {
-        month = `${enrollment.enrollmentDate[0]}-${enrollment.enrollmentDate[1].toString().padStart(2, '0')}`;
-      } else {
-        const date = new Date(enrollment.enrollmentDate);
-        month = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
-      }
-      
-      stats.byMonth[month] = (stats.byMonth[month] || 0) + 1;
-    });
-
-    // Estadísticas por aula
-    enrollments.forEach(enrollment => {
-      const classroom = enrollment.classroomId;
-      stats.byClassroom[classroom] = (stats.byClassroom[classroom] || 0) + 1;
-    });
-
-    return stats;
-  }
-
-  /**
-   * Exporta plantilla para carga masiva de matrículas
-   */
-  static exportEnrollmentTemplate(filename = 'plantilla_matriculas') {
+  static downloadJSON(content, filename) {
     try {
-      // Datos de ejemplo para la plantilla
-      const templateData = [
-        {
-          'studentId': 'ID_DEL_ESTUDIANTE',
-          'classroomId': 'ID_DEL_AULA',
-          'enrollmentNumber': 'NUMERO_MATRICULA',
-          'enrollmentDate': 'YYYY-MM-DD'
-        },
-        {
-          'studentId': 'ejemplo-student-id-1',
-          'classroomId': 'aula-2025-primero-a',
-          'enrollmentNumber': 'MAT-2025-001',
-          'enrollmentDate': '2025-03-01'
-        }
-      ];
-
-      // Crear el libro de trabajo
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(templateData);
-
-      // Ajustar el ancho de las columnas
-      const colWidths = [
-        { wch: 25 }, // studentId
-        { wch: 20 }, // classroomId
-        { wch: 15 }, // enrollmentNumber
-        { wch: 12 }  // enrollmentDate
-      ];
-      ws['!cols'] = colWidths;
-
-      // Agregar la hoja al libro
-      XLSX.utils.book_append_sheet(wb, ws, 'Plantilla Matrículas');
-
-      // Descargar el archivo
-      const timestamp = new Date().toISOString().slice(0, 10);
-      XLSX.writeFile(wb, `${filename}_${timestamp}.xlsx`);
-
-      return { success: true, message: 'Plantilla descargada correctamente' };
+      const blob = new Blob([content], { type: 'application/json' });
+      this.downloadBlob(blob, `${filename}.json`);
+      message.success('Template JSON descargado correctamente');
     } catch (error) {
-      console.error('Error al exportar plantilla:', error);
-      return { success: false, error: 'Error al generar la plantilla' };
+      message.error('Error al descargar el template');
+      console.error('JSON Download Error:', error);
     }
+  }
+
+  /**
+   * Descarga un blob como archivo
+   */
+  static downloadBlob(blob, filename) {
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  /**
+   * Obtiene el texto del estado
+   */
+  static getStatusText(status) {
+    const statusMap = {
+      [EnrollmentStatus.ACTIVE]: 'Activa',
+      [EnrollmentStatus.INACTIVE]: 'Inactiva',
+      [EnrollmentStatus.TRANSFERRED]: 'Transferida',
+      [EnrollmentStatus.WITHDRAWN]: 'Retirada',
+      [EnrollmentStatus.COMPLETED]: 'Completada'
+    };
+    return statusMap[status] || status;
+  }
+
+  /**
+   * Formatea fecha y hora
+   */
+  static formatDateTime(dateArray) {
+    if (!Array.isArray(dateArray) || dateArray.length < 6) return '';
+    
+    const [year, month, day, hour, minute] = dateArray;
+    const date = new Date(year, month - 1, day, hour, minute);
+    return date.toLocaleString('es-ES');
   }
 }
 
