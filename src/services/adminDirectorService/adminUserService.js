@@ -1,283 +1,546 @@
-import axios from 'axios';
 import { refreshTokenKeycloak } from '../../auth/authService';
-// Configuración del cliente API para el microservicio de usuarios
-const userApiClient = axios.create({
-  baseURL: `${process.env.REACT_APP_DOMAIN}/api/v1/user-admin`, // URL del gateway
-  timeout: 60000, // 60 segundos de timeout para operaciones de creación
-  headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  }
-});
-
-// Interceptor para manejar errores globalmente y refresh token
-userApiClient.interceptors.response.use(
-  response => {
-    console.log('📥 Response AdminUserService:', {
-      status: response.status,
-      statusText: response.statusText,
-      url: response.config?.url,
-      method: response.config?.method?.toUpperCase(),
-      timestamp: new Date().toISOString()
-    });
-    return response;
-  },
-  async error => {
-    const originalRequest = error.config;
-    
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      
-      try {
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (refreshToken) {
-          const refreshResult = await refreshTokenKeycloak(refreshToken);
-          if (refreshResult.success) {
-            // Actualizar el header con el nuevo token
-            originalRequest.headers.Authorization = `Bearer ${localStorage.getItem('access_token')}`;
-            return userApiClient(originalRequest);
-          }
-        }
-      } catch (refreshError) {
-        console.error('Error al refrescar token:', refreshError);
-        // Opcional: redirigir al login
-        localStorage.clear();
-        window.location.href = '/login';
-        return Promise.reject(refreshError);
-      }
-    }
-    
-    console.error('Error en AdminUserService:', error.response?.data || error.message);
-    return Promise.reject(error);
-  }
-);
-
-// Interceptor para agregar token de autenticación si existe
-userApiClient.interceptors.request.use(
-  config => {
-    const token = localStorage.getItem('access_token'); // Consume el token del authService
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    
-    console.log('📤 Request AdminUserService:', {
-      method: config.method?.toUpperCase(),
-      url: `${config.baseURL}${config.url}`,
-      headers: { ...config.headers, Authorization: config.headers.Authorization ? '[TOKEN_PRESENT]' : '[NO_TOKEN]' },
-      timeout: config.timeout,
-      timestamp: new Date().toISOString()
-    });
-    
-    return config;
-  },
-  error => Promise.reject(error)
-);
 
 class AdminUserService {
-  
+  constructor() {
+    this.baseURL = `${process.env.REACT_APP_DOMAIN}/api/v1/users`;
+  }
+
+  /**
+   * Obtiene el token de acceso del localStorage
+   */
+  getAuthToken() {
+    return localStorage.getItem('access_token');
+  }
+
+  /**
+   * Obtiene los headers de autorización para las peticiones
+   * Incluye los headers requeridos por AdminUserRest.java (Headers HTTP v5.0)
+   */
+  getAuthHeaders() {
+    const token = this.getAuthToken();
+    const userId = localStorage.getItem('user_id');
+    const userRoles = localStorage.getItem('user_roles');
+    const institutionId = localStorage.getItem('institution_id');
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+
+    // Headers requeridos según AdminUserRest.java
+    if (userId) {
+      headers['X-User-Id'] = userId;
+    }
+    if (userRoles) {
+      headers['X-User-Roles'] = userRoles;
+    }
+    // Para endpoints ADMIN, X-Institution-Id debe ser null (no se envía el header)
+    // Solo se envía para otros roles que no sean ADMIN
+    if (institutionId && !userRoles?.includes('ADMIN')) {
+      headers['X-Institution-Id'] = institutionId;
+    }
+
+    return headers;
+  }
+
+  /**
+   * Maneja las respuestas de la API con refresh automático de token
+   */
+  async handleResponse(response) {
+    // Si es 401 (No autorizado), intentar refresh del token
+    if (response.status === 401) {
+      console.log('🔄 Token expirado (401), intentando refresh automático...');
+      const refreshToken = localStorage.getItem('refresh_token');
+      
+      if (refreshToken) {
+        const refreshResult = await refreshTokenKeycloak(refreshToken);
+        if (refreshResult.success) {
+          console.log('✅ Token refrescado correctamente, reintentando petición...');
+          throw new Error('TOKEN_REFRESHED'); // Señal especial para reintentar
+        } else {
+          console.log('❌ Error al refrescar token:', refreshResult.error);
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('token_expires');
+          console.log('🚪 Redirigiendo al login...');
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 1000);
+          throw new Error('Sesión expirada. Redirigiendo al login...');
+        }
+      } else {
+        console.log('❌ No hay refresh token disponible');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1000);
+        throw new Error('Sesión expirada. Redirigiendo al login...');
+      }
+    }
+
+    // Verificar si la respuesta tiene contenido antes de parsear JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return {}; // Respuesta vacía pero exitosa
+    }
+
+    try {
+      const data = await response.json();
+      
+      if (!response.ok) {
+        const errorMessage = data.error || data.message || `HTTP error! status: ${response.status}`;
+        console.error('🚨 Error del backend:', {
+          status: response.status,
+          message: errorMessage,
+          data: data
+        });
+        throw new Error(errorMessage);
+      }
+      
+      return data;
+    } catch (error) {
+      if (error.message === 'TOKEN_REFRESHED') {
+        throw error;
+      }
+      
+      if (!response.ok) {
+        const statusMessage = `Error del servidor (${response.status}): ${error.message || 'Respuesta no válida'}`;
+        console.error('🚨 Error de respuesta:', statusMessage);
+        throw new Error(statusMessage);
+      }
+      
+      console.error('Error parsing JSON response:', error);
+      return {};
+    }
+  }
+
+  /**
+   * Ejecuta una petición con retry automático en caso de refresh de token
+   */
+  async executeWithRetry(requestFunction, maxRetries = 1) {
+    let retries = 0;
+    
+    while (retries <= maxRetries) {
+      try {
+        return await requestFunction();
+      } catch (error) {
+        if (error.message === 'TOKEN_REFRESHED' && retries < maxRetries) {
+          console.log('🔄 Reintentando petición con nuevo token...');
+          retries++;
+          continue;
+        }
+        throw error;
+      }
+    }
+  }
+
   /**
    * Crear un nuevo usuario admin/director
+   * POST /admin/create
    * @param {Object} userData - Datos del usuario a crear
    * @returns {Promise<Object>} Respuesta del servidor
    */
   async createAdminUser(userData) {
     try {
-      console.log('🚀 Iniciando creación de usuario admin/director:', {
-        timestamp: new Date().toISOString(),
-        userData: { ...userData, password: '[HIDDEN]' }
+      return await this.executeWithRetry(async () => {
+        console.log('🚀 Iniciando creación de usuario admin/director:', {
+          timestamp: new Date().toISOString(),
+          userData: { ...userData, password: '[HIDDEN]' }
+        });
+        
+        const fullURL = `${this.baseURL}/admin/create`;
+        console.log('📤 Request:', fullURL);
+
+        const response = await fetch(fullURL, {
+          method: 'POST',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify(userData)
+        });
+
+        console.log('📥 Respuesta recibida:', {
+          status: response.status,
+          statusText: response.statusText
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.user || result,
+          message: result.message || 'Usuario creado exitosamente'
+        };
       });
-      
-      const response = await userApiClient.post('/users', userData);
-      
-      console.log('✅ Usuario admin/director creado exitosamente:', {
-        status: response.status,
-        statusText: response.statusText,
-        data: response.data,
-        timestamp: new Date().toISOString()
-      });
-      
-      return response.data;
     } catch (error) {
-      console.error('❌ Error detallado en createAdminUser:', {
-        message: error.message,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        config: {
-          method: error.config?.method,
-          url: error.config?.url,
-          baseURL: error.config?.baseURL
-        },
-        timestamp: new Date().toISOString()
-      });
-      
-      throw this.handleError(error, 'Error al crear usuario admin/director');
+      console.error('❌ Error al crear usuario admin/director:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al crear usuario admin/director'
+      };
     }
   }
 
   /**
-   * Obtener todos los usuarios admin/director
-   * @returns {Promise<Array>} Lista de usuarios admin/director
+   * Obtener todos los usuarios admin del sistema
+   * GET /admin
+   * @returns {Promise<Object>} Respuesta con lista de usuarios admin
    */
   async getAllAdminUsers() {
     try {
-      const response = await userApiClient.get('/users');
-      return response.data;
+      return await this.executeWithRetry(async () => {
+        console.log('📋 Obteniendo todos los usuarios admin');
+        const fullURL = `${this.baseURL}/admin`;
+        
+        const response = await fetch(fullURL, {
+          method: 'GET',
+          headers: this.getAuthHeaders()
+        });
+
+        console.log('📥 Respuesta recibida:', {
+          status: response.status,
+          statusText: response.statusText
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.users || [],
+          total_users: result.total_users || 0,
+          message: result.message || 'Usuarios admin obtenidos exitosamente'
+        };
+      });
     } catch (error) {
-      throw this.handleError(error, 'Error al obtener usuarios admin/director');
+      console.error('❌ Error al obtener usuarios admin:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener usuarios admin',
+        data: [],
+        total_users: 0
+      };
     }
   }
 
   /**
-   * Obtener usuario admin/director por ID de Keycloak
-   * @param {string} keycloakId - ID del usuario en Keycloak
-   * @returns {Promise<Object>} Datos del usuario
+   * Obtener todos los directores de todas las instituciones
+   * GET /admin/directors
+   * @returns {Promise<Object>} Respuesta con lista de directores
    */
-  async getAdminUserByKeycloakId(keycloakId) {
+  async getAllDirectors() {
     try {
-      const response = await userApiClient.get(`/users/keycloak/${keycloakId}`);
-      return response.data;
+      return await this.executeWithRetry(async () => {
+        console.log('📋 Obteniendo todos los directores');
+        const fullURL = `${this.baseURL}/admin/directors`;
+        
+        const response = await fetch(fullURL, {
+          method: 'GET',
+          headers: this.getAuthHeaders()
+        });
+
+        console.log('📥 Respuesta recibida:', {
+          status: response.status,
+          statusText: response.statusText
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.users || [],
+          total_users: result.total_users || 0,
+          message: result.message || 'Directores obtenidos exitosamente'
+        };
+      });
     } catch (error) {
-      throw this.handleError(error, 'Error al obtener usuario por ID de Keycloak');
+      console.error('❌ Error al obtener directores:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener directores',
+        data: [],
+        total_users: 0
+      };
     }
   }
 
   /**
-   * Obtener usuario admin/director por nombre de usuario
-   * @param {string} username - Nombre de usuario
-   * @returns {Promise<Object>} Datos del usuario
+   * Obtener directores de una institución específica
+   * GET /admin/directors/{institution_id}
+   * @param {string} institutionId - ID de la institución
+   * @returns {Promise<Object>} Respuesta con lista de directores de la institución
    */
-  async getAdminUserByUsername(username) {
+  async getDirectorsByInstitution(institutionId) {
     try {
-      const response = await userApiClient.get(`/users/username/${username}`);
-      return response.data;
+      if (!institutionId) {
+        throw new Error('ID de institución requerido');
+      }
+
+      return await this.executeWithRetry(async () => {
+        console.log('📋 Obteniendo directores de institución:', institutionId);
+        const fullURL = `${this.baseURL}/admin/directors/${institutionId}`;
+        
+        const response = await fetch(fullURL, {
+          method: 'GET',
+          headers: this.getAuthHeaders()
+        });
+
+        console.log('📥 Respuesta recibida:', {
+          status: response.status,
+          statusText: response.statusText
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.users || [],
+          total_users: result.total_users || 0,
+          message: result.message || 'Directores de institución obtenidos exitosamente'
+        };
+      });
     } catch (error) {
-      throw this.handleError(error, 'Error al obtener usuario por nombre de usuario');
+      console.error('❌ Error al obtener directores de institución:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener directores de la institución',
+        data: [],
+        total_users: 0
+      };
     }
   }
 
   /**
    * Actualizar usuario admin/director
+   * PUT /admin/update/{user_id}
    * @param {string} keycloakId - ID del usuario en Keycloak
    * @param {Object} userData - Datos actualizados del usuario
-   * @returns {Promise<string>} Mensaje de respuesta
+   * @returns {Promise<Object>} Datos del usuario actualizado
    */
   async updateAdminUser(keycloakId, userData) {
     try {
-      const response = await userApiClient.put(`/users/${keycloakId}`, userData);
-      return response.data;
+      if (!keycloakId) {
+        throw new Error('ID de usuario requerido');
+      }
+
+      return await this.executeWithRetry(async () => {
+        console.log('🔄 Actualizando usuario admin/director:', {
+          keycloakId,
+          userData: { ...userData, password: '[HIDDEN]' }
+        });
+        
+        const fullURL = `${this.baseURL}/admin/update/${keycloakId}`;
+        
+        const response = await fetch(fullURL, {
+          method: 'PUT',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify(userData)
+        });
+
+        console.log('📥 Respuesta recibida:', {
+          status: response.status,
+          statusText: response.statusText
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.user || result,
+          message: result.message || 'Usuario actualizado exitosamente'
+        };
+      });
     } catch (error) {
-      throw this.handleError(error, 'Error al actualizar usuario admin/director');
+      console.error('❌ Error al actualizar usuario:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al actualizar usuario admin/director'
+      };
     }
   }
 
   /**
-   * Eliminar usuario admin/director
+   * Eliminar usuario admin/director (eliminación física)
+   * DELETE /admin/delete/{user_id}
    * @param {string} keycloakId - ID del usuario en Keycloak
-   * @returns {Promise<string>} Mensaje de respuesta
+   * @returns {Promise<Object>} Mensaje de respuesta
    */
   async deleteAdminUser(keycloakId) {
     try {
-      const response = await userApiClient.delete(`/users/${keycloakId}`);
-      return response.data;
-    } catch (error) {
-      throw this.handleError(error, 'Error al eliminar usuario admin/director');
-    }
-  }
+      if (!keycloakId) {
+        throw new Error('ID de usuario requerido');
+      }
 
-  /**
-   * Cambiar estado de usuario admin/director
-   * @param {string} keycloakId - ID del usuario en Keycloak
-   * @param {string} status - Nuevo estado del usuario
-   * @returns {Promise<Object>} Datos actualizados del usuario
-   */
-  async changeAdminUserStatus(keycloakId, status) {
-    try {
-      const response = await userApiClient.patch(`/users/${keycloakId}/status`, null, {
-        params: { status }
+      return await this.executeWithRetry(async () => {
+        console.log('🗑️ Eliminando usuario admin/director:', keycloakId);
+        const fullURL = `${this.baseURL}/admin/delete/${keycloakId}`;
+        
+        const response = await fetch(fullURL, {
+          method: 'DELETE',
+          headers: this.getAuthHeaders()
+        });
+
+        console.log('📥 Respuesta recibida:', {
+          status: response.status,
+          statusText: response.statusText
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          message: result.message || 'Usuario eliminado exitosamente'
+        };
       });
-      return response.data;
     } catch (error) {
-      throw this.handleError(error, 'Error al cambiar estado del usuario');
-    }
-  }
-
-  /**
-   * Activar usuario admin/director
-   * @param {string} keycloakId - ID del usuario en Keycloak
-   * @returns {Promise<Object>} Datos actualizados del usuario
-   */
-  async activateAdminUser(keycloakId) {
-    try {
-      const response = await userApiClient.patch(`/users/${keycloakId}/activate`);
-      return response.data;
-    } catch (error) {
-      throw this.handleError(error, 'Error al activar usuario admin/director');
+      console.error('❌ Error al eliminar usuario:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al eliminar usuario admin/director'
+      };
     }
   }
 
   /**
    * Desactivar usuario admin/director
+   * PATCH /admin/deactivate/{user_id}
    * @param {string} keycloakId - ID del usuario en Keycloak
-   * @returns {Promise<Object>} Datos actualizados del usuario
+   * @returns {Promise<Object>} Datos del usuario desactivado
    */
   async deactivateAdminUser(keycloakId) {
     try {
-      const response = await userApiClient.patch(`/users/${keycloakId}/deactivate`);
-      return response.data;
-    } catch (error) {
-      throw this.handleError(error, 'Error al desactivar usuario admin/director');
-    }
-  }
-
-  /**
-   * Obtener usuarios admin/director por estado
-   * @param {string} status - Estado de los usuarios a buscar
-   * @returns {Promise<Array>} Lista de usuarios filtrados por estado
-   */
-  async getAdminUsersByStatus(status) {
-    try {
-      const response = await userApiClient.get(`/users/status/${status}`);
-      return response.data;
-    } catch (error) {
-      throw this.handleError(error, 'Error al obtener usuarios por estado');
-    }
-  }
-
-  /**
-   * Manejo centralizado de errores
-   * @param {Error} error - Error capturado
-   * @param {string} defaultMessage - Mensaje por defecto
-   * @returns {Error} Error procesado
-   */
-  handleError(error, defaultMessage) {
-    if (error.response) {
-      // Error del servidor
-      const { status, data } = error.response;
-      const message = data?.message || data || defaultMessage;
-      
-      switch (status) {
-        case 400:
-          return new Error(`Datos inválidos: ${message}`);
-        case 401:
-          return new Error('No autorizado. Por favor, inicie sesión nuevamente.');
-        case 403:
-          return new Error('No tiene permisos para realizar esta acción.');
-        case 404:
-          return new Error('Usuario no encontrado.');
-        case 409:
-          return new Error('El usuario ya existe o hay un conflicto de datos.');
-        case 500:
-          return new Error('Error interno del servidor. Intente más tarde.');
-        default:
-          return new Error(`Error ${status}: ${message}`);
+      if (!keycloakId) {
+        throw new Error('ID de usuario requerido');
       }
-    } else if (error.request) {
-      // Error de red
-      return new Error('Error de conexión. Verifique su conexión a internet.');
-    } else {
-      // Error de configuración
-      return new Error(error.message || defaultMessage);
+
+      return await this.executeWithRetry(async () => {
+        console.log('🔄 Desactivando usuario admin/director:', keycloakId);
+        const fullURL = `${this.baseURL}/admin/deactivate/${keycloakId}`;
+        
+        const response = await fetch(fullURL, {
+          method: 'PATCH',
+          headers: this.getAuthHeaders()
+        });
+
+        console.log('📥 Respuesta recibida:', {
+          status: response.status,
+          statusText: response.statusText
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.user || result,
+          message: result.message || 'Usuario desactivado exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('❌ Error al desactivar usuario:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al desactivar usuario admin/director'
+      };
+    }
+  }
+
+  /**
+   * Activar usuario admin/director
+   * PATCH /admin/activate/{user_id}
+   * @param {string} keycloakId - ID del usuario en Keycloak
+   * @returns {Promise<Object>} Datos del usuario activado
+   */
+  async activateAdminUser(keycloakId) {
+    try {
+      if (!keycloakId) {
+        throw new Error('ID de usuario requerido');
+      }
+
+      return await this.executeWithRetry(async () => {
+        console.log('🔄 Activando usuario admin/director:', keycloakId);
+        const fullURL = `${this.baseURL}/admin/activate/${keycloakId}`;
+        
+        const response = await fetch(fullURL, {
+          method: 'PATCH',
+          headers: this.getAuthHeaders()
+        });
+
+        console.log('📥 Respuesta recibida:', {
+          status: response.status,
+          statusText: response.statusText
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.user || result,
+          message: result.message || 'Usuario activado exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('❌ Error al activar usuario:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al activar usuario admin/director'
+      };
+    }
+  }
+
+  /**
+   * Cambiar estado de usuario admin/director (método auxiliar)
+   * @param {string} keycloakId - ID del usuario en Keycloak
+   * @param {string} status - Nuevo estado del usuario ('activate' o 'deactivate')
+   * @returns {Promise<Object>} Datos actualizados del usuario
+   */
+  async changeAdminUserStatus(keycloakId, status) {
+    try {
+      if (status === 'activate' || status === 'ACTIVE') {
+        return await this.activateAdminUser(keycloakId);
+      } else if (status === 'deactivate' || status === 'INACTIVE') {
+        return await this.deactivateAdminUser(keycloakId);
+      } else {
+        return {
+          success: false,
+          error: 'Estado inválido. Use "activate" o "deactivate"'
+        };
+      }
+    } catch (error) {
+      console.error('❌ Error al cambiar estado del usuario:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al cambiar estado del usuario'
+      };
+    }
+  }
+
+  /**
+   * Obtener información completa de usuarios (combinando admins y directores)
+   * @returns {Promise<Object>} Objeto con admins y directores separados
+   */
+  async getAllUsersComplete() {
+    try {
+      console.log('📊 Obteniendo información completa de usuarios');
+      
+      const [adminsResponse, directorsResponse] = await Promise.all([
+        this.getAllAdminUsers(),
+        this.getAllDirectors()
+      ]);
+      
+      return {
+        success: true,
+        admins: adminsResponse,
+        directors: directorsResponse,
+        totalAdmins: adminsResponse?.total_users || 0,
+        totalDirectors: directorsResponse?.total_users || 0,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('❌ Error al obtener información completa:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener información completa de usuarios'
+      };
     }
   }
 

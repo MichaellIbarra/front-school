@@ -1,284 +1,471 @@
-import axios from 'axios';
 import { refreshTokenKeycloak } from '../../auth/authService';
 
-// Configuración del cliente API para el microservicio de gestión de usuarios director
-const directorUserApiClient = axios.create({
-  baseURL:  `${process.env.REACT_APP_DOMAIN}/api/v1/user-director`, // URL del gateway
-  timeout: 60000, // 60 segundos de timeout para operaciones de creación
-  headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
+class DirectorUserService {
+  constructor() {
+    this.baseURL = `${process.env.REACT_APP_DOMAIN}/api/v1/users`;
   }
-});
 
-// Interceptor para manejar errores globalmente y refresh token
-directorUserApiClient.interceptors.response.use(
-  response => {
-    console.log('📥 Response DirectorUserService:', {
-      status: response.status,
-      statusText: response.statusText,
-      url: response.config?.url,
-      method: response.config?.method?.toUpperCase(),
-      timestamp: new Date().toISOString()
-    });
-    return response;
-  },
-  async error => {
-    const originalRequest = error.config;
-    
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
+  /**
+   * Obtiene el token de acceso del localStorage
+   */
+  getAuthToken() {
+    return localStorage.getItem('access_token');
+  }
+
+  /**
+   * Obtiene los headers de autorización para las peticiones
+   * Incluye los headers requeridos por UserManagementRest.java (Headers HTTP v5.0)
+   */
+  getAuthHeaders() {
+    const token = this.getAuthToken();
+    const userId = localStorage.getItem('user_id');
+    const userRoles = localStorage.getItem('user_roles');
+    const institutionId = localStorage.getItem('institution_id');
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+
+    // Headers requeridos según UserManagementRest.java (DIRECTOR endpoints)
+    if (userId) {
+      headers['X-User-Id'] = userId;
+    }
+    if (userRoles) {
+      headers['X-User-Roles'] = userRoles;
+    }
+    // Para endpoints DIRECTOR, X-Institution-Id es OBLIGATORIO
+    if (institutionId) {
+      headers['X-Institution-Id'] = institutionId;
+    }
+
+    return headers;
+  }
+
+  /**
+   * Maneja las respuestas de la API con refresh automático de token
+   */
+  async handleResponse(response) {
+    // Si es 401 (No autorizado), intentar refresh del token
+    if (response.status === 401) {
+      console.log('🔄 Token expirado (401), intentando refresh automático...');
+      const refreshToken = localStorage.getItem('refresh_token');
       
-      try {
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (refreshToken) {
-          const refreshResult = await refreshTokenKeycloak(refreshToken);
-          if (refreshResult.success) {
-            // Actualizar el header con el nuevo token
-            originalRequest.headers.Authorization = `Bearer ${localStorage.getItem('access_token')}`;
-            return directorUserApiClient(originalRequest);
-          }
+      if (refreshToken) {
+        const refreshResult = await refreshTokenKeycloak(refreshToken);
+        if (refreshResult.success) {
+          console.log('✅ Token renovado exitosamente');
+          // Guardar el nuevo token
+          localStorage.setItem('access_token', refreshResult.access_token);
+          // Señal especial para que executeWithRetry reintente la petición
+          throw new Error('TOKEN_REFRESHED');
+        } else {
+          console.log('❌ Error al renovar token, redirigiendo al login...');
+          localStorage.clear();
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 1000);
+          throw new Error('Sesión expirada. Redirigiendo al login...');
         }
-      } catch (refreshError) {
-        console.error('Error al refrescar token:', refreshError);
-        // Opcional: redirigir al login
-        localStorage.clear();
-        window.location.href = '/login';
-        return Promise.reject(refreshError);
+      } else {
+        console.log('❌ No hay refresh token disponible');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1000);
+        throw new Error('Sesión expirada. Redirigiendo al login...');
       }
     }
-    
-    console.error('Error en DirectorUserService:', error.response?.data || error.message);
-    return Promise.reject(error);
-  }
-);
 
-// Interceptor para agregar token de autenticación si existe
-directorUserApiClient.interceptors.request.use(
-  config => {
-    const token = localStorage.getItem('access_token'); // Consume el token del authService
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    // Verificar si la respuesta tiene contenido antes de parsear JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return {}; // Respuesta vacía pero exitosa
     }
-    
-    console.log('📤 Request DirectorUserService:', {
-      method: config.method?.toUpperCase(),
-      url: `${config.baseURL}${config.url}`,
-      headers: { ...config.headers, Authorization: config.headers.Authorization ? '[TOKEN_PRESENT]' : '[NO_TOKEN]' },
-      timeout: config.timeout,
-      timestamp: new Date().toISOString()
-    });
-    
-    return config;
-  },
-  error => Promise.reject(error)
-);
 
-class DirectorUserService {
-  
+    try {
+      const data = await response.json();
+      
+      if (!response.ok) {
+        const errorMessage = data.error || data.message || `HTTP error! status: ${response.status}`;
+        console.error('� Error del backend:', {
+          status: response.status,
+          message: errorMessage,
+          data: data
+        });
+        throw new Error(errorMessage);
+      }
+      
+      return data;
+    } catch (error) {
+      if (error.message === 'TOKEN_REFRESHED') {
+        throw error;
+      }
+      
+      if (!response.ok) {
+        const statusMessage = `Error del servidor (${response.status}): ${error.message || 'Respuesta no válida'}`;
+        console.error('🚨 Error de respuesta:', statusMessage);
+        throw new Error(statusMessage);
+      }
+      
+      console.error('Error parsing JSON response:', error);
+      return {};
+    }
+  }
+
   /**
-   * Crear un nuevo usuario completo
+   * Ejecuta una petición con retry automático en caso de refresh de token
+   */
+  async executeWithRetry(requestFunction, maxRetries = 1) {
+    let retries = 0;
+    
+    while (retries <= maxRetries) {
+      try {
+        return await requestFunction();
+      } catch (error) {
+        if (error.message === 'TOKEN_REFRESHED' && retries < maxRetries) {
+          console.log('🔄 Reintentando petición con nuevo token...');
+          retries++;
+          continue;
+        }
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Crear un nuevo usuario staff (TEACHER, AUXILIARY, SECRETARY)
+   * POST /director/create
    * @param {Object} userData - Datos del usuario a crear
-   * @returns {Promise<string>} Mensaje de respuesta
+   * @returns {Promise<Object>} Respuesta del servidor
    */
-  async createCompleteUser(userData) {
+  async createStaffUser(userData) {
     try {
-      console.log('🚀 Iniciando creación de usuario completo (director personal):', {
-        timestamp: new Date().toISOString(),
-        userData: { ...userData, password: userData.password ? '[HIDDEN]' : undefined }
+      return await this.executeWithRetry(async () => {
+        console.log('🚀 Iniciando creación de usuario staff (director):', {
+          timestamp: new Date().toISOString(),
+          userData: { ...userData, password: '[HIDDEN]' }
+        });
+        
+        const fullURL = `${this.baseURL}/director/create`;
+        console.log('📤 Request:', fullURL);
+
+        const response = await fetch(fullURL, {
+          method: 'POST',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify(userData)
+        });
+
+        console.log('📥 Respuesta recibida:', {
+          status: response.status,
+          statusText: response.statusText
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.user || result,
+          message: result.message || 'Usuario creado exitosamente'
+        };
       });
-      
-      const response = await directorUserApiClient.post('/users', userData);
-      
-      console.log('✅ Usuario completo creado exitosamente:', {
-        status: response.status,
-        statusText: response.statusText,
-        data: response.data,
-        timestamp: new Date().toISOString()
+    } catch (error) {
+      console.error('❌ Error al crear usuario staff:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al crear usuario staff'
+      };
+    }
+  }
+
+  /**
+   * Obtener todos los usuarios staff de la institución
+   * GET /director/staff
+   * @returns {Promise<Object>} Respuesta con lista de usuarios staff
+   */
+  async getAllStaff() {
+    try {
+      return await this.executeWithRetry(async () => {
+        console.log('📋 Obteniendo todo el personal staff');
+        const fullURL = `${this.baseURL}/director/staff`;
+        
+        const response = await fetch(fullURL, {
+          method: 'GET',
+          headers: this.getAuthHeaders()
+        });
+
+        console.log('📥 Respuesta recibida:', {
+          status: response.status,
+          statusText: response.statusText
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.users || [],
+          total_users: result.total_users || 0,
+          message: result.message || 'Personal obtenido exitosamente'
+        };
       });
-      
-      return response.data;
     } catch (error) {
-      console.error('❌ Error detallado en createCompleteUser:', {
-        message: error.message,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        config: {
-          method: error.config?.method,
-          url: error.config?.url,
-          baseURL: error.config?.baseURL
-        },
-        timestamp: new Date().toISOString()
+      console.error('❌ Error al obtener personal staff:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener personal staff',
+        data: [],
+        total_users: 0
+      };
+    }
+  }
+
+  /**
+   * Obtener usuarios staff por rol
+   * GET /director/by-role/{role}
+   * @param {string} role - Rol a filtrar (TEACHER, AUXILIARY, SECRETARY)
+   * @returns {Promise<Object>} Respuesta con lista de usuarios por rol
+   */
+  async getStaffByRole(role) {
+    try {
+      if (!role) {
+        throw new Error('Rol requerido');
+      }
+
+      return await this.executeWithRetry(async () => {
+        console.log('📋 Obteniendo personal por rol:', role);
+        const fullURL = `${this.baseURL}/director/by-role/${role}`;
+        
+        const response = await fetch(fullURL, {
+          method: 'GET',
+          headers: this.getAuthHeaders()
+        });
+
+        console.log('📥 Respuesta recibida:', {
+          status: response.status,
+          statusText: response.statusText
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.users || [],
+          total_users: result.total_users || 0,
+          message: result.message || 'Personal por rol obtenido exitosamente'
+        };
       });
-      
-      throw this.handleError(error, 'Error al crear usuario completo');
-    }
-  }
-
-  /**
-   * Obtener todos los usuarios completos
-   * @returns {Promise<Array>} Lista de usuarios completos
-   */
-  async getAllCompleteUsers() {
-    try {
-      const response = await directorUserApiClient.get('/users');
-      return response.data;
     } catch (error) {
-      throw this.handleError(error, 'Error al obtener usuarios completos');
+      console.error('❌ Error al obtener personal por rol:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener personal por rol',
+        data: [],
+        total_users: 0
+      };
     }
   }
 
   /**
-   * Obtener usuario completo por ID de Keycloak
-   * @param {string} keycloakId - ID del usuario en Keycloak
-   * @returns {Promise<Object>} Datos del usuario
-   */
-  async getCompleteUserByKeycloakId(keycloakId) {
-    try {
-      const response = await directorUserApiClient.get(`/users/keycloak/${keycloakId}`);
-      return response.data;
-    } catch (error) {
-      throw this.handleError(error, 'Error al obtener usuario por ID de Keycloak');
-    }
-  }
-
-  /**
-   * Obtener usuario completo por nombre de usuario
-   * @param {string} username - Nombre de usuario
-   * @returns {Promise<Object>} Datos del usuario
-   */
-  async getCompleteUserByUsername(username) {
-    try {
-      const response = await directorUserApiClient.get(`/users/username/${username}`);
-      return response.data;
-    } catch (error) {
-      throw this.handleError(error, 'Error al obtener usuario por nombre de usuario');
-    }
-  }
-
-  /**
-   * Actualizar usuario completo
+   * Actualizar usuario staff
+   * PUT /director/update/{user_id}
    * @param {string} keycloakId - ID del usuario en Keycloak
    * @param {Object} userData - Datos actualizados del usuario
-   * @returns {Promise<string>} Mensaje de respuesta
+   * @returns {Promise<Object>} Datos del usuario actualizado
    */
-  async updateCompleteUser(keycloakId, userData) {
+  async updateStaffUser(keycloakId, userData) {
     try {
-      const response = await directorUserApiClient.put(`/users/${keycloakId}`, userData);
-      return response.data;
-    } catch (error) {
-      throw this.handleError(error, 'Error al actualizar usuario completo');
-    }
-  }
-
-  /**
-   * Eliminar usuario completo
-   * @param {string} keycloakId - ID del usuario en Keycloak
-   * @returns {Promise<string>} Mensaje de respuesta
-   */
-  async deleteCompleteUser(keycloakId) {
-    try {
-      const response = await directorUserApiClient.delete(`/users/${keycloakId}`);
-      return response.data;
-    } catch (error) {
-      throw this.handleError(error, 'Error al eliminar usuario completo');
-    }
-  }
-
-  /**
-   * Cambiar estado de usuario
-   * @param {string} keycloakId - ID del usuario en Keycloak
-   * @param {string} status - Nuevo estado del usuario
-   * @returns {Promise<Object>} Datos actualizados del usuario
-   */
-  async changeUserStatus(keycloakId, status) {
-    try {
-      const response = await directorUserApiClient.patch(`/users/${keycloakId}/status`, null, {
-        params: { status }
-      });
-      return response.data;
-    } catch (error) {
-      throw this.handleError(error, 'Error al cambiar estado del usuario');
-    }
-  }
-
-  /**
-   * Activar usuario
-   * @param {string} keycloakId - ID del usuario en Keycloak
-   * @returns {Promise<Object>} Datos actualizados del usuario
-   */
-  async activateUser(keycloakId) {
-    try {
-      const response = await directorUserApiClient.patch(`/users/${keycloakId}/activate`);
-      return response.data;
-    } catch (error) {
-      throw this.handleError(error, 'Error al activar usuario');
-    }
-  }
-
-  /**
-   * Desactivar usuario
-   * @param {string} keycloakId - ID del usuario en Keycloak
-   * @returns {Promise<Object>} Datos actualizados del usuario
-   */
-  async deactivateUser(keycloakId) {
-    try {
-      const response = await directorUserApiClient.patch(`/users/${keycloakId}/deactivate`);
-      return response.data;
-    } catch (error) {
-      throw this.handleError(error, 'Error al desactivar usuario');
-    }
-  }
-
-  /**
-   * Obtener usuarios por estado
-   * @param {string} status - Estado de los usuarios a buscar
-   * @returns {Promise<Array>} Lista de usuarios filtrados por estado
-   */
-  async getUsersByStatus(status) {
-    try {
-      const response = await directorUserApiClient.get(`/users/status/${status}`);
-      return response.data;
-    } catch (error) {
-      throw this.handleError(error, 'Error al obtener usuarios por estado');
-    }
-  }
-
-  /**
-   * Manejo centralizado de errores
-   * @param {Error} error - Error capturado
-   * @param {string} defaultMessage - Mensaje por defecto
-   * @returns {Error} Error procesado
-   */
-  handleError(error, defaultMessage) {
-    if (error.response) {
-      // Error del servidor
-      const { status, data } = error.response;
-      const message = data?.message || data || defaultMessage;
-      
-      switch (status) {
-        case 400:
-          return new Error(`Datos inválidos: ${message}`);
-        case 401:
-          return new Error('No autorizado. Por favor, inicie sesión nuevamente.');
-        case 403:
-          return new Error('No tiene permisos para realizar esta acción.');
-        case 404:
-          return new Error('Usuario no encontrado.');
-        case 409:
-          return new Error('El usuario ya existe o hay un conflicto de datos.');
-        case 500:
-          return new Error('Error interno del servidor. Intente más tarde.');
-        default:
-          return new Error(`Error ${status}: ${message}`);
+      if (!keycloakId) {
+        throw new Error('ID de usuario requerido');
       }
-    } else if (error.request) {
-      // Error de red
-      return new Error('Error de conexión. Verifique su conexión a internet.');
-    } else {
-      // Error de configuración
-      return new Error(error.message || defaultMessage);
+
+      return await this.executeWithRetry(async () => {
+        console.log('🔄 Actualizando usuario staff:', {
+          keycloakId,
+          userData: { ...userData, password: '[HIDDEN]' }
+        });
+        
+        const fullURL = `${this.baseURL}/director/update/${keycloakId}`;
+        
+        const response = await fetch(fullURL, {
+          method: 'PUT',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify(userData)
+        });
+
+        console.log('📥 Respuesta recibida:', {
+          status: response.status,
+          statusText: response.statusText
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.user || result,
+          message: result.message || 'Usuario actualizado exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('❌ Error al actualizar usuario:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al actualizar usuario staff'
+      };
+    }
+  }
+
+  /**
+   * Eliminar usuario staff (eliminación física)
+   * DELETE /director/delete/{user_id}
+   * @param {string} keycloakId - ID del usuario en Keycloak
+   * @returns {Promise<Object>} Mensaje de respuesta
+   */
+  async deleteStaffUser(keycloakId) {
+    try {
+      if (!keycloakId) {
+        throw new Error('ID de usuario requerido');
+      }
+
+      return await this.executeWithRetry(async () => {
+        console.log('🗑️ Eliminando usuario staff:', keycloakId);
+        const fullURL = `${this.baseURL}/director/delete/${keycloakId}`;
+        
+        const response = await fetch(fullURL, {
+          method: 'DELETE',
+          headers: this.getAuthHeaders()
+        });
+
+        console.log('📥 Respuesta recibida:', {
+          status: response.status,
+          statusText: response.statusText
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          message: result.message || 'Usuario eliminado exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('❌ Error al eliminar usuario:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al eliminar usuario staff'
+      };
+    }
+  }
+
+  /**
+   * Desactivar usuario staff
+   * PATCH /director/deactivate/{user_id}
+   * @param {string} keycloakId - ID del usuario en Keycloak
+   * @returns {Promise<Object>} Datos del usuario desactivado
+   */
+  async deactivateStaffUser(keycloakId) {
+    try {
+      if (!keycloakId) {
+        throw new Error('ID de usuario requerido');
+      }
+
+      return await this.executeWithRetry(async () => {
+        console.log('🔄 Desactivando usuario staff:', keycloakId);
+        const fullURL = `${this.baseURL}/director/deactivate/${keycloakId}`;
+        
+        const response = await fetch(fullURL, {
+          method: 'PATCH',
+          headers: this.getAuthHeaders()
+        });
+
+        console.log('📥 Respuesta recibida:', {
+          status: response.status,
+          statusText: response.statusText
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.user || result,
+          message: result.message || 'Usuario desactivado exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('❌ Error al desactivar usuario:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al desactivar usuario staff'
+      };
+    }
+  }
+
+  /**
+   * Activar usuario staff
+   * PATCH /director/activate/{user_id}
+   * @param {string} keycloakId - ID del usuario en Keycloak
+   * @returns {Promise<Object>} Datos del usuario activado
+   */
+  async activateStaffUser(keycloakId) {
+    try {
+      if (!keycloakId) {
+        throw new Error('ID de usuario requerido');
+      }
+
+      return await this.executeWithRetry(async () => {
+        console.log('🔄 Activando usuario staff:', keycloakId);
+        const fullURL = `${this.baseURL}/director/activate/${keycloakId}`;
+        
+        const response = await fetch(fullURL, {
+          method: 'PATCH',
+          headers: this.getAuthHeaders()
+        });
+
+        console.log('📥 Respuesta recibida:', {
+          status: response.status,
+          statusText: response.statusText
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.user || result,
+          message: result.message || 'Usuario activado exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('❌ Error al activar usuario:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al activar usuario staff'
+      };
+    }
+  }
+
+  /**
+   * Cambiar estado de usuario staff (método auxiliar)
+   * @param {string} keycloakId - ID del usuario en Keycloak
+   * @param {string} status - Nuevo estado del usuario ('activate' o 'deactivate')
+   * @returns {Promise<Object>} Datos actualizados del usuario
+   */
+  async changeStaffUserStatus(keycloakId, status) {
+    try {
+      if (status === 'activate' || status === 'ACTIVE') {
+        return await this.activateStaffUser(keycloakId);
+      } else if (status === 'deactivate' || status === 'INACTIVE') {
+        return await this.deactivateStaffUser(keycloakId);
+      } else {
+        throw new Error(`Estado inválido: ${status}`);
+      }
+    } catch (error) {
+      console.error('❌ Error al cambiar estado del usuario:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al cambiar estado del usuario'
+      };
     }
   }
 
@@ -314,6 +501,15 @@ class DirectorUserService {
       errors.push('Debe asignar al menos un rol al usuario');
     }
 
+    // Validar que el rol sea permitido para director (TEACHER, AUXILIARY, SECRETARY)
+    const allowedRoles = ['TEACHER', 'AUXILIARY', 'SECRETARY'];
+    const userRoles = Array.isArray(userData.roles) ? userData.roles : [userData.roles];
+    const hasInvalidRole = userRoles.some(role => !allowedRoles.includes(role));
+    
+    if (hasInvalidRole) {
+      errors.push('Solo puede crear usuarios con roles: TEACHER, AUXILIARY, SECRETARY');
+    }
+
     return {
       isValid: errors.length === 0,
       errors
@@ -326,18 +522,162 @@ class DirectorUserService {
    * @returns {Object} Datos formateados
    */
   formatUserDataForSubmit(userData) {
-    return {
+    const formattedData = {
       username: userData.username?.trim(),
       email: userData.email?.trim().toLowerCase(),
       firstname: userData.firstname?.trim() || null,
       lastname: userData.lastname?.trim() || null,
-      password: userData.password || null,
       roles: Array.isArray(userData.roles) ? userData.roles : [userData.roles],
       documentType: userData.documentType,
       documentNumber: userData.documentNumber?.trim(),
       phone: userData.phone?.trim() || null,
       status: userData.status || 'A'
     };
+
+    // NO incluir institutionId ya que se asigna automáticamente en el backend
+    // NO incluir password para que se genere automáticamente
+    
+    return formattedData;
+  }
+
+  /**
+   * Obtener información completa de usuarios staff por rol
+   * @returns {Promise<Object>} Objeto con teachers, auxiliaries y secretaries separados
+   */
+  async getAllStaffComplete() {
+    try {
+      console.log('📊 Obteniendo información completa de usuarios staff');
+      
+      const [teachersResponse, auxiliariesResponse, secretariesResponse] = await Promise.all([
+        this.getStaffByRole('TEACHER'),
+        this.getStaffByRole('AUXILIARY'),
+        this.getStaffByRole('SECRETARY')
+      ]);
+      
+      return {
+        success: true,
+        teachers: teachersResponse,
+        auxiliaries: auxiliariesResponse,
+        secretaries: secretariesResponse,
+        totalTeachers: teachersResponse?.total_users || 0,
+        totalAuxiliaries: auxiliariesResponse?.total_users || 0,
+        totalSecretaries: secretariesResponse?.total_users || 0,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('❌ Error al obtener información completa:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener información completa de usuarios staff'
+      };
+    }
+  }
+
+  // ========================================
+  // Métodos de compatibilidad con versión anterior
+  // Para mantener compatibilidad con componentes existentes
+  // ========================================
+
+  /**
+   * MÉTODO DE COMPATIBILIDAD: Obtener todos los usuarios staff
+   * Alias de getAllStaff() para compatibilidad
+   * @deprecated Use getAllStaff() en su lugar
+   */
+  async getAllCompleteUsers() {
+    console.warn('⚠️ getAllCompleteUsers() está deprecado, use getAllStaff()');
+    const response = await this.getAllStaff();
+    // Retornar solo los datos para compatibilidad con código anterior
+    return response.data || [];
+  }
+
+  /**
+   * MÉTODO DE COMPATIBILIDAD: Obtener usuario por Keycloak ID
+   * @deprecated Este endpoint ya no existe en el backend, devuelve null
+   */
+  async getCompleteUserByKeycloakId(keycloakId) {
+    console.warn('⚠️ getCompleteUserByKeycloakId() ya no está disponible en el backend');
+    // Buscar el usuario en la lista de todos los staff
+    const response = await this.getAllStaff();
+    if (response.success && Array.isArray(response.data)) {
+      const user = response.data.find(u => u.keycloakId === keycloakId);
+      return user || null;
+    }
+    return null;
+  }
+
+  /**
+   * MÉTODO DE COMPATIBILIDAD: Obtener usuario por username
+   * @deprecated Este endpoint ya no existe en el backend, devuelve null
+   */
+  async getCompleteUserByUsername(username) {
+    console.warn('⚠️ getCompleteUserByUsername() ya no está disponible en el backend');
+    // Buscar el usuario en la lista de todos los staff
+    const response = await this.getAllStaff();
+    if (response.success && Array.isArray(response.data)) {
+      const user = response.data.find(u => u.username === username);
+      return user || null;
+    }
+    return null;
+  }
+
+  /**
+   * MÉTODO DE COMPATIBILIDAD: Crear usuario completo
+   * Alias de createStaffUser() para compatibilidad
+   * @deprecated Use createStaffUser() en su lugar
+   */
+  async createCompleteUser(userData) {
+    console.warn('⚠️ createCompleteUser() está deprecado, use createStaffUser()');
+    return await this.createStaffUser(userData);
+  }
+
+  /**
+   * MÉTODO DE COMPATIBILIDAD: Actualizar usuario completo
+   * Alias de updateStaffUser() para compatibilidad
+   * @deprecated Use updateStaffUser() en su lugar
+   */
+  async updateCompleteUser(keycloakId, userData) {
+    console.warn('⚠️ updateCompleteUser() está deprecado, use updateStaffUser()');
+    return await this.updateStaffUser(keycloakId, userData);
+  }
+
+  /**
+   * MÉTODO DE COMPATIBILIDAD: Eliminar usuario completo
+   * Alias de deleteStaffUser() para compatibilidad
+   * @deprecated Use deleteStaffUser() en su lugar
+   */
+  async deleteCompleteUser(keycloakId) {
+    console.warn('⚠️ deleteCompleteUser() está deprecado, use deleteStaffUser()');
+    return await this.deleteStaffUser(keycloakId);
+  }
+
+  /**
+   * MÉTODO DE COMPATIBILIDAD: Activar usuario
+   * Alias de activateStaffUser() para compatibilidad
+   * @deprecated Use activateStaffUser() en su lugar
+   */
+  async activateUser(keycloakId) {
+    console.warn('⚠️ activateUser() está deprecado, use activateStaffUser()');
+    return await this.activateStaffUser(keycloakId);
+  }
+
+  /**
+   * MÉTODO DE COMPATIBILIDAD: Desactivar usuario
+   * Alias de deactivateStaffUser() para compatibilidad
+   * @deprecated Use deactivateStaffUser() en su lugar
+   */
+  async deactivateUser(keycloakId) {
+    console.warn('⚠️ deactivateUser() está deprecado, use deactivateStaffUser()');
+    return await this.deactivateStaffUser(keycloakId);
+  }
+
+  /**
+   * MÉTODO DE COMPATIBILIDAD: Cambiar estado de usuario
+   * Alias de changeStaffUserStatus() para compatibilidad
+   * @deprecated Use changeStaffUserStatus() en su lugar
+   */
+  async changeUserStatus(keycloakId, status) {
+    console.warn('⚠️ changeUserStatus() está deprecado, use changeStaffUserStatus()');
+    return await this.changeStaffUserStatus(keycloakId, status);
   }
 }
 

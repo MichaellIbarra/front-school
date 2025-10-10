@@ -3,6 +3,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import Header from '../../../components/Header';
 import Sidebar from '../../../components/Sidebar';
 import adminUserService from '../../../services/adminDirectorService/adminUserService';
+import reniecService from '../../../services/reniec/reniecService';
 import { 
   UserStatus, 
   DocumentType, 
@@ -21,6 +22,8 @@ const AdminDirectorUserEdit = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
+  const [dniSearch, setDniSearch] = useState('');
+  const [searchingDNI, setSearchingDNI] = useState(false);
 
   // Cargar datos del usuario al montar el componente
   useEffect(() => {
@@ -35,7 +38,20 @@ const AdminDirectorUserEdit = () => {
   const loadUserData = async () => {
     try {
       setLoading(true);
-      const userData = await adminUserService.getAdminUserByKeycloakId(keycloakId);
+      
+      // Obtener todos los usuarios admin y buscar el específico
+      const response = await adminUserService.getAllAdminUsers();
+      
+      if (!response.success) {
+        throw new Error(response.error || 'Error al obtener usuarios');
+      }
+      
+      // Buscar el usuario específico por keycloakId
+      const userData = response.data.find(user => user.keycloakId === keycloakId);
+      
+      if (!userData) {
+        throw new Error('Usuario no encontrado');
+      }
       
       // Mapear datos del usuario al formato del formulario
       const mappedData = {
@@ -43,7 +59,7 @@ const AdminDirectorUserEdit = () => {
         email: userData.email || '',
         firstname: userData.firstname || '',
         lastname: userData.lastname || '',
-        roles: [], // Las roles las obtendremos de Keycloak si es necesario
+        roles: userData.roles || [],
         documentType: userData.documentType || DocumentType.DNI,
         documentNumber: userData.documentNumber || '',
         phone: userData.phone || '',
@@ -54,7 +70,7 @@ const AdminDirectorUserEdit = () => {
       setOriginalData(mappedData);
     } catch (error) {
       alert('Error al cargar datos del usuario: ' + error.message);
-      navigate('/admin-director/users');
+      navigate('/admin/admin-director/users');
     } finally {
       setLoading(false);
     }
@@ -96,6 +112,44 @@ const AdminDirectorUserEdit = () => {
         ...prev,
         [name]: null
       }));
+    }
+  };
+
+  /**
+   * Buscar datos en RENIEC por DNI
+   */
+  const handleDNISearch = async () => {
+    // Validar formato del DNI
+    const validation = reniecService.validateDNI(dniSearch);
+    if (!validation.isValid) {
+      alert(validation.error);
+      return;
+    }
+
+    setSearchingDNI(true);
+    
+    try {
+      const result = await reniecService.searchByDNI(dniSearch);
+      
+      if (result.success) {
+        // Auto-completar los campos del formulario
+        setFormData(prev => ({
+          ...prev,
+          firstname: result.data.nombres,
+          lastname: `${result.data.apellidoPaterno} ${result.data.apellidoMaterno}`.trim(),
+          documentType: DocumentType.DNI,
+          documentNumber: result.data.dni
+        }));
+        
+        alert(`✅ Datos encontrados: ${result.data.nombreCompleto}`);
+      } else {
+        alert(`❌ ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error al buscar en RENIEC:', error);
+      alert('Error al consultar RENIEC. Por favor, intente nuevamente.');
+    } finally {
+      setSearchingDNI(false);
     }
   };
 
@@ -163,10 +217,14 @@ const AdminDirectorUserEdit = () => {
     setSaving(true);
     try {
       const formattedData = adminUserService.formatUserDataForSubmit(formData);
-      await adminUserService.updateAdminUser(keycloakId, formattedData);
+      const response = await adminUserService.updateAdminUser(keycloakId, formattedData);
       
-      alert('Usuario actualizado exitosamente');
-      navigate('/admin/admin-director/users');
+      if (response.success) {
+        alert(response.message || 'Usuario actualizado exitosamente');
+        navigate('/admin/admin-director/users');
+      } else {
+        alert('Error al actualizar usuario: ' + (response.error || 'Error desconocido'));
+      }
     } catch (error) {
       alert('Error al actualizar usuario: ' + error.message);
     } finally {
@@ -295,6 +353,56 @@ const AdminDirectorUserEdit = () => {
                             onChange={handleInputChange}
                             placeholder="Apellidos del usuario"
                           />
+                        </div>
+                      </div>
+
+                      {/* Búsqueda RENIEC */}
+                      <div className="col-12">
+                        <div className="card bg-light border mt-3 mb-3">
+                          <div className="card-body">
+                            <h5 className="card-title mb-3">
+                              <i className="fa fa-search"></i> Búsqueda Rápida por DNI (RENIEC)
+                            </h5>
+                            <p className="text-muted small mb-3">
+                              Ingrese el DNI para auto-completar nombres y apellidos desde la base de datos RENIEC
+                            </p>
+                            <div className="row align-items-end">
+                              <div className="col-md-8">
+                                <div className="form-group mb-0">
+                                  <label>DNI (8 dígitos)</label>
+                                  <input
+                                    type="text"
+                                    className="form-control"
+                                    value={dniSearch}
+                                    onChange={(e) => setDniSearch(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                                    placeholder="Ej: 12345678"
+                                    maxLength="8"
+                                    disabled={searchingDNI}
+                                  />
+                                </div>
+                              </div>
+                              <div className="col-md-4">
+                                <button
+                                  type="button"
+                                  className="btn btn-info btn-block"
+                                  onClick={handleDNISearch}
+                                  disabled={searchingDNI || dniSearch.length !== 8}
+                                >
+                                  {searchingDNI ? (
+                                    <>
+                                      <span className="spinner-border spinner-border-sm mr-2"></span>
+                                      Buscando...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <i className="fa fa-search mr-1"></i>
+                                      Buscar en RENIEC
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import directorUserService from '../../../../services/adminDirectorService/directorUserService';
+import StaffReportExporter from '../../../../utils/directorPersonal/staffReportExporter';
 import Header from '../../../../components/Header';
 import Sidebar from '../../../../components/Sidebar';
 import { 
@@ -32,8 +33,12 @@ const DirectorPersonalList = () => {
     try {
       setLoading(true);
       setError(null);
-      const usersData = await directorUserService.getAllCompleteUsers();
-      setUsers(Array.isArray(usersData) ? usersData : []);
+      const response = await directorUserService.getAllStaff();
+      if (response.success) {
+        setUsers(Array.isArray(response.data) ? response.data : []);
+      } else {
+        throw new Error(response.error || 'Error al cargar usuarios');
+      }
     } catch (err) {
       setError(err.message);
       alert('Error al cargar usuarios: ' + err.message);
@@ -51,9 +56,13 @@ const DirectorPersonalList = () => {
     }
 
     try {
-      await directorUserService.activateUser(keycloakId);
-      alert('Usuario activado correctamente');
-      loadUsers(); // Recargar la lista
+      const response = await directorUserService.activateStaffUser(keycloakId);
+      if (response.success) {
+        alert(response.message);
+        loadUsers(); // Recargar la lista
+      } else {
+        throw new Error(response.error || 'Error al activar usuario');
+      }
     } catch (err) {
       alert('Error al activar usuario: ' + err.message);
     }
@@ -68,9 +77,13 @@ const DirectorPersonalList = () => {
     }
 
     try {
-      await directorUserService.deactivateUser(keycloakId);
-      alert('Usuario desactivado correctamente');
-      loadUsers(); // Recargar la lista
+      const response = await directorUserService.deactivateStaffUser(keycloakId);
+      if (response.success) {
+        alert(response.message);
+        loadUsers(); // Recargar la lista
+      } else {
+        throw new Error(response.error || 'Error al desactivar usuario');
+      }
     } catch (err) {
       alert('Error al desactivar usuario: ' + err.message);
     }
@@ -85,11 +98,65 @@ const DirectorPersonalList = () => {
     }
 
     try {
-      await directorUserService.deleteCompleteUser(keycloakId);
-      alert('Usuario eliminado correctamente');
-      loadUsers(); // Recargar la lista
+      const response = await directorUserService.deleteStaffUser(keycloakId);
+      if (response.success) {
+        alert(response.message);
+        loadUsers(); // Recargar la lista
+      } else {
+        throw new Error(response.error || 'Error al eliminar usuario');
+      }
     } catch (err) {
       alert('Error al eliminar usuario: ' + err.message);
+    }
+  };
+
+  /**
+   * Exportar nómina completa a PDF
+   */
+  const handleExportPDF = () => {
+    const filteredData = getFilteredAndSortedUsers();
+    const result = StaffReportExporter.exportStaffToPDF(filteredData);
+    if (result.success) {
+      alert(result.message);
+    } else {
+      alert('Error: ' + result.error);
+    }
+  };
+
+  /**
+   * Exportar nómina completa a CSV
+   */
+  const handleExportCSV = () => {
+    const filteredData = getFilteredAndSortedUsers();
+    const result = StaffReportExporter.exportStaffToCSV(filteredData);
+    if (result.success) {
+      alert(result.message);
+    } else {
+      alert('Error: ' + result.error);
+    }
+  };
+
+  /**
+   * Exportar solo profesores
+   */
+  const handleExportTeachers = () => {
+    const result = StaffReportExporter.exportByRole(users, 'TEACHER');
+    if (result.success) {
+      alert(result.message);
+    } else {
+      alert('Error: ' + result.error);
+    }
+  };
+
+  /**
+   * Exportar solo personal activo
+   */
+  const handleExportActive = () => {
+    const result = StaffReportExporter.exportActiveStaff(users);
+    if (result.success) {
+      alert(result.message);
+    } else {
+      alert('Error: ' + result.error);
     }
   };
 
@@ -234,6 +301,87 @@ const DirectorPersonalList = () => {
                           </Link>
                         </div>
                       </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Sección de Reportes */}
+          <div className="row">
+            <div className="col-sm-12">
+              <div className="card">
+                <div className="card-header bg-light">
+                  <h5 className="card-title mb-0">
+                    <i className="fa fa-file-text"></i> Reportes de Nómina
+                  </h5>
+                </div>
+                <div className="card-body">
+                  <div className="row">
+                    <div className="col-md-12">
+                      <p className="text-muted mb-3">
+                        Genere reportes de la nómina de personal en diferentes formatos
+                      </p>
+                      <div className="btn-toolbar" role="toolbar">
+                        <div className="btn-group mr-2 mb-2" role="group">
+                          <button
+                            type="button"
+                            className="btn btn-danger"
+                            onClick={handleExportPDF}
+                            disabled={filteredUsers.length === 0}
+                            title="Exportar nómina completa a PDF"
+                          >
+                            <i className="fa fa-file-pdf-o"></i> PDF Completo
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-success"
+                            onClick={handleExportCSV}
+                            disabled={filteredUsers.length === 0}
+                            title="Exportar nómina completa a CSV"
+                          >
+                            <i className="fa fa-file-excel-o"></i> CSV Completo
+                          </button>
+                        </div>
+                        
+                        <div className="btn-group mr-2 mb-2" role="group">
+                          <button
+                            type="button"
+                            className="btn btn-info"
+                            onClick={handleExportTeachers}
+                            disabled={users.filter(u => u.roles?.includes('TEACHER')).length === 0}
+                            title="Exportar solo profesores a PDF"
+                          >
+                            <i className="fa fa-graduation-cap"></i> Solo Profesores
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-warning"
+                            onClick={handleExportActive}
+                            disabled={users.filter(u => u.status === 'A').length === 0}
+                            title="Exportar solo personal activo a PDF"
+                          >
+                            <i className="fa fa-check-circle"></i> Solo Activos
+                          </button>
+                        </div>
+
+                        <div className="btn-group mb-2" role="group">
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => window.print()}
+                            disabled={filteredUsers.length === 0}
+                            title="Imprimir vista actual"
+                          >
+                            <i className="fa fa-print"></i> Imprimir Vista
+                          </button>
+                        </div>
+                      </div>
+                      <small className="text-muted d-block mt-2">
+                        <i className="fa fa-info-circle"></i> Los reportes se generan con los datos filtrados actuales.
+                        Total: <strong>{filteredUsers.length}</strong> registro(s)
+                      </small>
                     </div>
                   </div>
                 </div>

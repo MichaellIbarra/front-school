@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import adminUserService from '../../../services/adminDirectorService/adminUserService';
+import reniecService from '../../../services/reniec/reniecService';
 import Header from '../../../components/Header';
 import Sidebar from '../../../components/Sidebar';
 import { 
@@ -18,6 +19,8 @@ const AdminDirectorUserCreate = () => {
   const [formData, setFormData] = useState(createUserModel());
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [dniSearch, setDniSearch] = useState('');
+  const [searchingDNI, setSearchingDNI] = useState(false);
 
   /**
    * Manejar cambios en los campos del formulario
@@ -55,6 +58,44 @@ const AdminDirectorUserCreate = () => {
         ...prev,
         [name]: null
       }));
+    }
+  };
+
+  /**
+   * Buscar datos en RENIEC por DNI
+   */
+  const handleDNISearch = async () => {
+    // Validar formato del DNI
+    const validation = reniecService.validateDNI(dniSearch);
+    if (!validation.isValid) {
+      alert(validation.error);
+      return;
+    }
+
+    setSearchingDNI(true);
+    
+    try {
+      const result = await reniecService.searchByDNI(dniSearch);
+      
+      if (result.success) {
+        // Auto-completar los campos del formulario
+        setFormData(prev => ({
+          ...prev,
+          firstname: result.data.nombres,
+          lastname: `${result.data.apellidoPaterno} ${result.data.apellidoMaterno}`.trim(),
+          documentType: DocumentType.DNI,
+          documentNumber: result.data.dni
+        }));
+        
+        alert(`✅ Datos encontrados: ${result.data.nombreCompleto}`);
+      } else {
+        alert(`❌ ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error al buscar en RENIEC:', error);
+      alert('Error al consultar RENIEC. Por favor, intente nuevamente.');
+    } finally {
+      setSearchingDNI(false);
     }
   };
 
@@ -119,40 +160,18 @@ const AdminDirectorUserCreate = () => {
       console.log('Enviando datos al backend:', formattedData);
       
       const response = await adminUserService.createAdminUser(formattedData);
-      console.log('✅ Usuario creado exitosamente:', response);
+      console.log('✅ Respuesta del servicio:', response);
       
-      // El usuario fue creado exitosamente si llegamos aquí (no hubo excepción)
-      alert('✅ Usuario creado exitosamente');
-      navigate('/admin/admin-director/users');
-      
-    } catch (error) {
-      console.error('❌ Error al crear usuario:', {
-        message: error.message,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data
-      });
-
-      // Manejar diferentes tipos de errores
-      if (error.response?.status === 504) {
-        // Gateway Timeout - pero el usuario podría haberse creado
-        alert('⚠️ El servidor está tardando en responder. El usuario podría haberse creado correctamente. Verifique la lista de usuarios.');
-        // Opcionalmente navegar a la lista para verificar
-        navigate('/admin/admin-director/users');
-      } else if (error.response?.status === 500) {
-        alert('❌ Error interno del servidor. Intente nuevamente.');
-      } else if (error.response?.status === 400) {
-        const errorMsg = error.response?.data?.message || 'Datos inválidos';
-        alert(`❌ Error en los datos: ${errorMsg}`);
-      } else if (error.response?.status === 409) {
-        alert('❌ Ya existe un usuario con este email o nombre de usuario.');
-      } else if (!error.response) {
-        // Error de red o timeout del cliente
-        alert('⚠️ Error de conexión. Verifique su conexión a internet y que el usuario no se haya duplicado.');
+      if (response.success) {
+        alert(response.message || '✅ Usuario creado exitosamente');
         navigate('/admin/admin-director/users');
       } else {
-        alert(`❌ Error al crear usuario: ${error.message}`);
+        alert('❌ Error al crear usuario: ' + (response.error || 'Error desconocido'));
       }
+      
+    } catch (error) {
+      console.error('❌ Error al crear usuario:', error);
+      alert('❌ Error al crear usuario: ' + (error.message || 'Error desconocido'));
     } finally {
       setLoading(false);
     }
@@ -271,6 +290,56 @@ const AdminDirectorUserCreate = () => {
                             onChange={handleInputChange}
                             placeholder="Apellidos del usuario"
                           />
+                        </div>
+                      </div>
+
+                      {/* Búsqueda RENIEC */}
+                      <div className="col-12">
+                        <div className="card bg-light border mt-3 mb-3">
+                          <div className="card-body">
+                            <h5 className="card-title mb-3">
+                              <i className="fa fa-search"></i> Búsqueda Rápida por DNI (RENIEC)
+                            </h5>
+                            <p className="text-muted small mb-3">
+                              Ingrese el DNI para auto-completar nombres y apellidos desde la base de datos RENIEC
+                            </p>
+                            <div className="row align-items-end">
+                              <div className="col-md-8">
+                                <div className="form-group mb-0">
+                                  <label>DNI (8 dígitos)</label>
+                                  <input
+                                    type="text"
+                                    className="form-control"
+                                    value={dniSearch}
+                                    onChange={(e) => setDniSearch(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                                    placeholder="Ej: 12345678"
+                                    maxLength="8"
+                                    disabled={searchingDNI}
+                                  />
+                                </div>
+                              </div>
+                              <div className="col-md-4">
+                                <button
+                                  type="button"
+                                  className="btn btn-info btn-block"
+                                  onClick={handleDNISearch}
+                                  disabled={searchingDNI || dniSearch.length !== 8}
+                                >
+                                  {searchingDNI ? (
+                                    <>
+                                      <span className="spinner-border spinner-border-sm mr-2"></span>
+                                      Buscando...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <i className="fa fa-search mr-1"></i>
+                                      Buscar en RENIEC
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
 

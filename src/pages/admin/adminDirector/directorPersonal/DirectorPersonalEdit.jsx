@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import directorUserService from '../../../../services/adminDirectorService/directorUserService';
+import reniecService from '../../../../services/reniec/reniecService';
 import Header from '../../../../components/Header';
 import Sidebar from '../../../../components/Sidebar';
 import { 
@@ -23,6 +24,8 @@ const DirectorPersonalEdit = () => {
   const [originalData, setOriginalData] = useState(createUserModel());
   const [errors, setErrors] = useState({});
   const [error, setError] = useState(null);
+  const [dniSearch, setDniSearch] = useState('');
+  const [searchingDNI, setSearchingDNI] = useState(false);
 
   // Cargar datos del usuario al montar el componente
   useEffect(() => {
@@ -115,6 +118,44 @@ const DirectorPersonalEdit = () => {
   };
 
   /**
+   * Buscar datos en RENIEC por DNI
+   */
+  const handleDNISearch = async () => {
+    // Validar formato del DNI
+    const validation = reniecService.validateDNI(dniSearch);
+    if (!validation.isValid) {
+      alert(validation.error);
+      return;
+    }
+
+    setSearchingDNI(true);
+    
+    try {
+      const result = await reniecService.searchByDNI(dniSearch);
+      
+      if (result.success) {
+        // Auto-completar los campos del formulario
+        setFormData(prev => ({
+          ...prev,
+          firstname: result.data.nombres,
+          lastname: `${result.data.apellidoPaterno} ${result.data.apellidoMaterno}`.trim(),
+          documentType: DocumentType.DNI,
+          documentNumber: result.data.dni
+        }));
+        
+        alert(`✅ Datos encontrados: ${result.data.nombreCompleto}`);
+      } else {
+        alert(`❌ ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error al buscar en RENIEC:', error);
+      alert('Error al consultar RENIEC. Por favor, intente nuevamente.');
+    } finally {
+      setSearchingDNI(false);
+    }
+  };
+
+  /**
    * Validar formulario
    */
   const validateForm = () => {
@@ -195,10 +236,14 @@ const DirectorPersonalEdit = () => {
       delete userData.password;
       delete userData.emailVerified;
 
-      await directorUserService.updateCompleteUser(keycloakId, userData);
+      const response = await directorUserService.updateStaffUser(keycloakId, userData);
       
-      alert('Personal director actualizado correctamente');
-      navigate('/admin/admin-director/director-personal');
+      if (response.success) {
+        alert(response.message);
+        navigate('/admin/admin-director/director-personal');
+      } else {
+        throw new Error(response.error || 'Error al actualizar personal director');
+      }
     } catch (err) {
       alert('Error al actualizar personal: ' + err.message);
     } finally {
@@ -372,6 +417,58 @@ const DirectorPersonalEdit = () => {
                           {errors.lastname && (
                             <div className="invalid-feedback">{errors.lastname}</div>
                           )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Búsqueda RENIEC */}
+                    <div className="row mt-4">
+                      <div className="col-12">
+                        <div className="card bg-light border">
+                          <div className="card-body">
+                            <h5 className="card-title mb-3">
+                              <i className="fa fa-search"></i> Búsqueda Rápida por DNI (RENIEC)
+                            </h5>
+                            <p className="text-muted small mb-3">
+                              Ingrese el DNI para auto-completar nombres y apellidos desde la base de datos RENIEC
+                            </p>
+                            <div className="row align-items-end">
+                              <div className="col-md-8">
+                                <div className="form-group mb-0">
+                                  <label>DNI (8 dígitos)</label>
+                                  <input
+                                    type="text"
+                                    className="form-control"
+                                    value={dniSearch}
+                                    onChange={(e) => setDniSearch(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                                    placeholder="Ej: 12345678"
+                                    maxLength="8"
+                                    disabled={searchingDNI}
+                                  />
+                                </div>
+                              </div>
+                              <div className="col-md-4">
+                                <button
+                                  type="button"
+                                  className="btn btn-info btn-block"
+                                  onClick={handleDNISearch}
+                                  disabled={searchingDNI || dniSearch.length !== 8}
+                                >
+                                  {searchingDNI ? (
+                                    <>
+                                      <span className="spinner-border spinner-border-sm mr-2"></span>
+                                      Buscando...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <i className="fa fa-search mr-1"></i>
+                                      Buscar en RENIEC
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>

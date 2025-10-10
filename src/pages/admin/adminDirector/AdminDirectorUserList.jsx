@@ -32,11 +32,19 @@ const AdminDirectorUserList = () => {
     try {
       setLoading(true);
       setError(null);
-      const usersData = await adminUserService.getAllAdminUsers();
-      setUsers(Array.isArray(usersData) ? usersData : []);
+      const response = await adminUserService.getAllAdminUsers();
+      
+      if (response.success) {
+        // La respuesta ahora viene con estructura: { success, data, total_users, message }
+        setUsers(Array.isArray(response.data) ? response.data : []);
+      } else {
+        setError(response.error || 'Error al cargar usuarios');
+        setUsers([]);
+      }
     } catch (err) {
       setError(err.message);
       alert('Error al cargar usuarios: ' + err.message);
+      setUsers([]);
     } finally {
       setLoading(false);
     }
@@ -51,9 +59,13 @@ const AdminDirectorUserList = () => {
     }
 
     try {
-      await adminUserService.activateAdminUser(keycloakId);
-      alert('Usuario activado correctamente');
-      loadUsers(); // Recargar la lista
+      const response = await adminUserService.activateAdminUser(keycloakId);
+      if (response.success) {
+        alert(response.message || 'Usuario activado correctamente');
+        loadUsers(); // Recargar la lista
+      } else {
+        alert('Error al activar usuario: ' + (response.error || 'Error desconocido'));
+      }
     } catch (err) {
       alert('Error al activar usuario: ' + err.message);
     }
@@ -68,9 +80,13 @@ const AdminDirectorUserList = () => {
     }
 
     try {
-      await adminUserService.deactivateAdminUser(keycloakId);
-      alert('Usuario desactivado correctamente');
-      loadUsers(); // Recargar la lista
+      const response = await adminUserService.deactivateAdminUser(keycloakId);
+      if (response.success) {
+        alert(response.message || 'Usuario desactivado correctamente');
+        loadUsers(); // Recargar la lista
+      } else {
+        alert('Error al desactivar usuario: ' + (response.error || 'Error desconocido'));
+      }
     } catch (err) {
       alert('Error al desactivar usuario: ' + err.message);
     }
@@ -85,9 +101,13 @@ const AdminDirectorUserList = () => {
     }
 
     try {
-      await adminUserService.deleteAdminUser(keycloakId);
-      alert('Usuario eliminado correctamente');
-      loadUsers(); // Recargar la lista
+      const response = await adminUserService.deleteAdminUser(keycloakId);
+      if (response.success) {
+        alert(response.message || 'Usuario eliminado correctamente');
+        loadUsers(); // Recargar la lista
+      } else {
+        alert('Error al eliminar usuario: ' + (response.error || 'Error desconocido'));
+      }
     } catch (err) {
       alert('Error al eliminar usuario: ' + err.message);
     }

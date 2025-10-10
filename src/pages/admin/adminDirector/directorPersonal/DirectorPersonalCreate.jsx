@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import directorUserService from '../../../../services/adminDirectorService/directorUserService';
+import reniecService from '../../../../services/reniec/reniecService';
 import Header from '../../../../components/Header';
 import Sidebar from '../../../../components/Sidebar';
 import { 
@@ -17,6 +18,10 @@ const DirectorPersonalCreate = () => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState(createUserModel());
   const [errors, setErrors] = useState({});
+  
+  // Estados para búsqueda DNI
+  const [dniSearch, setDniSearch] = useState('');
+  const [searchingDNI, setSearchingDNI] = useState(false);
 
   /**
    * Manejar cambios en los campos del formulario
@@ -48,6 +53,44 @@ const DirectorPersonalCreate = () => {
         ...prev,
         [name]: undefined
       }));
+    }
+  };
+
+  /**
+   * Buscar datos por DNI en RENIEC
+   */
+  const handleDNISearch = async () => {
+    // Validar DNI antes de buscar
+    const validation = reniecService.validateDNI(dniSearch);
+    if (!validation.isValid) {
+      alert(validation.error);
+      return;
+    }
+
+    setSearchingDNI(true);
+    
+    try {
+      const result = await reniecService.searchByDNI(dniSearch);
+      
+      if (result.success) {
+        // Auto-completar formulario con datos de RENIEC
+        setFormData(prev => ({
+          ...prev,
+          firstname: result.data.nombres,
+          lastname: `${result.data.apellidoPaterno} ${result.data.apellidoMaterno}`.trim(),
+          documentType: DocumentType.DNI,
+          documentNumber: result.data.dni
+        }));
+        
+        alert(`✅ Datos encontrados: ${result.data.nombreCompleto}`);
+      } else {
+        alert(`❌ ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error al buscar DNI:', error);
+      alert('Error al consultar RENIEC. Intente nuevamente.');
+    } finally {
+      setSearchingDNI(false);
     }
   };
 
@@ -143,26 +186,25 @@ const DirectorPersonalCreate = () => {
 
       console.log('Enviando datos del personal director:', userData);
 
-      const response = await directorUserService.createCompleteUser(userData);
-      console.log('✅ Personal director creado exitosamente:', response);
+      const response = await directorUserService.createStaffUser(userData);
+      console.log('✅ Respuesta del servicio:', response);
       
-      alert('✅ Personal director creado correctamente');
-      navigate('/admin/admin-director/director-personal');
+      if (response.success) {
+        alert(response.message);
+        navigate('/admin/admin-director/director-personal');
+      } else {
+        throw new Error(response.error || 'Error al crear personal director');
+      }
       
     } catch (error) {
-      console.error('❌ Error al crear personal director:', {
-        message: error.message,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data
-      });
+      console.error('❌ Error al crear personal director:', error);
 
       // Manejar diferentes tipos de errores
-      if (error.response?.status === 504) {
+      if (error.message.includes('Gateway Timeout') || error.message.includes('504')) {
         // Gateway Timeout - pero el personal podría haberse creado
         alert('⚠️ El servidor está tardando en responder. El personal director podría haberse creado correctamente. Verifique la lista de personal.');
         navigate('/admin/admin-director/director-personal');
-      } else if (error.response?.status === 500) {
+      } else if (error.message.includes('500')) {
         alert('❌ Error interno del servidor. Intente nuevamente.');
       } else if (error.response?.status === 400) {
         const errorMsg = error.response?.data?.message || 'Datos inválidos';
@@ -302,6 +344,58 @@ const DirectorPersonalCreate = () => {
                           {errors.lastname && (
                             <div className="invalid-feedback">{errors.lastname}</div>
                           )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Búsqueda por DNI en RENIEC */}
+                    <div className="row">
+                      <div className="col-12">
+                        <div className="card bg-light border">
+                          <div className="card-body">
+                            <h5 className="card-title mb-3">
+                              <i className="fa fa-search"></i> Búsqueda Rápida por DNI (RENIEC)
+                            </h5>
+                            <p className="text-muted small mb-3">
+                              Ingrese el DNI para auto-completar nombres y apellidos desde RENIEC
+                            </p>
+                            <div className="row align-items-end">
+                              <div className="col-md-8">
+                                <div className="form-group mb-0">
+                                  <label>DNI (8 dígitos)</label>
+                                  <input
+                                    type="text"
+                                    className="form-control"
+                                    value={dniSearch}
+                                    onChange={(e) => setDniSearch(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                                    placeholder="Ej: 12345678"
+                                    maxLength="8"
+                                    disabled={searchingDNI}
+                                  />
+                                </div>
+                              </div>
+                              <div className="col-md-4">
+                                <button
+                                  type="button"
+                                  className="btn btn-info btn-block"
+                                  onClick={handleDNISearch}
+                                  disabled={searchingDNI || dniSearch.length !== 8}
+                                >
+                                  {searchingDNI ? (
+                                    <>
+                                      <span className="spinner-border spinner-border-sm mr-2"></span>
+                                      Buscando...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <i className="fa fa-search mr-1"></i>
+                                      Buscar en RENIEC
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
