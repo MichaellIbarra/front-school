@@ -1,11 +1,10 @@
-// Utilidades de exportación para tablas de calificaciones
+// Utilidades de exportación para notificaciones
 import { message } from 'antd';
 import { 
-  AchievementLevel,
-  formatDate
-} from '../../types/grades/grade';
+  formatDateTime
+} from '../../types/grades/notification';
 
-export class GradeExportUtils {
+export class NotificationExportUtils {
   /**
    * Exporta datos a formato CSV
    * @param {Array} data - Array de objetos con los datos
@@ -49,7 +48,7 @@ export class GradeExportUtils {
   static exportToPDF(data, headers, mapFunction, title, subtitle = '') {
     try {
       // Generar estadísticas resumidas
-      const summary = GradeExportUtils.generateGradesSummary(data);
+      const summary = NotificationExportUtils.generateNotificationsSummary(data);
       const currentDate = new Date().toLocaleDateString('es-ES', { 
         weekday: 'long', 
         year: 'numeric', 
@@ -175,23 +174,7 @@ export class GradeExportUtils {
             tbody tr td:first-child {
               font-weight: 600;
             }
-            .level-ad { 
-              color: #2ECC71; 
-              font-weight: bold; 
-              background-color: #d4edda;
-              padding: 3px 8px;
-              border-radius: 3px;
-              display: inline-block;
-            }
-            .level-a { 
-              color: #3498DB; 
-              font-weight: bold; 
-              background-color: #d1ecf1;
-              padding: 3px 8px;
-              border-radius: 3px;
-              display: inline-block;
-            }
-            .level-b { 
+            .status-pending { 
               color: #F39C12; 
               font-weight: bold; 
               background-color: #fff3cd;
@@ -199,13 +182,43 @@ export class GradeExportUtils {
               border-radius: 3px;
               display: inline-block;
             }
-            .level-c { 
+            .status-sent { 
+              color: #3498DB; 
+              font-weight: bold; 
+              background-color: #d1ecf1;
+              padding: 3px 8px;
+              border-radius: 3px;
+              display: inline-block;
+            }
+            .status-delivered { 
+              color: #17A2B8; 
+              font-weight: bold; 
+              background-color: #d1ecf1;
+              padding: 3px 8px;
+              border-radius: 3px;
+              display: inline-block;
+            }
+            .status-read { 
+              color: #2ECC71; 
+              font-weight: bold; 
+              background-color: #d4edda;
+              padding: 3px 8px;
+              border-radius: 3px;
+              display: inline-block;
+            }
+            .status-failed { 
               color: #E74C3C; 
               font-weight: bold; 
               background-color: #f8d7da;
               padding: 3px 8px;
               border-radius: 3px;
               display: inline-block;
+            }
+            .type-badge {
+              padding: 3px 8px;
+              border-radius: 3px;
+              display: inline-block;
+              font-size: 10px;
             }
             .footer {
               margin-top: 30px;
@@ -239,45 +252,63 @@ export class GradeExportUtils {
               <span class="info-value">${data.length}</span>
             </div>
             <div class="info-row">
-              <span class="info-label">👥 Estudiantes:</span>
-              <span class="info-value">${summary.uniqueStudents}</span>
+              <span class="info-label">👥 Destinatarios únicos:</span>
+              <span class="info-value">${summary.uniqueRecipients}</span>
             </div>
             <div class="info-row">
-              <span class="info-label">📚 Cursos:</span>
-              <span class="info-value">${summary.uniqueCourses}</span>
+              <span class="info-label">📬 Tipos de notificación:</span>
+              <span class="info-value">${summary.uniqueTypes}</span>
             </div>
           </div>
 
           <div class="summary-section">
-            <div class="summary-title">📈 Distribución por Nivel de Logro</div>
+            <div class="summary-title">📈 Distribución por Estado</div>
             <div class="summary-grid">
               <div class="summary-item">
-                <span class="summary-label">🌟 AD - Logro Destacado</span>
-                <span class="summary-value">${summary.levelDistribution.AD || 0} (${((summary.levelDistribution.AD || 0) / data.length * 100).toFixed(1)}%)</span>
+                <span class="summary-label">⏳ Pendiente</span>
+                <span class="summary-value">${summary.statusDistribution.Pendiente || 0} (${((summary.statusDistribution.Pendiente || 0) / data.length * 100).toFixed(1)}%)</span>
               </div>
               <div class="summary-item">
-                <span class="summary-label">✅ A - Logro Esperado</span>
-                <span class="summary-value">${summary.levelDistribution.A || 0} (${((summary.levelDistribution.A || 0) / data.length * 100).toFixed(1)}%)</span>
+                <span class="summary-label">📤 Enviado</span>
+                <span class="summary-value">${summary.statusDistribution.Enviado || 0} (${((summary.statusDistribution.Enviado || 0) / data.length * 100).toFixed(1)}%)</span>
               </div>
               <div class="summary-item">
-                <span class="summary-label">⚠️ B - En Proceso</span>
-                <span class="summary-value">${summary.levelDistribution.B || 0} (${((summary.levelDistribution.B || 0) / data.length * 100).toFixed(1)}%)</span>
+                <span class="summary-label">📬 Entregado</span>
+                <span class="summary-value">${summary.statusDistribution.Entregado || 0} (${((summary.statusDistribution.Entregado || 0) / data.length * 100).toFixed(1)}%)</span>
               </div>
               <div class="summary-item">
-                <span class="summary-label">❌ C - En Inicio</span>
-                <span class="summary-value">${summary.levelDistribution.C || 0} (${((summary.levelDistribution.C || 0) / data.length * 100).toFixed(1)}%)</span>
+                <span class="summary-label">✅ Leído</span>
+                <span class="summary-value">${summary.statusDistribution.Leído || 0} (${((summary.statusDistribution.Leído || 0) / data.length * 100).toFixed(1)}%)</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">❌ Fallido</span>
+                <span class="summary-value">${summary.statusDistribution.Fallido || 0} (${((summary.statusDistribution.Fallido || 0) / data.length * 100).toFixed(1)}%)</span>
               </div>
             </div>
           </div>
 
-          ${Object.keys(summary.periodDistribution).length > 0 ? `
+          ${Object.keys(summary.typeDistribution).length > 0 ? `
           <div class="summary-section">
-            <div class="summary-title">📅 Distribución por Período Académico</div>
+            <div class="summary-title">📋 Distribución por Tipo de Notificación</div>
             <div class="summary-grid">
-              ${Object.entries(summary.periodDistribution).map(([period, count]) => `
+              ${Object.entries(summary.typeDistribution).map(([type, count]) => `
                 <div class="summary-item">
-                  <span class="summary-label">${period}</span>
-                  <span class="summary-value">${count} calificaciones</span>
+                  <span class="summary-label">${type}</span>
+                  <span class="summary-value">${count} notificaciones</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          ` : ''}
+
+          ${Object.keys(summary.recipientTypeDistribution).length > 0 ? `
+          <div class="summary-section">
+            <div class="summary-title">👥 Distribución por Tipo de Destinatario</div>
+            <div class="summary-grid">
+              ${Object.entries(summary.recipientTypeDistribution).map(([type, count]) => `
+                <div class="summary-item">
+                  <span class="summary-label">${type}</span>
+                  <span class="summary-value">${count} notificaciones</span>
                 </div>
               `).join('')}
             </div>
@@ -296,9 +327,9 @@ export class GradeExportUtils {
           </table>
           
           <div class="footer">
-            <p><strong>Sistema de Gestión Académica - Calificaciones</strong></p>
+            <p><strong>Sistema de Gestión Académica - Notificaciones</strong></p>
             <p>Este documento fue generado automáticamente el ${new Date().toLocaleDateString('es-ES')} a las ${new Date().toLocaleTimeString('es-ES')}</p>
-            <p>Total de ${data.length} ${data.length === 1 ? 'registro' : 'registros'} | ${summary.uniqueStudents} ${summary.uniqueStudents === 1 ? 'estudiante' : 'estudiantes'} | ${summary.uniqueCourses} ${summary.uniqueCourses === 1 ? 'curso' : 'cursos'}</p>
+            <p>Total de ${data.length} ${data.length === 1 ? 'registro' : 'registros'} | ${summary.uniqueRecipients} ${summary.uniqueRecipients === 1 ? 'destinatario' : 'destinatarios'}</p>
           </div>
         </body>
         </html>
@@ -406,192 +437,213 @@ export class GradeExportUtils {
   }
 
   /**
-   * Obtiene la clase CSS para el nivel de logro
-   * @param {string} level - Código del nivel de logro
+   * Obtiene la clase CSS para el estado de notificación
+   * @param {string} status - Estado de la notificación
    * @returns {string} Clase CSS
    */
-  static getAchievementLevelClass(level) {
-    switch (level) {
-      case 'AD': return 'level-ad';
-      case 'A': return 'level-a';
-      case 'B': return 'level-b';
-      case 'C': return 'level-c';
+  static getNotificationStatusClass(status) {
+    switch (status) {
+      case 'Pendiente': return 'status-pending';
+      case 'Enviado': return 'status-sent';
+      case 'Entregado': return 'status-delivered';
+      case 'Leído': return 'status-read';
+      case 'Fallido': return 'status-failed';
       default: return '';
     }
   }
 
   /**
-   * Funciones específicas para calificaciones
+   * Funciones específicas para notificaciones
    */
 
   /**
-   * Exporta listado de calificaciones a CSV
+   * Exporta listado de notificaciones a CSV
    */
-  static exportGradesToCSV(grades) {
+  static exportNotificationsToCSV(notifications) {
     const headers = [
-      'ID', 'Estudiante', 'Curso', 'Período Académico', 'Tipo Evaluación',
-      'Nivel de Logro', 'Descripción Logro', 'Fecha Evaluación', 'Observaciones'
+      'ID', 'Destinatario', 'Tipo Destinatario', 'Tipo Notificación', 
+      'Estado', 'Canal', 'Mensaje', 'Fecha Creación', 'Fecha Envío'
     ];
 
-    const mapFunction = (grade) => [
-      GradeExportUtils.sanitizeCSV(grade.id),
-      GradeExportUtils.sanitizeCSV(grade.studentId),
-      GradeExportUtils.sanitizeCSV(grade.courseId),
-      GradeExportUtils.sanitizeCSV(grade.academicPeriod),
-      GradeExportUtils.sanitizeCSV(grade.evaluationType),
-      GradeExportUtils.sanitizeCSV(grade.achievementLevel),
-      GradeExportUtils.sanitizeCSV(AchievementLevel[grade.achievementLevel]?.name || ''),
-      GradeExportUtils.sanitizeCSV(formatDate(grade.evaluationDate)),
-      GradeExportUtils.sanitizeCSV(grade.remarks)
+    const mapFunction = (notification) => [
+      NotificationExportUtils.sanitizeCSV(notification.id || ''),
+      NotificationExportUtils.sanitizeCSV(notification.recipientId || ''),
+      NotificationExportUtils.sanitizeCSV(notification.recipientType || ''),
+      NotificationExportUtils.sanitizeCSV(notification.notificationType || ''),
+      NotificationExportUtils.sanitizeCSV(notification.status || ''),
+      NotificationExportUtils.sanitizeCSV(notification.channel || ''),
+      NotificationExportUtils.sanitizeCSV(notification.message || ''),
+      NotificationExportUtils.sanitizeCSV(notification.createdAt ? formatDateTime(notification.createdAt) : ''),
+      NotificationExportUtils.sanitizeCSV(notification.sentAt ? formatDateTime(notification.sentAt) : '')
     ];
 
-    GradeExportUtils.exportToCSV(grades, headers, mapFunction, 'calificaciones');
+    NotificationExportUtils.exportToCSV(notifications, headers, mapFunction, 'notificaciones');
   }
 
   /**
-   * Exporta listado de calificaciones a PDF
+   * Exporta listado de notificaciones a PDF
    */
-  static exportGradesToPDF(grades) {
+  static exportNotificationsToPDF(notifications) {
     const headers = [
-      'Estudiante', 'Curso', 'Período', 'Tipo Evaluación', 'Nivel de Logro', 'Fecha', 'Observaciones'
+      'Destinatario', 'Tipo Destinatario', 'Tipo Notificación', 'Estado', 'Canal', 'Mensaje', 'Fecha'
     ];
 
-    const mapFunction = (grade) => {
-      const levelInfo = AchievementLevel[grade.achievementLevel];
-      const levelClass = GradeExportUtils.getAchievementLevelClass(grade.achievementLevel);
-      const observations = grade.remarks ? GradeExportUtils.sanitizeHTML(grade.remarks) : '-';
+    const mapFunction = (notification) => {
+      const statusClass = NotificationExportUtils.getNotificationStatusClass(notification.status);
+      const message = notification.message && notification.message.length > 60 
+        ? notification.message.substring(0, 60) + '...' 
+        : (notification.message || '-');
+      
+      const dateToShow = notification.sentAt || notification.createdAt;
+      const formattedDate = dateToShow ? formatDateTime(dateToShow) : '-';
       
       return `
-        <td style="font-weight: 600;">${GradeExportUtils.sanitizeHTML(grade.studentId)}</td>
-        <td>${GradeExportUtils.sanitizeHTML(grade.courseId)}</td>
-        <td style="text-align: center;">${GradeExportUtils.sanitizeHTML(grade.academicPeriod)}</td>
-        <td style="font-size: 9px;">${GradeExportUtils.sanitizeHTML(grade.evaluationType)}</td>
+        <td style="font-weight: 600;">${NotificationExportUtils.sanitizeHTML(notification.recipientId || '-')}</td>
+        <td style="text-align: center; font-size: 10px;">${NotificationExportUtils.sanitizeHTML(notification.recipientType || '-')}</td>
+        <td style="font-size: 9px;">${NotificationExportUtils.sanitizeHTML(notification.notificationType || '-')}</td>
         <td style="text-align: center;">
-          <span class="${levelClass}">
-            ${grade.achievementLevel} - ${levelInfo?.name || ''}
+          <span class="${statusClass}">
+            ${notification.status || '-'}
           </span>
         </td>
-        <td style="text-align: center;">${GradeExportUtils.sanitizeHTML(formatDate(grade.evaluationDate))}</td>
-        <td style="font-size: 9px; max-width: 150px;">${observations}</td>
+        <td style="text-align: center; font-size: 10px;">${NotificationExportUtils.sanitizeHTML(notification.channel || '-')}</td>
+        <td style="font-size: 9px; max-width: 180px;">${NotificationExportUtils.sanitizeHTML(message)}</td>
+        <td style="text-align: center; font-size: 9px;">${NotificationExportUtils.sanitizeHTML(formattedDate)}</td>
       `;
     };
 
-    GradeExportUtils.exportToPDF(
-      grades, 
+    NotificationExportUtils.exportToPDF(
+      notifications, 
       headers, 
       mapFunction, 
-      'Reporte de Calificaciones Académicas',
-      'Sistema de Evaluación Educativa'
+      'Reporte de Notificaciones',
+      'Sistema de Comunicación Académica'
     );
   }
 
   /**
-   * Exporta listado de calificaciones a Excel
+   * Exporta listado de notificaciones a Excel
    */
-  static exportGradesToExcel(grades) {
+  static exportNotificationsToExcel(notifications) {
     const headers = [
-      'ID', 'Estudiante', 'Curso', 'Período Académico', 'Tipo Evaluación',
-      'Nivel de Logro', 'Descripción Logro', 'Fecha Evaluación', 'Observaciones'
+      'ID', 'Destinatario', 'Tipo Destinatario', 'Tipo Notificación', 
+      'Estado', 'Canal', 'Mensaje', 'Fecha Creación', 'Fecha Envío'
     ];
 
-    const mapFunction = (grade) => [
-      grade.id,
-      grade.studentId,
-      grade.courseId,
-      grade.academicPeriod,
-      grade.evaluationType,
-      grade.achievementLevel,
-      AchievementLevel[grade.achievementLevel]?.name || '',
-      formatDate(grade.evaluationDate),
-      grade.remarks
+    const mapFunction = (notification) => [
+      notification.id || '',
+      notification.recipientId || '',
+      notification.recipientType || '',
+      notification.notificationType || '',
+      notification.status || '',
+      notification.channel || '',
+      notification.message || '',
+      notification.createdAt ? formatDateTime(notification.createdAt) : '',
+      notification.sentAt ? formatDateTime(notification.sentAt) : ''
     ];
 
-    GradeExportUtils.exportToExcel(grades, headers, mapFunction, 'calificaciones', 'Calificaciones');
+    NotificationExportUtils.exportToExcel(notifications, headers, mapFunction, 'notificaciones', 'Notificaciones');
   }
 
   /**
-   * Exporta reporte por período académico
+   * Exporta reporte por estado
    */
-  static exportGradesByPeriodToCSV(grades, period) {
-    const filteredGrades = grades.filter(grade => grade.academicPeriod === period);
+  static exportNotificationsByStatusToCSV(notifications, status) {
+    const filteredNotifications = notifications.filter(n => n.status === status);
     
     const headers = [
-      'Estudiante', 'Curso', 'Nivel de Logro', 'Descripción', 'Fecha Evaluación'
+      'Destinatario', 'Tipo Notificación', 'Canal', 'Mensaje', 'Fecha Creación'
     ];
 
-    const mapFunction = (grade) => [
-      GradeExportUtils.sanitizeCSV(grade.studentId),
-      GradeExportUtils.sanitizeCSV(grade.courseId),
-      GradeExportUtils.sanitizeCSV(grade.achievementLevel),
-      GradeExportUtils.sanitizeCSV(AchievementLevel[grade.achievementLevel]?.name || ''),
-      GradeExportUtils.sanitizeCSV(formatDate(grade.evaluationDate))
+    const mapFunction = (notification) => [
+      NotificationExportUtils.sanitizeCSV(notification.recipientId),
+      NotificationExportUtils.sanitizeCSV(notification.notificationType),
+      NotificationExportUtils.sanitizeCSV(notification.channel),
+      NotificationExportUtils.sanitizeCSV(notification.message),
+      NotificationExportUtils.sanitizeCSV(formatDateTime(notification.createdAt))
     ];
 
-    GradeExportUtils.exportToCSV(
-      filteredGrades, 
+    NotificationExportUtils.exportToCSV(
+      filteredNotifications, 
       headers, 
       mapFunction, 
-      `calificaciones_${period.toLowerCase().replace(/\s+/g, '_')}`
+      `notificaciones_${status.toLowerCase().replace(/\s+/g, '_')}`
     );
   }
 
   /**
-   * Exporta reporte por estudiante
+   * Exporta reporte por destinatario
    */
-  static exportGradesByStudentToCSV(grades, studentId) {
-    const studentGrades = grades.filter(grade => grade.studentId === studentId);
+  static exportNotificationsByRecipientToCSV(notifications, recipientId) {
+    const recipientNotifications = notifications.filter(n => n.recipientId === recipientId);
     
     const headers = [
-      'Curso', 'Período', 'Tipo Evaluación', 'Nivel de Logro', 'Descripción', 'Fecha', 'Observaciones'
+      'Tipo Notificación', 'Estado', 'Canal', 'Mensaje', 'Fecha Creación', 'Fecha Envío'
     ];
 
-    const mapFunction = (grade) => [
-      GradeExportUtils.sanitizeCSV(grade.courseId),
-      GradeExportUtils.sanitizeCSV(grade.academicPeriod),
-      GradeExportUtils.sanitizeCSV(grade.evaluationType),
-      GradeExportUtils.sanitizeCSV(grade.achievementLevel),
-      GradeExportUtils.sanitizeCSV(AchievementLevel[grade.achievementLevel]?.name || ''),
-      GradeExportUtils.sanitizeCSV(formatDate(grade.evaluationDate)),
-      GradeExportUtils.sanitizeCSV(grade.remarks)
+    const mapFunction = (notification) => [
+      NotificationExportUtils.sanitizeCSV(notification.notificationType),
+      NotificationExportUtils.sanitizeCSV(notification.status),
+      NotificationExportUtils.sanitizeCSV(notification.channel),
+      NotificationExportUtils.sanitizeCSV(notification.message),
+      NotificationExportUtils.sanitizeCSV(formatDateTime(notification.createdAt)),
+      NotificationExportUtils.sanitizeCSV(formatDateTime(notification.sentAt))
     ];
 
-    GradeExportUtils.exportToCSV(
-      studentGrades, 
+    NotificationExportUtils.exportToCSV(
+      recipientNotifications, 
       headers, 
       mapFunction, 
-      `calificaciones_estudiante_${studentId.replace(/\s+/g, '_')}`
+      `notificaciones_destinatario_${recipientId.replace(/\s+/g, '_')}`
     );
   }
 
   /**
-   * Genera resumen estadístico de calificaciones
+   * Genera resumen estadístico de notificaciones
    */
-  static generateGradesSummary(grades) {
-    const totalGrades = grades.length;
-    const uniqueStudents = new Set(grades.map(g => g.studentId)).size;
-    const uniqueCourses = new Set(grades.map(g => g.courseId)).size;
+  static generateNotificationsSummary(notifications) {
+    const totalNotifications = notifications.length;
+    const uniqueRecipients = new Set(notifications.map(n => n.recipientId)).size;
+    const uniqueTypes = new Set(notifications.map(n => n.notificationType)).size;
     
-    // Distribución por niveles de logro
-    const levelDistribution = {};
-    Object.keys(AchievementLevel).forEach(level => {
-      levelDistribution[level] = grades.filter(g => g.achievementLevel === level).length;
+    // Distribución por estado
+    const statusDistribution = {};
+    notifications.forEach(notification => {
+      const status = notification.status || 'Sin estado';
+      statusDistribution[status] = (statusDistribution[status] || 0) + 1;
     });
     
-    // Distribución por período
-    const periodDistribution = {};
-    grades.forEach(grade => {
-      const period = grade.academicPeriod || 'Sin período';
-      periodDistribution[period] = (periodDistribution[period] || 0) + 1;
+    // Distribución por tipo
+    const typeDistribution = {};
+    notifications.forEach(notification => {
+      const type = notification.notificationType || 'Sin tipo';
+      typeDistribution[type] = (typeDistribution[type] || 0) + 1;
+    });
+    
+    // Distribución por tipo de destinatario
+    const recipientTypeDistribution = {};
+    notifications.forEach(notification => {
+      const type = notification.recipientType || 'Sin tipo';
+      recipientTypeDistribution[type] = (recipientTypeDistribution[type] || 0) + 1;
+    });
+    
+    // Distribución por canal
+    const channelDistribution = {};
+    notifications.forEach(notification => {
+      const channel = notification.channel || 'Sin canal';
+      channelDistribution[channel] = (channelDistribution[channel] || 0) + 1;
     });
 
     return {
-      totalGrades,
-      uniqueStudents,
-      uniqueCourses,
-      levelDistribution,
-      periodDistribution
+      totalNotifications,
+      uniqueRecipients,
+      uniqueTypes,
+      statusDistribution,
+      typeDistribution,
+      recipientTypeDistribution,
+      channelDistribution
     };
   }
 }
 
-export default GradeExportUtils;
+export default NotificationExportUtils;

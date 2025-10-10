@@ -139,16 +139,97 @@ const GradeList = () => {
    */
   const handleView = (grade) => {
     const levelInfo = AchievementLevel[grade.achievementLevel];
-    const details = `
-Estudiante: ${grade.studentId}
-Curso: ${grade.courseId}
-Período Académico: ${grade.academicPeriod}
-Tipo de Evaluación: ${grade.evaluationType}
-Nivel de Logro: ${grade.achievementLevel} - ${levelInfo?.name || ''}
-Descripción: ${levelInfo?.description || ''}
-Fecha de Evaluación: ${formatDate(grade.evaluationDate)}
-Observaciones: ${grade.remarks || 'Sin observaciones'}
-    `.trim();
+    const badgeClass = getAchievementLevelBadgeClass(grade.achievementLevel);
+    
+    // Crear contenido HTML estructurado para mejor visualización
+    const details = (
+      <div className="notification-details-preview">
+        <div className="card mb-3">
+          <div className="card-header text-white bg-primary">
+            <h5 className="mb-0">
+              <i className="fa fa-graduation-cap me-2"></i>
+              Información del Estudiante
+            </h5>
+          </div>
+          <div className="card-body">
+            <div className="row mb-3">
+              <div className="col-md-6 mb-2">
+                <strong><i className="fa fa-user me-2"></i>Estudiante:</strong>
+                <p className="mb-0 text-muted">{grade.studentId}</p>
+              </div>
+              <div className="col-md-6 mb-2">
+                <strong><i className="fa fa-book me-2"></i>Curso:</strong>
+                <p className="mb-0 text-muted">{grade.courseId}</p>
+              </div>
+            </div>
+            <div className="row mb-3">
+              <div className="col-md-6 mb-2">
+                <strong><i className="fa fa-calendar me-2"></i>Período Académico:</strong>
+                <p className="mb-0 text-muted">{grade.academicPeriod}</p>
+              </div>
+              <div className="col-md-6 mb-2">
+                <strong><i className="fa fa-clipboard-check me-2"></i>Tipo de Evaluación:</strong>
+                <p className="mb-0 text-muted">{grade.evaluationType}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="card mb-3">
+          <div className="card-header bg-success text-white">
+            <h5 className="mb-0"><i className="fa fa-chart-line me-2"></i>Nivel de Logro</h5>
+          </div>
+          <div className="card-body">
+            <div className="row mb-3">
+              <div className="col-md-12 mb-2">
+                <strong>Calificación Obtenida:</strong>
+                <p className="mb-2">
+                  <span className={`badge ${badgeClass}`} style={{ fontSize: '14px' }}>
+                    {grade.achievementLevel} - {levelInfo?.name || 'N/A'}
+                  </span>
+                </p>
+              </div>
+            </div>
+            <div className="alert alert-light border" style={{ 
+              backgroundColor: '#f8f9fa',
+              lineHeight: '1.6'
+            }}>
+              <strong>Descripción:</strong><br/>
+              {levelInfo?.description || 'Sin descripción disponible'}
+            </div>
+          </div>
+        </div>
+
+        <div className="card mb-3">
+          <div className="card-header bg-info text-white">
+            <h5 className="mb-0"><i className="fa fa-comment me-2"></i>Observaciones</h5>
+          </div>
+          <div className="card-body">
+            <div className="alert alert-light border" style={{ 
+              backgroundColor: '#f8f9fa',
+              lineHeight: '1.6',
+              whiteSpace: 'pre-wrap'
+            }}>
+              {grade.remarks || 'Sin observaciones registradas'}
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-header bg-warning text-white">
+            <h5 className="mb-0"><i className="fa fa-clock me-2"></i>Fecha de Evaluación</h5>
+          </div>
+          <div className="card-body">
+            <div className="row">
+              <div className="col-md-12 mb-2">
+                <strong>Fecha de Evaluación:</strong>
+                <p className="mb-0 text-muted">{formatDate(grade.evaluationDate)}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
 
     showAlert({
       title: `Detalles de Calificación`,

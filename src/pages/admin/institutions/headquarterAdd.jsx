@@ -2,14 +2,14 @@
 /* eslint-disable no-unused-vars */
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams, useLocation, Link } from "react-router-dom";
-import { Form, Input, Button, Switch, Select, Card, Row, Col } from "antd";
+import { Form, Input, Button, Select, Card, Row, Col } from "antd";
 import { SaveOutlined, ArrowLeftOutlined } from "@ant-design/icons";
 import Header from "../../../components/Header";
 import Sidebar from "../../../components/Sidebar";
 import AlertModal from "../../../components/AlertModal";
 import useAlert from "../../../hooks/useAlert";
-import headquarterService from "../../../services/institutions/headquarterService";
-import institutionService from "../../../services/institutions/institutionService";
+import headquarterAdminService from "../../../services/institutions/headquarterAdminService";
+import institutionAdminService from "../../../services/institutions/institutionAdminService";
 import { Headquarter, validateHeadquarter } from "../../../types/institutions";
 
 const { Option } = Select;
@@ -43,7 +43,7 @@ const HeadquarterAdd = () => {
     } else {
       // Modo creación
       setIsEdit(false);
-      const newHeadquarter = headquarterService.createNewHeadquarter(institutionId);
+      const newHeadquarter = headquarterAdminService.createNewHeadquarter(institutionId);
       setHeadquarterData(newHeadquarter);
       populateForm(newHeadquarter);
     }
@@ -54,7 +54,7 @@ const HeadquarterAdd = () => {
    */
   const loadInstitution = async () => {
     try {
-      const response = await institutionService.getInstitutionById(institutionId);
+      const response = await institutionAdminService.getInstitutionById(institutionId);
       if (response.success && response.data) {
         setInstitution(response.data);
       } else {
@@ -73,7 +73,7 @@ const HeadquarterAdd = () => {
   const loadHeadquarter = async (headquarterId) => {
     setLoading(true);
     try {
-      const response = await headquarterService.getHeadquarterById(headquarterId);
+      const response = await headquarterAdminService.getHeadquarterById(headquarterId);
       if (response.success && response.data) {
         setHeadquarterData(response.data);
         populateForm(response.data);
@@ -92,14 +92,17 @@ const HeadquarterAdd = () => {
    * Popula el formulario con los datos de la sede
    */
   const populateForm = (headquarter) => {
+    // Parsear códigos modulares para mostrarlos como texto separado por comas (sin espacios)
+    let modularCodesText = '';
+    if (Array.isArray(headquarter.modularCode)) {
+      modularCodesText = headquarter.modularCode.join(',');
+    }
+
     form.setFieldsValue({
-      headquartersName: headquarter.headquartersName,
-      headquartersCode: headquarter.headquartersCode,
+      name: headquarter.name,
+      modularCodes: modularCodesText,
       address: headquarter.address,
-      contactPerson: headquarter.contactPerson,
-      contactEmail: headquarter.contactEmail,
-      contactPhone: headquarter.contactPhone,
-      status: headquarter.status === 'A',
+      phone: headquarter.phone,
     });
   };
 
@@ -110,18 +113,71 @@ const HeadquarterAdd = () => {
     setLoading(true);
     
     try {
-      // Preparar datos para envío
-      const headquarterPayload = {
-        ...headquarterData,
-        institutionId: institutionId,
-        headquartersName: values.headquartersName,
-        headquartersCode: values.headquartersCode.toUpperCase(),
-        address: values.address,
-        contactPerson: values.contactPerson,
-        contactEmail: values.contactEmail,
-        contactPhone: values.contactPhone,
-        status: values.status ? 'A' : 'I'
+      // Procesar códigos modulares: convertir texto separado por comas a array
+      const modularCodesArray = values.modularCodes 
+        ? values.modularCodes.split(',').filter(code => code.length > 0)
+        : [];
+
+      // Validar que haya al menos un código modular
+      if (modularCodesArray.length === 0) {
+        showError('Error de validación', 'Debe ingresar al menos un código modular');
+        setLoading(false);
+        return;
+      }
+
+      // Validar que cada código modular tenga entre 5 y 10 caracteres
+      for (const code of modularCodesArray) {
+        if (code.length < 5 || code.length > 10) {
+          showError('Error de validación', `El código modular "${code}" debe tener entre 5 y 10 caracteres`);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Validar que el institutionId sea un UUID válido
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!institutionId || !uuidRegex.test(institutionId)) {
+        showError('Error de validación', 'ID de institución inválido');
+        setLoading(false);
+        return;
+      }
+
+      // Función para limpiar texto y remover caracteres problemáticos
+      const cleanText = (text) => {
+        if (!text) return '';
+        return text
+          .trim()
+          .replace(/[\t\n\r\f\v]/g, ' ')  // Remover espacios problemáticos
+          .replace(/\s+/g, ' ')            // Múltiples espacios a uno
+          .replace(/[^\x20-\x7E\u00A0-\uFFFF]/g, '') // Remover caracteres no imprimibles
+          .trim();
       };
+
+      // Limpiar y validar datos antes del envío
+      const headquarterPayload = {
+        institutionId: String(institutionId || '').trim(),
+        name: cleanText(values.name),
+        modularCode: modularCodesArray, // Enviar como array
+        address: cleanText(values.address),
+        phone: String(values.phone || '').trim().replace(/\D/g, ''),
+        status: 'A' // Siempre activo por defecto
+      };
+
+      // Validación adicional antes de enviar
+      if (!headquarterPayload.institutionId || !headquarterPayload.name) {
+        showError('Error de validación', 'Faltan datos obligatorios');
+        setLoading(false);
+        return;
+      }
+
+      // Validar longitudes mínimas y máximas
+      if (headquarterPayload.name.length < 3 || headquarterPayload.name.length > 100) {
+        showError('Error de validación', 'El nombre de la sede debe tener entre 3 y 100 caracteres');
+        setLoading(false);
+        return;
+      }
+
+      console.log('📋 Datos a enviar:', headquarterPayload);
 
       // Validar antes de enviar
       const validation = validateHeadquarter(headquarterPayload);
@@ -134,19 +190,25 @@ const HeadquarterAdd = () => {
 
       let response;
       if (isEdit) {
-        response = await headquarterService.updateHeadquarter(headquarterData.id, headquarterPayload);
+        console.log('🔄 Actualizando sede con ID:', headquarterData.id);
+        response = await headquarterAdminService.updateHeadquarter(headquarterData.id, headquarterPayload);
       } else {
-        response = await headquarterService.createHeadquarter(headquarterPayload);
+        console.log('✨ Creando nueva sede...');
+        response = await headquarterAdminService.createHeadquarter(headquarterPayload);
       }
+
+      console.log('📡 Respuesta del servidor:', response);
 
       if (response.success) {
         showSuccess('Operación exitosa', response.message);
         navigate(`/admin/institution/${institutionId}/headquarters`);
       } else {
-        showError("Los Datos deben ser validos y únicos");
+        console.error('❌ Error del servidor:', response.error);
+        showError('Error al guardar', response.error || "Los datos deben ser válidos y únicos");
       }
     } catch (error) {
-      showError('Error al guardar la sede', 'No se pudo completar la operación');
+      console.error('💥 Error inesperado:', error);
+      showError('Error al guardar la sede', error.message || 'No se pudo completar la operación');
     }
     
     setLoading(false);
@@ -200,17 +262,14 @@ const HeadquarterAdd = () => {
                     form={form}
                     layout="vertical"
                     onFinish={handleSubmit}
-                    initialValues={{
-                      status: true
-                    }}
                   >
                     {/* Información Básica */}
                     <Card title="Información Básica de la Sede" className="mb-4">
                       <Row gutter={16}>
-                        <Col span={12}>
+                        <Col span={24}>
                           <Form.Item
                             label="Nombre de la Sede"
-                            name="headquartersName"
+                            name="name"
                             rules={[
                               { required: true, message: 'El nombre de la sede es obligatorio' },
                               { min: 3, message: 'El nombre debe tener al menos 3 caracteres' },
@@ -220,29 +279,60 @@ const HeadquarterAdd = () => {
                             <Input placeholder="Ingresa el nombre de la sede" />
                           </Form.Item>
                         </Col>
-                        <Col span={12}>
+                      </Row>
+
+                      <Row gutter={16}>
+                        <Col span={24}>
                           <Form.Item
-                            label="Código de la Sede"
-                            name="headquartersCode"
+                            label="Códigos Modulares"
+                            name="modularCodes"
                             rules={[
-                              { required: true, message: 'El código de la sede es obligatorio' },
-                              { min: 2, message: 'El código debe tener al menos 2 caracteres' },
-                              { max: 15, message: 'El código no puede exceder 15 caracteres' }
+                              { required: true, message: 'Debe ingresar al menos un código modular' },
+                              {
+                                validator: (_, value) => {
+                                  if (!value || value.trim() === '') {
+                                    return Promise.reject(new Error('Debe ingresar al menos un código modular'));
+                                  }
+                                  
+                                  // Validar que no tenga espacios (solo números y comas)
+                                  if (!/^[0-9,]+$/.test(value)) {
+                                    return Promise.reject(new Error('Solo se permiten números y comas (sin espacios)'));
+                                  }
+                                  
+                                  // Validar que no empiece o termine con coma
+                                  if (value.startsWith(',') || value.endsWith(',')) {
+                                    return Promise.reject(new Error('Los códigos no pueden empezar o terminar con coma'));
+                                  }
+                                  
+                                  // Validar que no tenga comas consecutivas
+                                  if (value.includes(',,')) {
+                                    return Promise.reject(new Error('No se permiten comas consecutivas'));
+                                  }
+                                  
+                                  // Separar códigos y validar cada uno
+                                  const codes = value.split(',');
+                                  
+                                  for (let code of codes) {
+                                    if (code.length < 5 || code.length > 10) {
+                                      return Promise.reject(new Error(`El código "${code}" debe tener entre 5 y 10 dígitos`));
+                                    }
+                                  }
+                                  
+                                  return Promise.resolve();
+                                }
+                              }
                             ]}
                           >
                             <Input 
-                              placeholder="Ej: SEDE001" 
-                              style={{ textTransform: 'uppercase' }}
-                              onChange={(e) => {
-                                e.target.value = e.target.value.toUpperCase();
-                              }}
+                              placeholder="Ingresa los códigos modulares separados por comas (ej: 12345,67890,11111)"
+                              maxLength={200}
                             />
                           </Form.Item>
                         </Col>
                       </Row>
 
                       <Row gutter={16}>
-                        <Col span={18}>
+                        <Col span={24}>
                           <Form.Item
                             label="Dirección"
                             name="address"
@@ -253,18 +343,6 @@ const HeadquarterAdd = () => {
                             <TextArea rows={2} placeholder="Dirección completa de la sede" />
                           </Form.Item>
                         </Col>
-                        <Col span={6}>
-                          <Form.Item
-                            label="Estado"
-                            name="status"
-                            valuePropName="checked"
-                          >
-                            <Switch
-                              checkedChildren="Activo"
-                              unCheckedChildren="Inactivo"
-                            />
-                          </Form.Item>
-                        </Col>
                       </Row>
                     </Card>
 
@@ -273,34 +351,8 @@ const HeadquarterAdd = () => {
                       <Row gutter={16}>
                         <Col span={12}>
                           <Form.Item
-                            label="Persona de Contacto"
-                            name="contactPerson"
-                            rules={[
-                              { required: true, message: 'La persona de contacto es obligatoria' }
-                            ]}
-                          >
-                            <Input placeholder="Nombre del responsable de la sede" />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item
-                            label="Email de Contacto"
-                            name="contactEmail"
-                            rules={[
-                              { required: true, message: 'El email es obligatorio' },
-                              { type: 'email', message: 'Formato de email inválido' }
-                            ]}
-                          >
-                            <Input placeholder="contacto@sede.edu" />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-
-                      <Row gutter={16}>
-                        <Col span={12}>
-                          <Form.Item
-                            label="Teléfono de Contacto"
-                            name="contactPhone"
+                            label="Teléfono"
+                            name="phone"
                             rules={[
                               { required: true, message: 'El teléfono es obligatorio' },
                               { pattern: /^[0-9]{9,12}$/, message: 'Formato de teléfono inválido (9-12 dígitos)' }

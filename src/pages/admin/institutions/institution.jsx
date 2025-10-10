@@ -1,17 +1,15 @@
 /* eslint-disable no-unused-vars */
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Table, Button, Input, Select, Space, Dropdown, Tag, Tooltip, Menu } from "antd";
-import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, UndoOutlined, CheckOutlined, CloseOutlined, EyeOutlined, HomeOutlined, FileTextOutlined, DownloadOutlined, UserOutlined } from "@ant-design/icons";
-import FeatherIcon from "feather-icons-react";
-import { MoreHorizontal, Filter } from "react-feather";
+import { Table, Button, Input, Select, Space, Dropdown, Tag, Menu } from "antd";
+import { SearchOutlined, PlusOutlined, EditOutlined, CheckOutlined, CloseOutlined, EyeOutlined, HomeOutlined, DownloadOutlined, FileTextOutlined } from "@ant-design/icons";
+import { MoreHorizontal } from "react-feather";
 import Header from "../../../components/Header";
 import Sidebar from "../../../components/Sidebar";
 import AlertModal from "../../../components/AlertModal";
+import ExportUtils from "../../../utils/institutions/exportUtils";
 import useAlert from "../../../hooks/useAlert";
-import institutionService from "../../../services/institutions/institutionService";
-import { InstitutionStatus } from "../../../types/institutions";
-import ExportUtils from '../../../utils/institutions/exportUtils';
+import institutionAdminService from "../../../services/institutions/institutionAdminService";
 
 const { Option } = Select;
 
@@ -22,7 +20,6 @@ const InstitutionList = () => {
   // Estados para manejo de datos
   const [institutions, setInstitutions] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   
   // Estados para filtros y búsqueda
   const [searchText, setSearchText] = useState('');
@@ -45,7 +42,7 @@ const InstitutionList = () => {
   const loadInstitutions = async () => {
     setLoading(true);
     try {
-      const response = await institutionService.getAllInstitutions();
+      const response = await institutionAdminService.getAllInstitutions();
       if (response.success) {
         setInstitutions(response.data);
         // Solo mostrar mensaje si viene del backend
@@ -73,9 +70,8 @@ const InstitutionList = () => {
       const search = searchText.toLowerCase();
       filtered = filtered.filter(institution => 
         institution.name?.toLowerCase().includes(search) ||
-        institution.codeName?.toLowerCase().includes(search) ||
-        institution.contactEmail?.toLowerCase().includes(search) ||
-        institution.modularCode?.toLowerCase().includes(search)
+        institution.codeInstitution?.toString().includes(search) ||
+        institution.contactEmail?.toLowerCase().includes(search)
       );
     }
 
@@ -108,8 +104,7 @@ const InstitutionList = () => {
    */
   const handleView = (institution) => {
     const details = `
-Código: ${institution.codeName}
-Código Modular: ${institution.modularCode}
+Código: ${institution.codeInstitution}
 Dirección: ${institution.address}
 Email: ${institution.contactEmail}
 Teléfono: ${institution.contactPhone}
@@ -139,14 +134,23 @@ Creado: ${new Date(institution.createdAt).toLocaleDateString()}
       type: 'warning',
       onConfirm: async () => {
         try {
-          const response = await institutionService.toggleInstitutionStatus(institution.id, institution.status);
+          let response;
+          
+          if (newStatus === 'A') {
+            response = await institutionAdminService.restoreInstitution(institution.id);
+          } else {
+            // Para desactivar, usar el método delete que hace soft delete
+            response = await institutionAdminService.deleteInstitution(institution.id);
+          }
+
           if (response.success) {
             showSuccess(`Institución ${action}da correctamente`);
             loadInstitutions();
           } else {
-            showError(response.error);
+            showError(response.error || `Error al ${action} la institución`);
           }
         } catch (error) {
+          console.error(`Error al ${action} institución:`, error);
           showError(`Error al ${action} la institución`);
         }
       },
@@ -154,80 +158,10 @@ Creado: ${new Date(institution.createdAt).toLocaleDateString()}
   };
 
 
-  /**
-   * Restaura una institución eliminada
-   */
-  const handleRestore = async (institution) => {
-    showAlert({
-      title: '¿Restaurar esta institución?',
-      message: `Se restaurará la institución "${institution.name}"`,
-      type: 'info',
-      onConfirm: async () => {
-        try {
-          const response = await institutionService.restoreInstitution(institution.id);
-          if (response.success) {
-            showSuccess('Institución restaurada correctamente');
-            loadInstitutions();
-          } else {
-            showError(response.error);
-          }
-        } catch (error) {
-          showError('Error al restaurar la institución');
-        }
-      },
-    });
-  };
 
-  /**
-   * Elimina múltiples instituciones seleccionadas
-   */
-  const handleBulkDelete = () => {
-    if (selectedRowKeys.length === 0) {
-      showWarning('Selecciona al menos una institución');
-      return;
-    }
 
-    showAlert({
-      title: `¿Eliminar ${selectedRowKeys.length} institución(es)?`,
-      message: 'Las instituciones seleccionadas serán eliminadas. Esta acción se puede revertir.',
-      type: 'warning',
-      onConfirm: async () => {
-        try {
-          let successCount = 0;
-          let errorCount = 0;
 
-          for (const id of selectedRowKeys) {
-            const response = await institutionService.deleteInstitution(id);
-            if (response.success) {
-              successCount++;
-            } else {
-              errorCount++;
-            }
-          }
 
-          if (successCount > 0) {
-            showSuccess(`${successCount} institución(es) eliminada(s) correctamente`);
-          }
-          if (errorCount > 0) {
-            showError(`Error al eliminar ${errorCount} institución(es)`);
-          }
-
-          setSelectedRowKeys([]);
-          loadInstitutions();
-        } catch (error) {
-          showError('Error en la eliminación masiva');
-        }
-      },
-    });
-  };
-
-  // Configuración de selección de filas
-  const rowSelection = {
-    selectedRowKeys,
-    onChange: (newSelectedRowKeys) => {
-      setSelectedRowKeys(newSelectedRowKeys);
-    },
-  };
 
   // Configuración de columnas de la tabla
   const columns = [
@@ -239,16 +173,10 @@ Creado: ${new Date(institution.createdAt).toLocaleDateString()}
         <div>
           <strong>{text}</strong>
           <br />
-          <small className="text-muted">Código: {record.codeName}</small>
+          <small className="text-muted">Código: {record.codeInstitution}</small>
         </div>
       ),
       sorter: (a, b) => a.name.localeCompare(b.name),
-    },
-    {
-      title: 'Código Modular',
-      dataIndex: 'modularCode',
-      key: 'modularCode',
-      sorter: (a, b) => a.modularCode.localeCompare(b.modularCode),
     },
     {
       title: 'Contacto',
@@ -304,12 +232,6 @@ Creado: ${new Date(institution.createdAt).toLocaleDateString()}
             label: 'Sedes',
             icon: <HomeOutlined />,
             onClick: () => navigate(`/admin/institution/${record.id}/headquarters`),
-          },
-          {
-            key: 'directors',
-            label: 'Directores',
-            icon: <UserOutlined />,
-            onClick: () => navigate(`/admin/institution/${record.id}/directors`),
           },
           {
             key: 'toggle',
@@ -393,14 +315,6 @@ Creado: ${new Date(institution.createdAt).toLocaleDateString()}
                     </div>
                     <div className="col-lg-6 col-md-12 col-sm-12 mb-2">
                       <div className="d-flex flex-wrap justify-content-end gap-2">
-                        <Button
-                          type="primary"
-                          icon={<PlusOutlined />}
-                          onClick={handleCreate}
-                          className="btn-sm"
-                        >
-                          Nueva Institución
-                        </Button>
                         <Dropdown
                           overlay={
                             <Menu>
@@ -440,16 +354,15 @@ Creado: ${new Date(institution.createdAt).toLocaleDateString()}
                         >
                           Reportes
                         </Button>
-                        {selectedRowKeys.length > 0 && (
-                          <Button
-                            danger
-                            icon={<DeleteOutlined />}
-                            onClick={handleBulkDelete}
-                            className="btn-sm"
-                          >
-                            Eliminar ({selectedRowKeys.length})
-                          </Button>
-                        )}
+                        <Button
+                          type="primary"
+                          icon={<PlusOutlined />}
+                          onClick={handleCreate}
+                          className="btn-sm"
+                        >
+                          Nueva Institución
+                        </Button>
+
                       </div>
                     </div>
                   </div>
@@ -457,7 +370,6 @@ Creado: ${new Date(institution.createdAt).toLocaleDateString()}
                   {/* Tabla de instituciones */}
                   <div className="table-responsive">
                     <Table
-                      rowSelection={rowSelection}
                       columns={columns}
                       dataSource={filteredInstitutions}
                       rowKey="id"

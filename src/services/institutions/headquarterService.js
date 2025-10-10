@@ -74,7 +74,14 @@ class HeadquarterService {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+        // Extraer mensaje de error más específico del backend
+        const errorMessage = data.metadata?.message || data.message || `HTTP error! status: ${response.status}`;
+        console.error('🚨 Error del backend:', {
+          status: response.status,
+          message: errorMessage,
+          data: data
+        });
+        throw new Error(errorMessage);
       }
       
       return data;
@@ -85,7 +92,9 @@ class HeadquarterService {
       
       // Error de parsing JSON
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const statusMessage = `Error del servidor (${response.status}): ${error.message || 'Respuesta no válida'}`;
+        console.error('🚨 Error de respuesta:', statusMessage);
+        throw new Error(statusMessage);
       }
       
       console.error('Error parsing JSON response:', error);
@@ -199,23 +208,90 @@ class HeadquarterService {
         };
       }
 
-      // Crear el payload sin el ID (se genera en el backend)
-      const payload = {
-        institutionId: headquarterData.institutionId,
-        headquartersName: headquarterData.headquartersName,
-        headquartersCode: headquarterData.headquartersCode,
-        address: headquarterData.address,
-        contactPerson: headquarterData.contactPerson,
-        contactEmail: headquarterData.contactEmail,
-        contactPhone: headquarterData.contactPhone,
-        status: headquarterData.status || 'A'
+      // Función para limpiar y validar texto
+      const cleanText = (text) => {
+        if (!text) return '';
+        return text
+          .trim()
+          .replace(/[^\x20-\x7E\u00A0-\uFFFF]/g, '') // Remover caracteres no imprimibles
+          .replace(/[\t\n\r\f\v]/g, ' ')  // Remover espacios problemáticos
+          .replace(/\s+/g, ' ')            // Múltiples espacios a uno
+          .trim();
       };
 
+      // Asegurar que modularCode sea un array válido
+      let modularCodeArray = [];
+      if (Array.isArray(headquarterData.modularCode)) {
+        modularCodeArray = headquarterData.modularCode;
+      } else if (typeof headquarterData.modularCode === 'string') {
+        try {
+          modularCodeArray = JSON.parse(headquarterData.modularCode);
+        } catch (e) {
+          modularCodeArray = [];
+        }
+      }
+
+      // Crear el payload sin el ID (se genera en el backend) con datos limpiados
+      const payload = {
+        institutionId: String(headquarterData.institutionId || '').trim(),
+        headquartersName: cleanText(headquarterData.headquartersName) || '',
+        headquartersCode: cleanText(headquarterData.headquartersCode) || '',
+        modularCode: modularCodeArray, // Enviar como array JSON, no como string
+        address: cleanText(headquarterData.address) || '',
+        contactPerson: cleanText(headquarterData.contactPerson) || '',
+        contactEmail: String(headquarterData.contactEmail || '').trim().toLowerCase(),
+        contactPhone: String(headquarterData.contactPhone || '').replace(/\D/g, ''),
+        status: String(headquarterData.status || 'A')
+      };
+
+      // Asegurar que no hay valores null o undefined
+      Object.keys(payload).forEach(key => {
+        if (payload[key] === null || payload[key] === undefined) {
+          if (key === 'modularCode') {
+            payload[key] = [];
+          } else {
+            payload[key] = '';
+          }
+        }
+      });
+
+      // Validación adicional antes de enviar
+      if (!payload.institutionId || !payload.headquartersName || !payload.headquartersCode) {
+        return {
+          success: false,
+          error: 'Faltan datos obligatorios: institutionId, headquartersName, headquartersCode'
+        };
+      }
+
+      console.log('📝 Payload a enviar:', payload);
+      console.log('🔍 Códigos modulares (array):', payload.modularCode);
+
       return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/headquarters`, {
+        const fullURL = `${this.baseURL}/headquarters`;
+        console.log('📤 Enviando request POST:', {
+          url: fullURL,
           method: 'POST',
           headers: this.getAuthHeaders(),
+          bodySize: JSON.stringify(payload).length,
+          payloadPreview: {
+            ...payload,
+            modularCode: `[${payload.modularCode.length} códigos]`
+          }
+        });
+
+        const response = await fetch(fullURL, {
+          method: 'POST',
+          headers: {
+            ...this.getAuthHeaders(),
+            'Accept': 'application/json'
+          },
           body: JSON.stringify(payload)
+        });
+
+        console.log('📥 Respuesta recibida:', {
+          status: response.status,
+          statusText: response.statusText,
+          headers: Object.fromEntries(response.headers.entries())
         });
 
         const result = await this.handleResponse(response);
@@ -229,9 +305,27 @@ class HeadquarterService {
       });
     } catch (error) {
       console.error('Error al crear sede:', error);
+      
+      // Manejar diferentes tipos de errores
+      let errorMessage = 'Error al crear la sede';
+      
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        errorMessage = 'Error de conexión con el servidor';
+      } else if (error.message.includes('400')) {
+        errorMessage = `Error del servidor (400): ${error.message}`;
+      } else if (error.message.includes('500')) {
+        errorMessage = `Error del servidor (500): ${error.message}`;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       return {
         success: false,
-        error: error.message || 'Error al crear la sede'
+        error: errorMessage,
+        details: {
+          originalError: error.message,
+          stack: error.stack
+        }
       };
     }
   }
@@ -256,23 +350,79 @@ class HeadquarterService {
         };
       }
 
-      // Crear el payload sin el ID
-      const payload = {
-        institutionId: headquarterData.institutionId,
-        headquartersName: headquarterData.headquartersName,
-        headquartersCode: headquarterData.headquartersCode,
-        address: headquarterData.address,
-        contactPerson: headquarterData.contactPerson,
-        contactEmail: headquarterData.contactEmail,
-        contactPhone: headquarterData.contactPhone,
-        status: headquarterData.status
+      // Función para limpiar y validar texto
+      const cleanText = (text) => {
+        if (!text) return '';
+        return text
+          .trim()
+          .replace(/[^\x20-\x7E\u00A0-\uFFFF]/g, '') // Remover caracteres no imprimibles
+          .replace(/[\t\n\r\f\v]/g, ' ')  // Remover espacios problemáticos
+          .replace(/\s+/g, ' ')            // Múltiples espacios a uno
+          .trim();
       };
 
+      // Asegurar que modularCode sea un array válido
+      let modularCodeArray = [];
+      if (Array.isArray(headquarterData.modularCode)) {
+        modularCodeArray = headquarterData.modularCode;
+      } else if (typeof headquarterData.modularCode === 'string') {
+        try {
+          modularCodeArray = JSON.parse(headquarterData.modularCode);
+        } catch (e) {
+          modularCodeArray = [];
+        }
+      }
+
+      // Crear el payload sin el ID
+      const payload = {
+        institutionId: String(headquarterData.institutionId || '').trim(),
+        headquartersName: cleanText(headquarterData.headquartersName) || '',
+        headquartersCode: cleanText(headquarterData.headquartersCode) || '',
+        modularCode: modularCodeArray, // Enviar como array JSON, no como string
+        address: cleanText(headquarterData.address) || '',
+        contactPerson: cleanText(headquarterData.contactPerson) || '',
+        contactEmail: String(headquarterData.contactEmail || '').trim().toLowerCase(),
+        contactPhone: String(headquarterData.contactPhone || '').replace(/\D/g, ''),
+        status: String(headquarterData.status || 'A')
+      };
+
+      // Asegurar que no hay valores null o undefined
+      Object.keys(payload).forEach(key => {
+        if (payload[key] === null || payload[key] === undefined) {
+          if (key === 'modularCode') {
+            payload[key] = [];
+          } else {
+            payload[key] = '';
+          }
+        }
+      });
+
       return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/headquarters/${id}`, {
+        const fullURL = `${this.baseURL}/headquarters/${id}`;
+        console.log('📤 Enviando request PUT:', {
+          url: fullURL,
           method: 'PUT',
           headers: this.getAuthHeaders(),
+          bodySize: JSON.stringify(payload).length,
+          payloadPreview: {
+            ...payload,
+            modularCode: `[${payload.modularCode.length} códigos]`
+          }
+        });
+
+        const response = await fetch(fullURL, {
+          method: 'PUT',
+          headers: {
+            ...this.getAuthHeaders(),
+            'Accept': 'application/json'
+          },
           body: JSON.stringify(payload)
+        });
+
+        console.log('📥 Respuesta recibida:', {
+          status: response.status,
+          statusText: response.statusText,
+          headers: Object.fromEntries(response.headers.entries())
         });
 
         const result = await this.handleResponse(response);
@@ -286,9 +436,27 @@ class HeadquarterService {
       });
     } catch (error) {
       console.error('Error al actualizar sede:', error);
+      
+      // Manejar diferentes tipos de errores
+      let errorMessage = 'Error al actualizar la sede';
+      
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        errorMessage = 'Error de conexión con el servidor';
+      } else if (error.message.includes('400')) {
+        errorMessage = `Error del servidor (400): ${error.message}`;
+      } else if (error.message.includes('500')) {
+        errorMessage = `Error del servidor (500): ${error.message}`;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       return {
         success: false,
-        error: error.message || 'Error al actualizar la sede'
+        error: errorMessage,
+        details: {
+          originalError: error.message,
+          stack: error.stack
+        }
       };
     }
   }

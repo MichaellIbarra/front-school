@@ -2,15 +2,14 @@
 /* eslint-disable no-unused-vars */
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams, useLocation, Link } from "react-router-dom";
-import { Form, Input, Button, Switch, Select, InputNumber, TimePicker, Card, Upload, Row, Col } from "antd";
-import { SaveOutlined, ArrowLeftOutlined, UploadOutlined, SearchOutlined, LoadingOutlined } from "@ant-design/icons";
+import { Form, Input, Button, Switch, Select, InputNumber, TimePicker, Card, Upload, Row, Col, AutoComplete, Spin } from "antd";
+import { SaveOutlined, ArrowLeftOutlined, UploadOutlined, SearchOutlined } from "@ant-design/icons";
 import moment from "moment";
 import Header from "../../../components/Header";
 import Sidebar from "../../../components/Sidebar";
 import AlertModal from "../../../components/AlertModal";
 import useAlert from "../../../hooks/useAlert";
-import institutionService from "../../../services/institutions/institutionService";
-import escalemineduService from "../../../services/institutions/escalemineduService";
+import institutionAdminService from "../../../services/institutions/institutionAdminService";
 import { Institution, InstitutionStatus, LogoPosition, GradeScale, validateInstitution } from "../../../types/institutions";
 
 const { Option } = Select;
@@ -22,32 +21,19 @@ const InstitutionAdd = () => {
   const location = useLocation();
   const [form] = Form.useForm();
   const { alertState, showAlert, showSuccess, showError, showWarning, handleConfirm: alertConfirm, handleCancel: alertCancel } = useAlert();
-
-  // Estilos para el componente
-  const styles = {
-    escaleInfo: {
-      padding: '8px 12px',
-      backgroundColor: '#f6ffed',
-      border: '1px solid #b7eb8f',
-      borderRadius: '6px',
-      fontSize: '12px',
-      marginTop: '-16px',
-      marginBottom: '16px'
-    },
-    searchButton: {
-      width: '40px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center'
-    }
-  };
   
   // Estados
   const [loading, setLoading] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
   const [institutionData, setInstitutionData] = useState(Institution);
-  const [searchingEscale, setSearchingEscale] = useState(false);
-  const [escaleData, setEscaleData] = useState(null);
+  
+  // Estados para búsqueda MINEDU
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [minEduOptions, setMinEduOptions] = useState([]);
+  
+  // Estados para upload de logo
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [fileList, setFileList] = useState([]);
 
   // Verificar si es modo edición
   useEffect(() => {
@@ -62,7 +48,7 @@ const InstitutionAdd = () => {
     } else {
       // Modo creación
       setIsEdit(false);
-      const newInstitution = institutionService.createNewInstitution();
+      const newInstitution = institutionAdminService.createNewInstitution();
       setInstitutionData(newInstitution);
       populateForm(newInstitution);
     }
@@ -74,7 +60,7 @@ const InstitutionAdd = () => {
   const loadInstitution = async (institutionId) => {
     setLoading(true);
     try {
-      const response = await institutionService.getInstitutionById(institutionId);
+      const response = await institutionAdminService.getInstitutionById(institutionId);
       if (response.success && response.data) {
         setInstitutionData(response.data);
         populateForm(response.data);
@@ -90,32 +76,203 @@ const InstitutionAdd = () => {
   };
 
   /**
+   * Busca instituciones en MINEDU por código
+   */
+  const handleMinEduSearch = async (searchValue) => {
+    if (!searchValue || searchValue.length < 6) {
+      setMinEduOptions([]);
+      return;
+    }
+
+    setSearchLoading(true);
+    try {
+      const response = await institutionAdminService.searchMinEduInstitutions(searchValue);
+      
+      console.log('🔍 Respuesta de MINEDU:', response);
+      
+      // La estructura de la respuesta es: response.data.data.items
+      if (response.success && response.data && response.data.data && response.data.data.items && response.data.data.items.length > 0) {
+        const institutions = response.data.data.items;
+        const options = institutions.map(institution => ({
+          value: institution.codinst,
+          label: (
+            <div style={{ lineHeight: '1.4' }}>
+              <div style={{ fontWeight: 'bold', color: '#1890ff' }}>
+                {institution.cenEdu || 'Sin nombre'}
+              </div>
+              <div style={{ fontSize: '12px', color: '#666' }}>
+                Código: {institution.codinst} • {institution.cenPob} • {institution.distrito?.nombreDistrito}
+              </div>
+              <div style={{ fontSize: '11px', color: '#999' }}>
+                {institution.dirCen} • Nivel: {institution.nivelModalidad?.valor}
+              </div>
+            </div>
+          ),
+          searchText: `${institution.cenEdu} ${institution.cenPob} ${institution.codinst}`, // Para facilitar la búsqueda
+          data: institution
+        }));
+        
+        console.log('📋 Opciones procesadas:', options);
+        setMinEduOptions(options);
+      } else {
+        console.log('❌ No se encontraron instituciones o respuesta inválida');
+        setMinEduOptions([]);
+      }
+    } catch (error) {
+      console.error('Error al buscar en MINEDU:', error);
+      setMinEduOptions([]);
+    }
+    setSearchLoading(false);
+  };
+
+  /**
+   * Maneja la selección de una institución de MINEDU
+   */
+  const handleMinEduSelect = (value, option) => {
+    const institutionData = option.data;
+    
+    console.log('✅ Institución seleccionada de MINEDU:', institutionData);
+
+    // Autocompletar campos del formulario con datos de MINEDU
+    const formData = {
+      name: institutionData.cenEdu || '',
+      codeInstitution: institutionData.codinst || '',
+      address: `${institutionData.dirCen || ''}, ${institutionData.cenPob || ''}`.replace(', ,', ',').trim(),
+      contactPhone: institutionData.telefono || '',
+      contactEmail: institutionData.email || '', // Si está disponible
+    };
+
+    // Limpiar campos vacíos
+    Object.keys(formData).forEach(key => {
+      if (!formData[key] || formData[key].trim() === '' || formData[key] === ', ') {
+        delete formData[key];
+      }
+    });
+
+    form.setFieldsValue(formData);
+
+    // Limpiar las opciones después de seleccionar
+    setMinEduOptions([]);
+
+    showSuccess(
+      '✅ Datos encontrados en MINEDU', 
+      `Se encontraron datos para "${institutionData.cenEdu}". Los campos disponibles han sido autocompletados.`
+    );
+  };
+
+  /**
    * Popula el formulario con los datos de la institución
    */
   const populateForm = (institution) => {
     form.setFieldsValue({
       name: institution.name,
-      codeName: institution.codeName,
-      modularCode: institution.modularCode,
+      codeInstitution: institution.codeInstitution,
       address: institution.address,
       contactEmail: institution.contactEmail,
       contactPhone: institution.contactPhone,
-      status: institution.status === 'A',
-      'uiSettings.color': institution.uiSettings?.color || '#3498DB',
+      'uiSettings.color': institution.uiSettings?.color || '#FF0000',
       'uiSettings.logoPosition': institution.uiSettings?.logoPosition || 'LEFT',
       'uiSettings.showStudentPhotos': institution.uiSettings?.showStudentPhotos || false,
-      'evaluationSystem.gradeScale': institution.evaluationSystem?.gradeScale || 'NUMERICAL_0_100',
-      'evaluationSystem.minimumPassingGrade': institution.evaluationSystem?.minimumPassingGrade || 60.0,
-      'evaluationSystem.showDecimals': institution.evaluationSystem?.showDecimals || false,
+      'evaluationSystem.gradeScale': institution.evaluationSystem?.gradeScale || 'NUMERICAL_0_20',
+      'evaluationSystem.minimumPassingGrade': institution.evaluationSystem?.minimumPassingGrade || 10.5,
+      'evaluationSystem.showDecimals': institution.evaluationSystem?.showDecimals || true,
       'scheduleSettings.morningStartTime': institution.scheduleSettings?.morningStartTime ? 
-        moment(institution.scheduleSettings.morningStartTime, 'HH:mm:ss') : moment('07:30:00', 'HH:mm:ss'),
+        moment(institution.scheduleSettings.morningStartTime, 'HH:mm:ss') : moment('08:00:00', 'HH:mm:ss'),
       'scheduleSettings.morningEndTime': institution.scheduleSettings?.morningEndTime ? 
-        moment(institution.scheduleSettings.morningEndTime, 'HH:mm:ss') : moment('11:30:00', 'HH:mm:ss'),
+        moment(institution.scheduleSettings.morningEndTime, 'HH:mm:ss') : moment('12:00:00', 'HH:mm:ss'),
       'scheduleSettings.afternoonStartTime': institution.scheduleSettings?.afternoonStartTime ? 
-        moment(institution.scheduleSettings.afternoonStartTime, 'HH:mm:ss') : moment('13:00:00', 'HH:mm:ss'),
+        moment(institution.scheduleSettings.afternoonStartTime, 'HH:mm:ss') : moment('14:00:00', 'HH:mm:ss'),
       'scheduleSettings.afternoonEndTime': institution.scheduleSettings?.afternoonEndTime ? 
-        moment(institution.scheduleSettings.afternoonEndTime, 'HH:mm:ss') : moment('17:00:00', 'HH:mm:ss'),
+        moment(institution.scheduleSettings.afternoonEndTime, 'HH:mm:ss') : moment('18:00:00', 'HH:mm:ss'),
+      'scheduleSettings.nightStartTime': institution.scheduleSettings?.nightStartTime ? 
+        moment(institution.scheduleSettings.nightStartTime, 'HH:mm:ss') : moment('19:00:00', 'HH:mm:ss'),
+      'scheduleSettings.nightEndTime': institution.scheduleSettings?.nightEndTime ? 
+        moment(institution.scheduleSettings.nightEndTime, 'HH:mm:ss') : moment('22:00:00', 'HH:mm:ss'),
     });
+
+    // Inicializar fileList si hay logo existente
+    if (institution.logo) {
+      setFileList([{
+        uid: '-1',
+        name: 'Logo existente',
+        status: 'done',
+        url: institution.logo
+      }]);
+    } else {
+      setFileList([]);
+    }
+  };
+
+  /**
+   * Valida el archivo antes de subir
+   */
+  const handleBeforeUpload = (file) => {
+    const isImage = file.type.startsWith('image/');
+    if (!isImage) {
+      showError('Solo se permiten archivos de imagen (JPG, PNG, GIF, etc.)');
+      return false;
+    }
+    
+    const maxSizeInMB = 10;
+    const fileSizeInMB = file.size / 1024 / 1024;
+    
+    if (fileSizeInMB > maxSizeInMB) {
+      showError(`La imagen debe ser menor a ${maxSizeInMB}MB. Tamaño actual: ${fileSizeInMB.toFixed(2)}MB`);
+      return false;
+    }
+    
+    // Mostrar advertencia si la imagen es muy grande (mayor a 5MB)
+    if (fileSizeInMB > 5) {
+      showWarning(`Imagen grande detectada (${fileSizeInMB.toFixed(2)}MB). Se recomienda usar imágenes menores a 5MB para mejor rendimiento.`);
+    }
+    
+    return true;
+  };
+
+  /**
+   * Maneja la subida del logo
+   */
+  const handleLogoUpload = async ({ file, onSuccess, onError }) => {
+    if (!institutionData.id) {
+      showError('Debe guardar la institución antes de subir el logo');
+      onError(new Error('No institution ID available'));
+      return;
+    }
+
+    setLogoUploading(true);
+    try {
+      const response = await institutionAdminService.uploadLogo(institutionData.id, file);
+      
+      if (response.success) {
+        showSuccess(response.message || 'Logo subido correctamente');
+        
+        // Actualizar los datos de la institución con la nueva URL del logo
+        if (response.data && response.data.logo) {
+          setInstitutionData(prev => ({
+            ...prev,
+            logo: response.data.logo
+          }));
+          
+          // Actualizar la lista de archivos con el estado done
+          setFileList([{
+            uid: file.uid,
+            name: file.name,
+            status: 'done',
+            url: response.data.logo
+          }]);
+        }
+        
+        onSuccess(response);
+      } else {
+        showError(response.error || 'Error al subir el logo');
+        onError(new Error(response.error || 'Server error'));
+      }
+    } catch (error) {
+      showError('Error al subir el logo');
+      onError(error);
+    } finally {
+      setLogoUploading(false);
+    }
   };
 
   /**
@@ -129,12 +286,11 @@ const InstitutionAdd = () => {
       const institutionPayload = {
         ...institutionData,
         name: values.name,
-        codeName: values.codeName.toUpperCase(),
-        modularCode: values.modularCode,
+        codeInstitution: String(values.codeInstitution).trim(),
         address: values.address,
         contactEmail: values.contactEmail,
         contactPhone: values.contactPhone,
-        status: values.status ? 'A' : 'I',
+        status: isEdit ? institutionData.status : 'A', // Mantener estado actual en edición, 'A' por defecto en creación
         uiSettings: {
           color: values['uiSettings.color'],
           logoPosition: values['uiSettings.logoPosition'],
@@ -149,7 +305,9 @@ const InstitutionAdd = () => {
           morningStartTime: values['scheduleSettings.morningStartTime'].format('HH:mm:ss'),
           morningEndTime: values['scheduleSettings.morningEndTime'].format('HH:mm:ss'),
           afternoonStartTime: values['scheduleSettings.afternoonStartTime'].format('HH:mm:ss'),
-          afternoonEndTime: values['scheduleSettings.afternoonEndTime'].format('HH:mm:ss')
+          afternoonEndTime: values['scheduleSettings.afternoonEndTime'].format('HH:mm:ss'),
+          nightStartTime: values['scheduleSettings.nightStartTime']?.format('HH:mm:ss'),
+          nightEndTime: values['scheduleSettings.nightEndTime']?.format('HH:mm:ss')
         }
       };
 
@@ -164,9 +322,9 @@ const InstitutionAdd = () => {
 
       let response;
       if (isEdit) {
-        response = await institutionService.updateInstitution(institutionData.id, institutionPayload);
+        response = await institutionAdminService.updateInstitution(institutionData.id, institutionPayload);
       } else {
-        response = await institutionService.createInstitution(institutionPayload);
+        response = await institutionAdminService.createInstitution(institutionPayload);
       }
 
       if (response.success) {
@@ -180,58 +338,6 @@ const InstitutionAdd = () => {
     }
     
     setLoading(false);
-  };
-
-  /**
-   * Busca institución en ESCALE MINEDU por código modular
-   */
-  const handleSearchEscale = async () => {
-    const modularCode = form.getFieldValue('modularCode');
-    
-    if (!modularCode || modularCode.trim().length === 0) {
-      showWarning('Ingrese un código modular para buscar');
-      return;
-    }
-
-    if (!escalemineduService.isValidModularCode(modularCode)) {
-      showWarning('El código modular debe contener solo números y tener entre 5 y 10 dígitos');
-      return;
-    }
-
-    setSearchingEscale(true);
-    
-    try {
-      console.log('🔍 Buscando en ESCALE con código:', modularCode);
-      const response = await escalemineduService.searchInstitutionByCode(modularCode);
-      
-      if (response.success && response.data) {
-        const formattedData = escalemineduService.formatInstitutionData(response.data);
-        console.log('✅ Datos formateados:', formattedData);
-        
-        if (formattedData) {
-          setEscaleData(response.data);
-          
-          // Autocompletar solo los campos especificados
-          form.setFieldsValue({
-            name: formattedData.name,
-            address: formattedData.address
-          });
-          
-          showSuccess(`Institución encontrada: ${formattedData.name}`);
-        } else {
-          showError('Error al procesar los datos de ESCALE MINEDU');
-        }
-      } else {
-        showWarning(response.error || 'No se encontró la institución con el código proporcionado');
-        setEscaleData(null);
-      }
-    } catch (error) {
-      console.error('Error al buscar en ESCALE:', error);
-      showError('Error al consultar ESCALE MINEDU');
-      setEscaleData(null);
-    }
-    
-    setSearchingEscale(false);
   };
 
   /**
@@ -279,7 +385,6 @@ const InstitutionAdd = () => {
                     layout="vertical"
                     onFinish={handleSubmit}
                     initialValues={{
-                      status: true,
                       'uiSettings.color': '#3498DB',
                       'uiSettings.logoPosition': 'LEFT',
                       'uiSettings.showStudentPhotos': false,
@@ -306,80 +411,44 @@ const InstitutionAdd = () => {
                         </Col>
                         <Col span={12}>
                           <Form.Item
-                            label="Código de la Institución"
-                            name="codeName"
+                            label={
+                              <span>
+                                Código de la Institución
+                                {!isEdit && (
+                                  <span style={{ color: '#52c41a', fontSize: '12px', marginLeft: '8px' }}>
+                                    (Buscar en MINEDU con código)
+                                  </span>
+                                )}
+                              </span>
+                            }
+                            name="codeInstitution"
                             rules={[
                               { required: true, message: 'El código es obligatorio' },
-                              { min: 2, message: 'El código debe tener al menos 2 caracteres' },
-                              { max: 10, message: 'El código no puede exceder 10 caracteres' },
-                              { pattern: /^[A-Z0-9]+$/, message: 'Solo letras mayúsculas y números' }
+                              { min: 6, message: 'El código debe tener al menos 6 dígitos' },
+                              { max: 12, message: 'El código no puede exceder 12 dígitos' },
+                              { pattern: /^\d+$/, message: 'Solo números permitidos' }
                             ]}
                           >
-                            <Input 
-                              placeholder="Ej: INST001" 
-                              style={{ textTransform: 'uppercase' }}
-                              onChange={(e) => {
-                                e.target.value = e.target.value.toUpperCase();
-                              }}
-                            />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-
-                      <Row gutter={16}>
-                        <Col span={12}>
-                          <Form.Item
-                            label="Código Modular"
-                            name="modularCode"
-                            rules={[
-                              { required: true, message: 'El código modular es obligatorio' },
-                              { min: 5, message: 'El código modular debe tener al menos 5 caracteres' },
-                              { max: 10, message: 'El código modular no puede exceder 10 caracteres' }
-                            ]}
-                          >
-                            <Input.Group compact>
+                            {!isEdit ? (
+                              <AutoComplete
+                                style={{ width: '100%' }}
+                                placeholder="Ingresa código MINEDU (ej: 25024745) para autocompletar"
+                                onSearch={handleMinEduSearch}
+                                onSelect={handleMinEduSelect}
+                                options={minEduOptions}
+                                notFoundContent={searchLoading ? <Spin size="small" /> : 'No encontrado'}
+                                suffixIcon={<SearchOutlined style={{ color: '#52c41a' }} />}
+                              />
+                            ) : (
                               <Input 
-                                placeholder="Código modular MINEDU" 
-                                style={{ width: 'calc(100% - 40px)' }}
+                                placeholder="Ej: 001234567890" 
+                                maxLength={12}
                                 onChange={(e) => {
-                                  // Solo permitir números
-                                  const value = e.target.value.replace(/[^\d]/g, '');
-                                  form.setFieldsValue({ modularCode: value });
+                                  const value = e.target.value.replace(/[^0-9]/g, '');
+                                  e.target.value = value;
                                 }}
                               />
-                              <Button
-                                type="primary"
-                                icon={searchingEscale ? <LoadingOutlined /> : <SearchOutlined />}
-                                onClick={handleSearchEscale}
-                                loading={searchingEscale}
-                                disabled={searchingEscale}
-                                title="Buscar en ESCALE MINEDU"
-                                style={{ width: '40px' }}
-                              />
-                            </Input.Group>
-                          </Form.Item>
-                          {escaleData && (
-                            <div style={styles.escaleInfo}>
-                              <div><strong>✅ Encontrado en ESCALE:</strong></div>
-                              <div>📍 UGEL: {escaleData.ugel?.nombreUgel || 'No especificado'}</div>
-                              <div>🎓 Nivel: {escaleData.nivelModalidad?.valor || 'No especificado'}</div>
-                              <div>🏛️ Gestión: {escaleData.gestion || 'No especificado'}</div>
-                              {escaleData.director && (
-                                <div>👤 Director: {escaleData.director}</div>
-                              )}
-                            </div>
-                          )}
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item
-                            label="Estado"
-                            name="status"
-                            valuePropName="checked"
-                          >
-                            <Switch
-                              checkedChildren="Activo"
-                              unCheckedChildren="Inactivo"
-                            />
+                            )}
                           </Form.Item>
                         </Col>
                       </Row>
@@ -459,6 +528,57 @@ const InstitutionAdd = () => {
                           </Form.Item>
                         </Col>
                       </Row>
+                      
+                      {isEdit && institutionData.id && (
+                        <Row gutter={16}>
+                          <Col span={24}>
+                            <div style={{ marginBottom: 16 }}>
+                              <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
+                                Logo de la Institución
+                              </label>
+                              <div style={{ fontSize: '12px', color: '#666', marginBottom: 8 }}>
+                                Formatos permitidos: JPG, PNG, GIF. Tamaño máximo: 10MB. Recomendado: menos de 5MB.
+                              </div>
+                              <Upload
+                                name="logo"
+                                listType="picture-card"
+                                className="logo-uploader"
+                                showUploadList={true}
+                                fileList={fileList}
+                                maxCount={1}
+                                beforeUpload={handleBeforeUpload}
+                                customRequest={handleLogoUpload}
+                                disabled={logoUploading}
+                                accept="image/*"
+                                onChange={(info) => {
+                                  setFileList(info.fileList);
+                                }}
+                                onRemove={() => {
+                                  setFileList([]);
+                                  setInstitutionData(prev => ({
+                                    ...prev,
+                                    logo: ''
+                                  }));
+                                }}
+                              >
+                                {fileList.length >= 1 ? null : (
+                                  logoUploading ? (
+                                    <div>
+                                      <Spin />
+                                      <div style={{ marginTop: 8 }}>Subiendo...</div>
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <UploadOutlined />
+                                      <div style={{ marginTop: 8 }}>Subir Logo</div>
+                                    </div>
+                                  )
+                                )}
+                              </Upload>
+                            </div>
+                          </Col>
+                        </Row>
+                      )}
                     </Card>
 
                     {/* Sistema de Evaluación */}
@@ -550,6 +670,36 @@ const InstitutionAdd = () => {
                               <Form.Item
                                 label="Hora Fin"
                                 name="scheduleSettings.afternoonEndTime"
+                              >
+                                <TimePicker
+                                  format="HH:mm"
+                                  style={{ width: '100%' }}
+                                />
+                              </Form.Item>
+                            </Col>
+                          </Row>
+                        </Col>
+                      </Row>
+                      
+                      <Row gutter={16} className="mt-3">
+                        <Col span={12}>
+                          <h5>Turno Noche</h5>
+                          <Row gutter={8}>
+                            <Col span={12}>
+                              <Form.Item
+                                label="Hora Inicio"
+                                name="scheduleSettings.nightStartTime"
+                              >
+                                <TimePicker
+                                  format="HH:mm"
+                                  style={{ width: '100%' }}
+                                />
+                              </Form.Item>
+                            </Col>
+                            <Col span={12}>
+                              <Form.Item
+                                label="Hora Fin"
+                                name="scheduleSettings.nightEndTime"
                               >
                                 <TimePicker
                                   format="HH:mm"

@@ -23,6 +23,37 @@ class AttendanceService {
   }
 
   /**
+   * Determina si un estudiante está ausente basándose en observaciones y estado
+   * @param {Object} student - Objeto del estudiante con información de asistencia
+   * @returns {boolean} - true si el estudiante está ausente
+   */
+  isStudentAbsent(student) {
+    if (!student) return false;
+    
+    const observations = (student.observations || '').toLowerCase();
+    
+    // PRIORIDAD 1: Verificar palabras clave de ausencia en observaciones
+    const absentKeywords = ['falto', 'faltó', 'ausente', 'no asistio', 'no asistió', 'no registr', 'no registro', 'no vino', 'inasistencia'];
+    if (absentKeywords.some(keyword => observations.includes(keyword))) {
+      return true;
+    }
+    
+    // PRIORIDAD 2: Verificar el campo de estado explícito
+    const status = (student.attendanceStatus || student.status || '').toUpperCase();
+    if (status === 'ABSENT' || status === 'AUSENTE') {
+      return true;
+    }
+    
+    // PRIORIDAD 3: Si es registro automático sin hora de entrada, probablemente ausente
+    const registrationMethod = (student.registrationMethod || '').toUpperCase();
+    if (registrationMethod === 'AUTOMATIC' && !student.entryTime) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
    * Obtiene los headers de autorización para las peticiones
    */
   getAuthHeaders() {
@@ -38,48 +69,271 @@ class AttendanceService {
    */
   getMockStudents(type = 'absent') {
     const mockStudents = [
+      // 1° Secundaria - Sección A
       {
-        studentEnrollmentId: 'EST001',
-        studentName: 'Juan Carlos Pérez',
-        email: 'juan.perez@email.com',
-        phone: '987654321',
-        entryDate: new Date().toISOString(),
-        observations: 'Falta justificada por motivos médicos'
+        id: 1,
+        studentEnrollmentId: '23343445',
+        studentName: 'Alexis Huapaya Martínez Ruiz',
+        email: 'alexis.huapaya@email.com',
+        phone: '987654301',
+        grade: '1',
+        section: 'A',
+        course: 'Matemáticas',
+        entryDate: new Date(Date.now() - 86400000).toISOString().split('T')[0], // Ayer
+        entryTime: '17:26:50',
+        observations: 'falto',
+        attendanceStatus: 'PRESENT', // Inconsistente a propósito para testing
+        registrationMethod: 'AUTOMATIC'
       },
       {
-        studentEnrollmentId: 'EST002', 
-        studentName: 'María Elena García',
-        email: 'maria.garcia@email.com',
-        phone: '987654322',
-        entryDate: new Date().toISOString(),
-        observations: 'Ausencia sin justificar'
+        id: 2,
+        studentEnrollmentId: '29290909',
+        studentName: 'Ana María Carla López García',
+        email: 'ana.lopez@email.com',
+        phone: '987654302',
+        grade: '1',
+        section: 'A',
+        course: 'Matemáticas',
+        entryDate: new Date(Date.now() - 86400000).toISOString().split('T')[0],
+        entryTime: '17:26:50',
+        observations: 'falto',
+        attendanceStatus: 'PRESENT',
+        registrationMethod: 'AUTOMATIC'
+      },
+      // 1° Secundaria - Sección B
+      {
+        id: 3,
+        studentEnrollmentId: '66778899',
+        studentName: 'Camila Vargas Flores',
+        email: 'camila.vargas@email.com',
+        phone: '987654303',
+        grade: '1',
+        section: 'B',
+        course: 'Comunicación',
+        entryDate: new Date(Date.now() - 86400000).toISOString().split('T')[0],
+        entryTime: '17:26:50',
+        observations: 'falto',
+        attendanceStatus: 'PRESENT',
+        registrationMethod: 'AUTOMATIC'
       },
       {
-        studentEnrollmentId: 'EST003',
-        studentName: 'Carlos Roberto Silva',
-        email: 'carlos.silva@email.com', 
-        phone: '987654323',
-        entryDate: new Date().toISOString(),
-        observations: 'Presente en clase'
+        id: 4,
+        studentEnrollmentId: '90202022',
+        studentName: 'Carla Andreaa',
+        email: 'carla.andreaa@email.com',
+        phone: '987654304',
+        grade: '1',
+        section: 'B',
+        course: 'Comunicación',
+        entryDate: new Date(Date.now() - 86400000).toISOString().split('T')[0],
+        entryTime: '17:26:50',
+        observations: 'falto',
+        attendanceStatus: 'PRESENT',
+        registrationMethod: 'AUTOMATIC'
+      },
+      // 2° Secundaria - Sección A
+      {
+        id: 5,
+        studentEnrollmentId: '23456789',
+        studentName: 'Diego Andrés Castillo Ramos',
+        email: 'diego.castillo@email.com',
+        phone: '987654305',
+        grade: '2',
+        section: 'A',
+        course: 'Ciencias',
+        entryDate: new Date(Date.now() - 86400000).toISOString().split('T')[0],
+        entryTime: '17:26:50',
+        observations: 'falto',
+        attendanceStatus: 'PRESENT',
+        registrationMethod: 'AUTOMATIC'
       },
       {
-        studentEnrollmentId: 'EST004',
-        studentName: 'Ana Isabel Rodríguez',
-        email: 'ana.rodriguez@email.com',
-        phone: '987654324', 
-        entryDate: new Date().toISOString(),
-        observations: 'Tardanza justificada'
+        id: 6,
+        studentEnrollmentId: '99001122',
+        studentName: 'Emilio Cruz Huamán',
+        email: 'emilio.cruz@email.com',
+        phone: '987654306',
+        grade: '2',
+        section: 'A',
+        course: 'Ciencias',
+        entryDate: new Date(Date.now() - 86400000).toISOString().split('T')[0],
+        entryTime: '17:26:50',
+        observations: 'falto',
+        attendanceStatus: 'PRESENT',
+        registrationMethod: 'AUTOMATIC'
+      },
+      // 2° Secundaria - Sección B
+      {
+        id: 7,
+        studentEnrollmentId: '12123434',
+        studentName: 'Fabricio Huapaya Ramírez Torres',
+        email: 'fabricio.ramirez@email.com',
+        phone: '987654307',
+        grade: '2',
+        section: 'B',
+        course: 'Historia',
+        entryDate: new Date(Date.now() - 86400000).toISOString().split('T')[0],
+        entryTime: '17:26:50',
+        observations: 'falto',
+        attendanceStatus: 'PRESENT',
+        registrationMethod: 'AUTOMATIC'
+      },
+      {
+        id: 8,
+        studentEnrollmentId: '55667788',
+        studentName: 'Gabriel Salazar Chávez',
+        email: 'gabriel.salazar@email.com',
+        phone: '987654308',
+        grade: '2',
+        section: 'B',
+        course: 'Historia',
+        entryDate: new Date(Date.now() - 86400000).toISOString().split('T')[0],
+        entryTime: '17:26:50',
+        observations: 'falto',
+        attendanceStatus: 'PRESENT',
+        registrationMethod: 'AUTOMATIC'
+      },
+      // 3° Secundaria - Sección A
+      {
+        id: 9,
+        studentEnrollmentId: '78901234',
+        studentName: 'Ibarra Rojas González Pérez',
+        email: 'ibarra.rojas@email.com',
+        phone: '987654309',
+        grade: '3',
+        section: 'A',
+        course: 'Física',
+        entryDate: new Date(Date.now() - 86400000).toISOString().split('T')[0],
+        entryTime: '17:26:50',
+        observations: 'falto',
+        attendanceStatus: 'PRESENT',
+        registrationMethod: 'AUTOMATIC'
+      },
+      {
+        id: 10,
+        studentEnrollmentId: '14151617',
+        studentName: 'Isabella Pamelaa Morales Peña',
+        email: 'isabella.morales@email.com',
+        phone: '987654310',
+        grade: '3',
+        section: 'A',
+        course: 'Física',
+        entryDate: new Date(Date.now() - 86400000).toISOString().split('T')[0],
+        entryTime: '17:26:50',
+        observations: 'falto',
+        attendanceStatus: 'PRESENT',
+        registrationMethod: 'AUTOMATIC'
+      },
+      {
+        id: 11,
+        studentEnrollmentId: '88990011',
+        studentName: 'Mariana Paredes León',
+        email: 'mariana.paredes@email.com',
+        phone: '987654311',
+        grade: '3',
+        section: 'A',
+        course: 'Química',
+        entryDate: new Date(Date.now() - 86400000).toISOString().split('T')[0],
+        entryTime: '17:19:59',
+        observations: 'falto',
+        attendanceStatus: 'ABSENT',
+        registrationMethod: 'AUTOMATIC'
+      },
+      // Estudiantes presentes de hoy
+      {
+        id: 12,
+        studentEnrollmentId: '11223344',
+        studentName: 'Pedro Luis Fernández',
+        email: 'pedro.fernandez@email.com',
+        phone: '987654312',
+        grade: '1',
+        section: 'A',
+        course: 'Matemáticas',
+        entryDate: new Date().toISOString().split('T')[0],
+        entryTime: '08:15:00',
+        observations: 'Presente',
+        attendanceStatus: 'PRESENT',
+        registrationMethod: 'MANUAL'
+      },
+      {
+        id: 13,
+        studentEnrollmentId: '22334455',
+        studentName: 'Sofía Valentina Torres',
+        email: 'sofia.torres@email.com',
+        phone: '987654313',
+        grade: '2',
+        section: 'A',
+        course: 'Ciencias',
+        entryDate: new Date().toISOString().split('T')[0],
+        entryTime: '08:20:00',
+        observations: 'Presente',
+        attendanceStatus: 'PRESENT',
+        registrationMethod: 'BIOMETRIC'
       }
     ];
 
     // Filtrar según el tipo de búsqueda
     if (type === 'present') {
-      return mockStudents.filter(s => s.observations.includes('Presente') || s.observations.includes('Tardanza'));
+      return mockStudents.filter(s => 
+        !this.isStudentAbsent(s) && 
+        s.entryDate === new Date().toISOString().split('T')[0]
+      );
     } else if (type === 'absent') {
-      return mockStudents.filter(s => s.observations.includes('Falta') || s.observations.includes('Ausencia'));
+      return mockStudents.filter(s => this.isStudentAbsent(s));
     }
     
     return mockStudents; // Retornar todos si no se especifica tipo
+  }
+
+  /**
+   * Asigna automáticamente datos académicos a estudiantes que no los tienen
+   * Distribuye equitativamente entre grados, secciones y cursos
+   * Los estudiantes del mismo grado y sección tendrán el mismo curso
+   */
+  assignAcademicData(students) {
+    const grades = ['1', '2', '3'];
+    const sections = ['A', 'B'];
+    const courses = ['Matemáticas', 'Comunicación', 'Ciencias', 'Historia', 'Física', 'Química'];
+    
+    // Mapa para asignar cursos por grado+sección
+    // Cada combinación de grado-sección tendrá un curso específico
+    const gradeSectionCourses = {
+      '1-A': 'Matemáticas',
+      '1-B': 'Comunicación',
+      '2-A': 'Ciencias',
+      '2-B': 'Historia',
+      '3-A': 'Física',
+      '3-B': 'Química'
+    };
+    
+    let gradeIndex = 0;
+    let sectionIndex = 0;
+    
+    return students.map(student => {
+      // Si ya tiene datos académicos completos, no modificar
+      if (student.grade && student.section && student.course) {
+        return student;
+      }
+      
+      // Asignar grado y sección de forma rotativa
+      const assignedGrade = student.grade || grades[gradeIndex % grades.length];
+      const assignedSection = student.section || sections[sectionIndex % sections.length];
+      
+      // Asignar curso basado en la combinación grado-sección
+      const gradeSecKey = `${assignedGrade}-${assignedSection}`;
+      const assignedCourse = student.course || gradeSectionCourses[gradeSecKey] || courses[0];
+      
+      // Rotar índices para distribuir equitativamente
+      gradeIndex++;
+      if (gradeIndex % grades.length === 0) sectionIndex++;
+      
+      return {
+        ...student,
+        grade: assignedGrade,
+        section: assignedSection,
+        course: assignedCourse
+      };
+    });
   }
 
   /**
@@ -87,55 +341,153 @@ class AttendanceService {
    */
   getMockLocalStudents() {
     return [
+      // 1° Secundaria - Sección A
       {
         id: '1',
-        name: 'Juan Carlos Pérez',
-        enrollmentId: 'EST001',
-        dni: '12345678',
-        email: 'juan.perez@email.com',
-        phone: '987654321',
-        grade: '5to Secundaria',
-        section: 'A'
+        name: 'Alexis Huapaya Martínez Ruiz',
+        enrollmentId: '23343445',
+        dni: '76543210',
+        email: 'alexis.huapaya@email.com',
+        phone: '987654301',
+        grade: '1',
+        section: 'A',
+        course: 'Matemáticas'
       },
       {
         id: '2',
-        name: 'María Elena García',
-        enrollmentId: 'EST002',
-        dni: '12345679',
-        email: 'maria.garcia@email.com',
-        phone: '987654322',
-        grade: '5to Secundaria',
-        section: 'A'
+        name: 'Ana María Carla López García',
+        enrollmentId: '29290909',
+        dni: '76543211',
+        email: 'ana.lopez@email.com',
+        phone: '987654302',
+        grade: '1',
+        section: 'A',
+        course: 'Matemáticas'
       },
       {
         id: '3',
-        name: 'Carlos Roberto Silva',
-        enrollmentId: 'EST003',
-        dni: '12345680',
-        email: 'carlos.silva@email.com',
-        phone: '987654323',
-        grade: '5to Secundaria',
-        section: 'B'
+        name: 'Pedro Luis Fernández',
+        enrollmentId: '11223344',
+        dni: '76543212',
+        email: 'pedro.fernandez@email.com',
+        phone: '987654312',
+        grade: '1',
+        section: 'A',
+        course: 'Comunicación'
       },
+      // 1° Secundaria - Sección B
       {
         id: '4',
-        name: 'Ana Isabel Rodríguez',
-        enrollmentId: 'EST004',
-        dni: '12345681',
-        email: 'ana.rodriguez@email.com',
-        phone: '987654324',
-        grade: '5to Secundaria',
-        section: 'B'
+        name: 'Camila Vargas Flores',
+        enrollmentId: '66778899',
+        dni: '76543213',
+        email: 'camila.vargas@email.com',
+        phone: '987654303',
+        grade: '1',
+        section: 'B',
+        course: 'Comunicación'
       },
       {
         id: '5',
-        name: 'Pedro Miguel Torres',
-        enrollmentId: 'EST005',
-        dni: '12345682',
-        email: 'pedro.torres@email.com',
-        phone: '987654325',
-        grade: '4to Secundaria',
-        section: 'A'
+        name: 'Carla Andreaa',
+        enrollmentId: '90202022',
+        dni: '76543214',
+        email: 'carla.andreaa@email.com',
+        phone: '987654304',
+        grade: '1',
+        section: 'B',
+        course: 'Matemáticas'
+      },
+      // 2° Secundaria - Sección A
+      {
+        id: '6',
+        name: 'Diego Andrés Castillo Ramos',
+        enrollmentId: '23456789',
+        dni: '76543215',
+        email: 'diego.castillo@email.com',
+        phone: '987654305',
+        grade: '2',
+        section: 'A',
+        course: 'Ciencias'
+      },
+      {
+        id: '7',
+        name: 'Emilio Cruz Huamán',
+        enrollmentId: '99001122',
+        dni: '76543216',
+        email: 'emilio.cruz@email.com',
+        phone: '987654306',
+        grade: '2',
+        section: 'A',
+        course: 'Ciencias'
+      },
+      {
+        id: '8',
+        name: 'Sofía Valentina Torres',
+        enrollmentId: '22334455',
+        dni: '76543217',
+        email: 'sofia.torres@email.com',
+        phone: '987654313',
+        grade: '2',
+        section: 'A',
+        course: 'Matemáticas'
+      },
+      // 2° Secundaria - Sección B
+      {
+        id: '9',
+        name: 'Fabricio Huapaya Ramírez Torres',
+        enrollmentId: '12123434',
+        dni: '76543218',
+        email: 'fabricio.ramirez@email.com',
+        phone: '987654307',
+        grade: '2',
+        section: 'B',
+        course: 'Historia'
+      },
+      {
+        id: '10',
+        name: 'Gabriel Salazar Chávez',
+        enrollmentId: '55667788',
+        dni: '76543219',
+        email: 'gabriel.salazar@email.com',
+        phone: '987654308',
+        grade: '2',
+        section: 'B',
+        course: 'Historia'
+      },
+      // 3° Secundaria - Sección A
+      {
+        id: '11',
+        name: 'Ibarra Rojas González Pérez',
+        enrollmentId: '78901234',
+        dni: '76543220',
+        email: 'ibarra.rojas@email.com',
+        phone: '987654309',
+        grade: '3',
+        section: 'A',
+        course: 'Física'
+      },
+      {
+        id: '12',
+        name: 'Isabella Pamelaa Morales Peña',
+        enrollmentId: '14151617',
+        dni: '76543221',
+        email: 'isabella.morales@email.com',
+        phone: '987654310',
+        grade: '3',
+        section: 'A',
+        course: 'Física'
+      },
+      {
+        id: '13',
+        name: 'Mariana Paredes León',
+        enrollmentId: '88990011',
+        dni: '76543222',
+        email: 'mariana.paredes@email.com',
+        phone: '987654311',
+        grade: '3',
+        section: 'A',
+        course: 'Química'
       }
     ];
   }
@@ -294,23 +646,64 @@ class AttendanceService {
 
         const result = await this.handleResponse(response);
         
-        // Transformar los datos al formato esperado por el componente
-        const transformedData = (result.data || []).map(student => ({
-          id: student.id || student.studentEnrollmentId,
-          name: student.studentName || student.name,
-          enrollmentId: student.studentEnrollmentId || student.enrollmentId,
-          dni: student.dni || student.studentEnrollmentId, // Usar enrollmentId como DNI si no hay DNI
-          email: student.email || '',
-          phone: student.phone || '',
-          grade: student.grade || '',
-          section: student.section || ''
-        }));
+        // Obtener datos mock para referencia de datos académicos
+        const mockStudents = this.getMockLocalStudents();
+        
+        // Transformar y limpiar los datos
+        const students = (result.data || [])
+          .map(student => {
+            // Buscar datos académicos del mock si no vienen del API
+            const mockMatch = mockStudents.find(m => 
+              m.enrollmentId === (student.studentEnrollmentId || student.enrollmentId) ||
+              m.name === (student.studentName || student.name)
+            );
+            
+            return {
+              id: student.id || student.studentEnrollmentId,
+              name: (student.studentName || student.name || '').trim(),
+              enrollmentId: (student.studentEnrollmentId || student.enrollmentId || '').trim(),
+              dni: (student.dni || '').trim(),
+              email: (student.email || '').trim().toLowerCase(),
+              phone: (student.phone || '').trim(),
+              // Si no vienen del API, usar datos del mock
+              grade: (student.grade || mockMatch?.grade || '').trim(),
+              section: (student.section || mockMatch?.section || '').trim(),
+              course: (student.course || mockMatch?.course || '').trim()
+            };
+          })
+          .filter(student => student.name && student.enrollmentId) // Eliminar estudiantes sin datos esenciales
+          .sort((a, b) => {
+            // Ordenar por grado, luego sección, luego nombre
+            const gradeCompare = a.grade.localeCompare(b.grade);
+            if (gradeCompare !== 0) return gradeCompare;
+            
+            const sectionCompare = a.section.localeCompare(b.section);
+            if (sectionCompare !== 0) return sectionCompare;
+            
+            return a.name.localeCompare(b.name);
+          });
+
+        // Eliminar duplicados por enrollmentId
+        const uniqueStudents = students.reduce((acc, current) => {
+          const exists = acc.find(item => item.enrollmentId === current.enrollmentId);
+          if (!exists) {
+            acc.push(current);
+          }
+          return acc;
+        }, []);
+        
+        // Asignar automáticamente datos académicos a estudiantes que no los tienen
+        const studentsWithAcademicData = this.assignAcademicData(uniqueStudents);
         
         return {
           success: true,
-          data: transformedData,
-          metadata: result.metadata,
-          message: result.metadata?.message || 'Estudiantes locales obtenidos exitosamente'
+          data: studentsWithAcademicData,
+          metadata: {
+            ...result.metadata,
+            total: studentsWithAcademicData.length,
+            message: result.metadata?.message || `${studentsWithAcademicData.length} estudiante(s) local(es) encontrado(s)`
+          },
+          message: `${studentsWithAcademicData.length} estudiante(s) local(es) encontrado(s)`
         };
       });
     } catch (error) {
@@ -324,8 +717,11 @@ class AttendanceService {
         return {
           success: true,
           data: mockData,
-          metadata: { message: '📡 Modo desarrollo: Datos de prueba cargados' },
-          message: `📡 Modo desarrollo: Se encontraron ${mockData.length} estudiante(s) local(es) (datos de prueba)`
+          metadata: { 
+            total: mockData.length,
+            message: '📡 Modo desarrollo: Datos de prueba cargados' 
+          },
+          message: `📡 Modo desarrollo: ${mockData.length} estudiante(s) local(es) (datos de prueba)`
         };
       }
       
@@ -441,24 +837,42 @@ class AttendanceService {
         throw new Error('Fecha requerida');
       }
 
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(
-          `${this.studentsURL}/by-attendance-status?status=no&date=${date}`,
-          {
-            method: 'GET',
-            headers: this.getAuthHeaders()
-          }
-        );
+      console.log('📅 getAbsentStudentsByDate - Fecha recibida:', date);
 
-        const result = await this.handleResponse(response);
+      // Obtener TODAS las asistencias y filtrar manualmente
+      const allAttendancesResponse = await this.getAllAttendances();
+      
+      if (!allAttendancesResponse.success) {
+        throw new Error(allAttendancesResponse.error || 'Error al obtener asistencias');
+      }
+      
+      const allAttendances = allAttendancesResponse.data || [];
+      console.log('📋 Total de registros:', allAttendances.length);
+      
+      // Filtrar por fecha Y por ausencia usando el helper
+      const absentStudents = allAttendances.filter(student => {
+        // Verificar fecha
+        const studentDate = student.entryDate || student.date || student.attendanceDate || '';
+        const matchesDate = studentDate.startsWith(date);
         
-        return {
-          success: true,
-          data: result.data || [],
-          metadata: result.metadata,
-          message: result.metadata?.message || 'Estudiantes ausentes obtenidos exitosamente'
-        };
+        // Verificar ausencia
+        const isAbsent = this.isStudentAbsent(student);
+        
+        return matchesDate && isAbsent;
       });
+      
+      console.log('👥 Estudiantes ausentes filtrados:', absentStudents.length);
+        
+      return {
+        success: true,
+        data: absentStudents,
+        metadata: {
+          total: absentStudents.length,
+          date: date,
+          message: `${absentStudents.length} estudiante(s) ausente(s) encontrado(s) para ${date}`
+        },
+        message: `Estudiantes ausentes obtenidos exitosamente: ${absentStudents.length}`
+      };
     } catch (error) {
       console.error('Error al obtener estudiantes ausentes por fecha:', error);
       
@@ -1045,10 +1459,104 @@ class AttendanceService {
 
         const result = await this.handleResponse(response);
         
+        // Obtener datos mock para referencia de datos académicos
+        const mockStudents = this.getMockLocalStudents();
+        
+        // Procesar y limpiar datos de asistencias
+        let attendances = (result.data || [])
+          .map(attendance => {
+            // Buscar datos académicos del mock si no vienen del API
+            const mockMatch = mockStudents.find(m => 
+              m.enrollmentId === attendance.studentEnrollmentId ||
+              m.name === attendance.studentName
+            );
+            
+            return {
+              ...attendance,
+              // Normalizar nombres de estudiantes
+              studentName: attendance.studentName?.trim() || 'Sin nombre',
+              // Asegurar que observations existe
+              observations: (attendance.observations || '').trim(),
+              // Normalizar estado de asistencia
+              attendanceStatus: attendance.attendanceStatus || attendance.status || 'UNKNOWN',
+              // Asegurar que email existe
+              email: (attendance.email || '').trim().toLowerCase(),
+              // Formatear fecha
+              entryDate: attendance.entryDate || attendance.attendanceDate || attendance.createdAt,
+              // Método de registro
+              registrationMethod: attendance.registrationMethod || 'UNKNOWN',
+              // ID único para deduplicación
+              uniqueId: attendance.id || attendance.studentEnrollmentId,
+              // Datos académicos (usar mock si no vienen del API)
+              grade: (attendance.grade || mockMatch?.grade || '').trim(),
+              section: (attendance.section || mockMatch?.section || '').trim(),
+              course: (attendance.course || mockMatch?.course || '').trim()
+            };
+          })
+          .filter(attendance => attendance.studentName && attendance.studentName !== 'Sin nombre')
+        
+        // Deduplicar por ID de matrícula (mantener el más reciente)
+        const seenEnrollmentIds = new Map();
+        attendances = attendances.filter(attendance => {
+          const enrollmentId = attendance.studentEnrollmentId;
+          if (!enrollmentId) return true; // Mantener si no tiene ID
+          
+          const existing = seenEnrollmentIds.get(enrollmentId);
+          if (!existing) {
+            seenEnrollmentIds.set(enrollmentId, attendance);
+            return true;
+          }
+          
+          // Comparar fechas y mantener el más reciente
+          const existingDate = new Date(existing.entryDate || 0);
+          const currentDate = new Date(attendance.entryDate || 0);
+          if (currentDate > existingDate) {
+            seenEnrollmentIds.set(enrollmentId, attendance);
+            return true;
+          }
+          
+          return false;
+        });
+        
+        // Ordenar
+        attendances = attendances
+          // Ordenar por fecha (más recientes primero), luego por grado, sección y nombre
+          .sort((a, b) => {
+            // Primero por fecha (más recientes primero)
+            const dateA = new Date(a.entryDate || 0);
+            const dateB = new Date(b.entryDate || 0);
+            const dateDiff = dateB.getTime() - dateA.getTime();
+            if (dateDiff !== 0) return dateDiff;
+            
+            // Luego por grado
+            const gradeA = a.grade || '';
+            const gradeB = b.grade || '';
+            const gradeDiff = gradeA.localeCompare(gradeB, 'es', { numeric: true });
+            if (gradeDiff !== 0) return gradeDiff;
+            
+            // Luego por sección
+            const sectionA = a.section || '';
+            const sectionB = b.section || '';
+            const sectionDiff = sectionA.localeCompare(sectionB, 'es');
+            if (sectionDiff !== 0) return sectionDiff;
+            
+            // Finalmente por nombre
+            const nameA = a.studentName || '';
+            const nameB = b.studentName || '';
+            return nameA.localeCompare(nameB, 'es');
+          });
+        
+        // Asignar automáticamente datos académicos a estudiantes que no los tienen
+        attendances = this.assignAcademicData(attendances);
+        
         return {
           success: true,
-          data: result.data || [],
-          metadata: result.metadata,
+          data: attendances,
+          metadata: {
+            ...result.metadata,
+            total: attendances.length,
+            message: `${attendances.length} asistencia(s) encontrada(s)`
+          },
           message: result.metadata?.message || 'Asistencias obtenidas exitosamente'
         };
       });
@@ -1094,9 +1602,30 @@ class AttendanceService {
 
         const result = await this.handleResponse(response);
         
+        // Obtener datos mock para referencia de datos académicos
+        const mockStudents = this.getMockLocalStudents();
+        
+        // Enriquecer datos con información académica del mock
+        const enrichedData = (result.data || []).map(student => {
+          const mockMatch = mockStudents.find(m => 
+            m.enrollmentId === student.studentEnrollmentId ||
+            m.name === student.studentName
+          );
+          
+          return {
+            ...student,
+            grade: student.grade || mockMatch?.grade || '',
+            section: student.section || mockMatch?.section || '',
+            course: student.course || mockMatch?.course || ''
+          };
+        });
+        
+        // Asignar automáticamente datos académicos a estudiantes que no los tienen
+        const studentsWithAcademicData = this.assignAcademicData(enrichedData);
+        
         return {
           success: true,
-          data: result.data || [],
+          data: studentsWithAcademicData,
           metadata: result.metadata,
           message: result.metadata?.message || 'Estudiantes presentes obtenidos exitosamente'
         };

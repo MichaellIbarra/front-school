@@ -2,6 +2,7 @@
 import React, { useEffect} from "react";
 import { Link } from "react-router-dom";
 import useAuth from "../hooks/useAuth";
+import { formatUserRoles, getUserInstitution, isDirector, hasAnyRole } from "../auth/authService";
 // import "../../src/assets/js/app";
 // import { baricon1, imguser, logo, noteicon, noteicon1, searchnormal, settingicon01, user06 } from './imagepath';
 import {
@@ -18,6 +19,54 @@ import {
 
 const Header = () => {
   const { user, isAuthenticated, logout } = useAuth();
+  
+  // Función para obtener los datos dinámicos del logo y nombre
+  const getBrandingData = () => {
+    if (user && (isDirector() || hasAnyRole(['teacher', 'auxiliary', 'secretary']))) {
+      const institution = getUserInstitution();
+      if (institution) {
+        return {
+          logo: institution.logo || logo, // Usar logo de institución o fallback al logo por defecto
+          name: institution.name || 'Eduassist' // Usar nombre de institución o fallback
+        };
+      }
+    }
+    
+    // Valores por defecto para usuarios que no requieren institución o sin institución
+    return {
+      logo: logo,
+      name: 'Eduassist'
+    };
+  };
+
+  // Función para obtener los estilos dinámicos del header
+  const getHeaderStyles = () => {
+    if (user && (isDirector() || hasAnyRole(['teacher', 'auxiliary', 'secretary']))) {
+      const institution = getUserInstitution();
+      if (institution && institution.uiSettings && institution.uiSettings.color) {
+        const color = institution.uiSettings.color;
+        return {
+          background: `linear-gradient(135deg, ${color} 0%, ${color}dd 100%)`,
+          borderBottom: `3px solid ${color}22`
+        };
+      }
+    }
+    return {}; // Estilos por defecto (sin cambios)
+  };
+
+  // Función para obtener los estilos de texto del header
+  const getHeaderTextStyles = () => {
+    if (user && (isDirector() || hasAnyRole(['teacher', 'auxiliary', 'secretary']))) {
+      const institution = getUserInstitution();
+      if (institution && institution.uiSettings && institution.uiSettings.color) {
+        return {
+          color: 'white',
+          textShadow: '0 1px 2px rgba(0,0,0,0.1)'
+        };
+      }
+    }
+    return {}; // Estilos por defecto
+  };
   
   const handlesidebar = () => {
     document.body.classList.toggle("mini-sidebar");
@@ -58,11 +107,11 @@ const Header = () => {
   }, []);
   return (
     <div className="main-wrapper">
-      <div className="header">
+      <div className="header" style={getHeaderStyles()}>
         <div className="header-left">
           <Link to="/dashboard" className="logo">
-            <img src={logo} width={35} height={35} alt="" />{" "}
-            <span>Eduassist</span>
+            <img src={getBrandingData().logo} width={35} height={35} alt={getBrandingData().name} />{" "}
+            <span style={getHeaderTextStyles()}>{getBrandingData().name}</span>
           </Link>
         </div>
         <Link id="toggle_btn" to="#" onClick={handlesidebar}>
@@ -91,8 +140,8 @@ const Header = () => {
               data-bs-toggle="dropdown"
             >
               <div className="user-names">
-                <h5>{user?.name || 'Usuario'}</h5>
-                <span>{user?.primaryRole?.charAt(0).toUpperCase() + user?.primaryRole?.slice(1) || 'User'}</span>
+                <h5 style={getHeaderTextStyles()}>{user?.name || 'Usuario'}</h5>
+                <span style={getHeaderTextStyles()}>{formatUserRoles(user, 2)}</span>
               </div>
               <span className="user-img">
                 <img src={user06} alt="Admin" />

@@ -21,6 +21,7 @@ import {
   getTimeAgo
 } from "../../../types/grades/notification";
 import NotificationFormModal from "./NotificationFormModal";
+import NotificationReportExporter from "../../../utils/grades/notificationReportExporter";
 
 const { Option } = Select;
 const { TabPane } = Tabs;
@@ -144,16 +145,86 @@ const NotificationList = () => {
    * Muestra detalles de la notificación
    */
   const handleView = (notification) => {
-    const details = `
-Destinatario: ${notification.recipientId}
-Tipo de Destinatario: ${notification.recipientType || 'No especificado'}
-Tipo de Notificación: ${notification.notificationType}
-Estado: ${notification.status}
-Canal: ${notification.channel}
-Mensaje: ${notification.message}
-Fecha de Creación: ${formatDateTime(notification.createdAt)}
-Fecha de Envío: ${notification.sentAt ? formatDateTime(notification.sentAt) : 'No enviado'}
-    `.trim();
+    const statusBadgeClass = getNotificationStatusBadgeClass(notification.status);
+    const typeIcon = getNotificationTypeIcon(notification.notificationType);
+    const typeColor = getNotificationTypeColor(notification.notificationType);
+    
+    // Crear contenido HTML estructurado para mejor visualización
+    const details = (
+      <div className="notification-details-preview">
+        <div className="card mb-3">
+          <div className="card-header text-white" style={{ backgroundColor: typeColor }}>
+            <h5 className="mb-0">
+              <i className={`${typeIcon} me-2`}></i>
+              {notification.notificationType}
+            </h5>
+          </div>
+          <div className="card-body">
+            <div className="row mb-3">
+              <div className="col-md-6 mb-2">
+                <strong><i className="fa fa-user me-2"></i>Destinatario:</strong>
+                <p className="mb-0 text-muted">{notification.recipientId}</p>
+              </div>
+              <div className="col-md-6 mb-2">
+                <strong><i className="fa fa-users me-2"></i>Tipo de Destinatario:</strong>
+                <p className="mb-0 text-muted">{notification.recipientType || 'No especificado'}</p>
+              </div>
+            </div>
+            <div className="row mb-3">
+              <div className="col-md-6 mb-2">
+                <strong><i className="fa fa-circle me-2"></i>Estado:</strong>
+                <p className="mb-0">
+                  <span className={`badge ${statusBadgeClass}`}>{notification.status}</span>
+                </p>
+              </div>
+              <div className="col-md-6 mb-2">
+                <strong><i className="fa fa-paper-plane me-2"></i>Canal:</strong>
+                <p className="mb-0 text-muted">{notification.channel}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="card mb-3">
+          <div className="card-header bg-primary text-white">
+            <h5 className="mb-0"><i className="fa fa-envelope me-2"></i>Contenido del Mensaje</h5>
+          </div>
+          <div className="card-body">
+            <div className="alert alert-light border" style={{ 
+              backgroundColor: '#f8f9fa',
+              lineHeight: '1.6',
+              whiteSpace: 'pre-wrap'
+            }}>
+              {notification.message}
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-header bg-info text-white">
+            <h5 className="mb-0"><i className="fa fa-clock me-2"></i>Información Temporal</h5>
+          </div>
+          <div className="card-body">
+            <div className="row">
+              <div className="col-md-6 mb-2">
+                <strong>Fecha de Creación:</strong>
+                <p className="mb-0 text-muted">{formatDateTime(notification.createdAt)}</p>
+                <small className="text-muted">{getTimeAgo(notification.createdAt)}</small>
+              </div>
+              <div className="col-md-6 mb-2">
+                <strong>Fecha de Envío:</strong>
+                <p className="mb-0 text-muted">
+                  {notification.sentAt ? formatDateTime(notification.sentAt) : 'No enviado'}
+                </p>
+                {notification.sentAt && (
+                  <small className="text-muted">{getTimeAgo(notification.sentAt)}</small>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
 
     showAlert({
       title: `Detalles de Notificación`,
@@ -302,6 +373,74 @@ Fecha de Envío: ${notification.sentAt ? formatDateTime(notification.sentAt) : '
   const handleModalCancel = () => {
     setModalVisible(false);
     setSelectedNotification(null);
+  };
+
+  /**
+   * Exporta a Excel
+   */
+  const handleExportExcel = async () => {
+    try {
+      const dataToExport = activeTab === 'active' ? notifications : deletedNotifications;
+      const result = await NotificationReportExporter.exportToExcel(dataToExport);
+      if (result.success) {
+        showSuccess(`Archivo ${result.fileName} descargado correctamente`);
+      } else {
+        showError('Error al exportar', result.error);
+      }
+    } catch (error) {
+      showError('Error al exportar a Excel');
+    }
+  };
+
+  /**
+   * Exporta a PDF
+   */
+  const handleExportPDF = async () => {
+    try {
+      const dataToExport = activeTab === 'active' ? notifications : deletedNotifications;
+      const result = await NotificationReportExporter.exportToPDF(dataToExport);
+      if (result.success) {
+        showSuccess(`Archivo ${result.fileName} descargado correctamente`);
+      } else {
+        showError('Error al exportar', result.error);
+      }
+    } catch (error) {
+      showError('Error al exportar a PDF');
+    }
+  };
+
+  /**
+   * Exporta a CSV
+   */
+  const handleExportCSV = async () => {
+    try {
+      const dataToExport = activeTab === 'active' ? notifications : deletedNotifications;
+      const result = await NotificationReportExporter.exportToCSV(dataToExport);
+      if (result.success) {
+        showSuccess(`Archivo ${result.fileName} descargado correctamente`);
+      } else {
+        showError('Error al exportar', result.error);
+      }
+    } catch (error) {
+      showError('Error al exportar a CSV');
+    }
+  };
+
+  /**
+   * Imprime el reporte
+   */
+  const handlePrint = () => {
+    try {
+      const dataToExport = activeTab === 'active' ? notifications : deletedNotifications;
+      const result = NotificationReportExporter.printReport(dataToExport);
+      if (result.success) {
+        showSuccess('Reporte enviado a impresión');
+      } else {
+        showError('Error al imprimir', result.error);
+      }
+    } catch (error) {
+      showError('Error al imprimir el reporte');
+    }
   };
 
   /**
@@ -505,15 +644,6 @@ Fecha de Envío: ${notification.sentAt ? formatDateTime(notification.sentAt) : '
           );
         }
 
-        if (record.deleted) {
-          items.push({
-            key: 'restore',
-            label: 'Restaurar',
-            icon: <UndoOutlined />,
-            onClick: () => handleRestore(record),
-          });
-        }
-
         return (
           <Space size="middle">
             <Dropdown
@@ -559,6 +689,14 @@ Fecha de Envío: ${notification.sentAt ? formatDateTime(notification.sentAt) : '
             <div className="col-sm-12">
               <div className="card card-table">
                 <div className="card-body">
+                  {/* Pestañas para activos/inactivos */}
+                  <Tabs activeKey={activeTab} onChange={handleTabChange} className="mb-3">
+                    <TabPane tab={`Activas (${notifications.length})`} key="active">
+                    </TabPane>
+                    <TabPane tab={`Eliminadas (${deletedNotifications.length})`} key="inactive">
+                    </TabPane>
+                  </Tabs>
+
                   <div className="row mb-3 mt-3">
                     <div className="col-lg-3 col-md-6 col-sm-12 mb-2">
                       <div className="top-nav-search">
@@ -599,15 +737,54 @@ Fecha de Envío: ${notification.sentAt ? formatDateTime(notification.sentAt) : '
                     </div>
                     <div className="col-lg-5 col-md-12 col-sm-12 mb-2">
                       <div className="d-flex flex-wrap justify-content-end gap-2">
-                        <Button
-                          type="primary"
-                          icon={<PlusOutlined />}
-                          onClick={handleCreate}
-                          className="btn-sm"
-                        >
-                          Nueva Notificación
-                        </Button>
-                        {selectedRowKeys.length > 0 && (
+                        {activeTab === 'active' && (
+                          <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            onClick={handleCreate}
+                            className="btn-sm"
+                          >
+                            Nueva Notificación
+                          </Button>
+                        )}
+                        
+                        {/* Botones de exportación */}
+                        <Button.Group>
+                          <Button 
+                            icon={<i className="fa fa-file-excel" />}
+                            onClick={handleExportExcel}
+                            title="Exportar a Excel"
+                            className="btn-sm"
+                          >
+                            Excel
+                          </Button>
+                          <Button 
+                            icon={<i className="fa fa-file-pdf" />}
+                            onClick={handleExportPDF}
+                            title="Exportar a PDF"
+                            className="btn-sm"
+                          >
+                            PDF
+                          </Button>
+                          <Button 
+                            icon={<i className="fa fa-file-text" />}
+                            onClick={handleExportCSV}
+                            title="Exportar a CSV"
+                            className="btn-sm"
+                          >
+                            CSV
+                          </Button>
+                          <Button 
+                            icon={<i className="fa fa-print" />}
+                            onClick={handlePrint}
+                            title="Imprimir"
+                            className="btn-sm"
+                          >
+                            Imprimir
+                          </Button>
+                        </Button.Group>
+                        
+                        {selectedRowKeys.length > 0 && activeTab === 'active' && (
                           <Button
                             danger
                             icon={<DeleteOutlined />}
@@ -615,6 +792,16 @@ Fecha de Envío: ${notification.sentAt ? formatDateTime(notification.sentAt) : '
                             className="btn-sm"
                           >
                             Eliminar ({selectedRowKeys.length})
+                          </Button>
+                        )}
+                        {selectedRowKeys.length > 0 && activeTab === 'inactive' && (
+                          <Button
+                            type="primary"
+                            icon={<UndoOutlined />}
+                            onClick={handleBulkRestore}
+                            className="btn-sm"
+                          >
+                            Restaurar ({selectedRowKeys.length})
                           </Button>
                         )}
                       </div>

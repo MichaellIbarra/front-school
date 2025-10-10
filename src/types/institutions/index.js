@@ -18,27 +18,19 @@ export {
   HeadquarterStatus,
   validateHeadquarter,
   createNewHeadquarter,
-  formatHeadquarterContact
+  formatHeadquarterContact,
+  parseModularCodes,
+  stringifyModularCodes,
+  addModularCode,
+  removeModularCode,
+  formatModularCodesDisplay,
+  parseModularCodesFromInput,
+  formatModularCodesForInput,
+  isHeadquarterActive,
+  getHeadquarterStatusText,
+  formatHeadquarterDate
 } from './headquarter';
 
-// Modelos de Director
-export {
-  Director,
-  DirectorStatus,
-  DirectorDocumentType,
-  DirectorPasswordStatus,
-  CreateDirectorModel,
-  validateDirector,
-  createNewDirector,
-  formatDirectorFullName,
-  getDirectorAssignmentStatus,
-  getDirectorAssignmentDate,
-  DirectorStatusLabels,
-  DirectorDocumentTypeLabels,
-  DirectorPasswordStatusLabels,
-  getDirectorStatusColor,
-  getDirectorPasswordStatusColor
-} from './director';
 
 // Tipos comunes para administración
 export const AdminModuleConstants = {
@@ -48,16 +40,15 @@ export const AdminModuleConstants = {
   
   // Expresiones regulares de validación (basadas en backend)
   PHONE_REGEX: /^[0-9]{9,12}$/,
-  CODE_NAME_REGEX: /^[A-Z0-9]+$/,
+  CODE_INSTITUTION_REGEX: /^[0-9]+$/,
   STATUS_REGEX: /^[AI]$/,
   EMAIL_REGEX: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
   
   // Límites de caracteres
   NAME_MIN_LENGTH: 3,
   NAME_MAX_LENGTH: 100,
-  CODE_MIN_LENGTH: 2,
-  CODE_MAX_LENGTH: 10,
-  HEADQUARTERS_CODE_MAX_LENGTH: 15,
+  CODE_INSTITUTION_MIN_LENGTH: 6,
+  CODE_INSTITUTION_MAX_LENGTH: 12,
   MODULAR_CODE_MIN_LENGTH: 5,
   MODULAR_CODE_MAX_LENGTH: 10,
   PHONE_MIN_LENGTH: 9,
@@ -81,20 +72,22 @@ export const SystemStatus = {
 export const DefaultConfigs = {
   INSTITUTION: {
     uiSettings: {
-      color: '#3498DB',
+      color: '#FF0000',
       logoPosition: 'LEFT',
-      showStudentPhotos: true
+      showStudentPhotos: false
     },
     evaluationSystem: {
-      gradeScale: 'NUMERICAL_0_100',
-      minimumPassingGrade: 60.0,
-      showDecimals: false
+      gradeScale: 'NUMERICAL_0_20',
+      minimumPassingGrade: 10.5,
+      showDecimals: true
     },
     scheduleSettings: {
-      morningStartTime: '07:30:00',
-      morningEndTime: '11:30:00',
-      afternoonStartTime: '13:00:00',
-      afternoonEndTime: '17:00:00'
+      morningStartTime: '08:00:00',
+      morningEndTime: '12:00:00',
+      afternoonStartTime: '14:00:00',
+      afternoonEndTime: '18:00:00',
+      nightStartTime: '19:00:00',
+      nightEndTime: '22:00:00'
     }
   }
 };
@@ -118,18 +111,38 @@ export const ValidationHelpers = {
   },
 
   /**
-   * Valida un código (2-10 caracteres, solo mayúsculas y números)
+   * Valida un código de institución (6-12 caracteres, solo números)
    */
-  validateCode: (code, fieldName = 'código') => {
+  validateInstitutionCode: (code, fieldName = 'código de institución') => {
     if (!code || code.trim() === '') {
       return `El ${fieldName} es obligatorio`;
     }
-    if (code.trim().length < AdminModuleConstants.CODE_MIN_LENGTH || 
-        code.trim().length > AdminModuleConstants.CODE_MAX_LENGTH) {
-      return `El ${fieldName} debe tener entre ${AdminModuleConstants.CODE_MIN_LENGTH} y ${AdminModuleConstants.CODE_MAX_LENGTH} caracteres`;
+    if (code.trim().length < AdminModuleConstants.CODE_INSTITUTION_MIN_LENGTH || 
+        code.trim().length > AdminModuleConstants.CODE_INSTITUTION_MAX_LENGTH) {
+      return `El ${fieldName} debe tener entre ${AdminModuleConstants.CODE_INSTITUTION_MIN_LENGTH} y ${AdminModuleConstants.CODE_INSTITUTION_MAX_LENGTH} caracteres`;
     }
-    if (!AdminModuleConstants.CODE_NAME_REGEX.test(code.trim())) {
-      return `El ${fieldName} solo puede contener letras mayúsculas y números`;
+    if (!AdminModuleConstants.CODE_INSTITUTION_REGEX.test(code.trim())) {
+      return `El ${fieldName} debe contener solo números`;
+    }
+    return null;
+  },
+
+  /**
+   * Valida códigos modulares (array de códigos de 5-10 caracteres)
+   */
+  validateModularCodes: (codes, fieldName = 'códigos modulares') => {
+    if (!codes || !Array.isArray(codes)) {
+      return `Los ${fieldName} deben ser un array válido`;
+    }
+    if (codes.length === 0) {
+      return `Debe contener al menos un código modular`;
+    }
+    for (let i = 0; i < codes.length; i++) {
+      const code = codes[i];
+      if (typeof code !== 'string' || code.trim().length < AdminModuleConstants.MODULAR_CODE_MIN_LENGTH || 
+          code.trim().length > AdminModuleConstants.MODULAR_CODE_MAX_LENGTH) {
+        return `Cada código modular debe tener entre ${AdminModuleConstants.MODULAR_CODE_MIN_LENGTH} y ${AdminModuleConstants.MODULAR_CODE_MAX_LENGTH} caracteres`;
+      }
     }
     return null;
   },
@@ -154,7 +167,10 @@ export const ValidationHelpers = {
     if (!phone || phone.trim() === '') {
       return `El ${fieldName} es obligatorio`;
     }
-    if (!AdminModuleConstants.PHONE_REGEX.test(phone.trim())) {
+    // Extraer solo números del teléfono para validar
+    const phoneNumbers = phone.replace(/\D/g, '');
+    if (phoneNumbers.length < AdminModuleConstants.PHONE_MIN_LENGTH || 
+        phoneNumbers.length > AdminModuleConstants.PHONE_MAX_LENGTH) {
       return `El ${fieldName} debe contener entre ${AdminModuleConstants.PHONE_MIN_LENGTH} y ${AdminModuleConstants.PHONE_MAX_LENGTH} dígitos`;
     }
     return null;
@@ -178,5 +194,91 @@ export const ValidationHelpers = {
       return `${fieldName} no puede estar vacío`;
     }
     return null;
+  }
+};
+
+/**
+ * Constantes específicas para el manejo de sedes
+ */
+export const HeadquarterConstants = {
+  // Estados de sede
+  STATUS: {
+    ACTIVE: 'A',
+    INACTIVE: 'I'
+  },
+  
+  // Límites para códigos modulares
+  MODULAR_CODE: {
+    MIN_LENGTH: 5,
+    MAX_LENGTH: 10,
+    MAX_CODES_PER_HEADQUARTER: 20,
+    DISPLAY_LIMIT: 2
+  },
+  
+  // Mensajes de validación
+  VALIDATION_MESSAGES: {
+    NAME_REQUIRED: 'El nombre de la sede es obligatorio',
+    NAME_MIN_LENGTH: 'El nombre debe tener al menos 3 caracteres',
+    NAME_MAX_LENGTH: 'El nombre no puede exceder 100 caracteres',
+    MODULAR_CODE_REQUIRED: 'Debe ingresar al menos un código modular',
+    MODULAR_CODE_INVALID: 'Los códigos modulares deben tener entre 5 y 10 caracteres',
+    PHONE_REQUIRED: 'El teléfono es obligatorio',
+    PHONE_INVALID: 'El teléfono debe contener entre 9 y 12 dígitos',
+    ADDRESS_REQUIRED: 'La dirección es obligatoria',
+    INSTITUTION_ID_REQUIRED: 'El ID de la institución es obligatorio'
+  },
+  
+  // Configuración de exportación
+  EXPORT: {
+    CSV_HEADERS: ['ID', 'Nombre Sede', 'Códigos Modulares', 'Estado', 'Dirección', 'Teléfono', 'Fecha Creación'],
+    PDF_TITLE: 'Listado de Sedes',
+    EXCEL_SHEET_NAME: 'Sedes'
+  }
+};
+
+/**
+ * Tipos de respuesta de la API para sedes
+ */
+export const HeadquarterApiTypes = {
+  // Estructura base de una sede desde la API
+  BASE_HEADQUARTER: {
+    id: '',
+    institutionId: '',
+    name: '',
+    address: '',
+    phone: '',
+    status: 'A',
+    createdAt: '',
+    modularCode: []
+  },
+  
+  // Respuesta al crear una sede
+  CREATE_RESPONSE: {
+    message: '',
+    headquarter: null
+  },
+  
+  // Respuesta al listar sedes
+  LIST_RESPONSE: {
+    message: '',
+    totalHeadquarters: 0,
+    headquarters: []
+  },
+  
+  // Respuesta al obtener una sede
+  GET_RESPONSE: {
+    message: '',
+    headquarter: null
+  },
+  
+  // Respuesta al actualizar una sede
+  UPDATE_RESPONSE: {
+    message: '',
+    headquarter: null
+  },
+  
+  // Respuesta al eliminar/restaurar una sede
+  ACTION_RESPONSE: {
+    message: ''
   }
 };

@@ -2,6 +2,8 @@
 const AUTH_URL = `${process.env.REACT_APP_DOMAIN}/api/v1/auth`;
 const REFRESH_URL = `${process.env.REACT_APP_DOMAIN}/api/v1/auth/refresh`;
 
+// Importar servicio de director (se importa dinámicamente para evitar dependencias circulares)
+
 // Función para decodificar JWT
 export function decodeJWT(token) {
   try {
@@ -22,6 +24,15 @@ export function decodeJWT(token) {
   }
 }
 
+// Roles educativos válidos que nos interesan
+const VALID_EDUCATIONAL_ROLES = ['admin', 'director', 'teacher', 'auxiliary', 'secretary'];
+
+// Función para filtrar solo los roles educativos relevantes
+function getEducationalRoles(allRoles) {
+  if (!Array.isArray(allRoles)) return [];
+  return allRoles.filter(role => VALID_EDUCATIONAL_ROLES.includes(role));
+}
+
 // Función para obtener información del usuario desde el token
 export function getUserInfo() {
   const token = localStorage.getItem('access_token');
@@ -36,11 +47,16 @@ export function getUserInfo() {
     return null;
   }
   
+  // Filtrar solo los roles educativos relevantes
+  const allRoles = decoded.realm_access?.roles || [];
+  const educationalRoles = getEducationalRoles(allRoles);
+  
   const userInfo = {
     name: decoded.name || decoded.preferred_username || 'Usuario',
     email: decoded.email || '',
-    roles: decoded.realm_access?.roles || [],
-    primaryRole: decoded.realm_access?.roles?.[0] || 'user',
+    roles: educationalRoles, // Solo roles educativos
+    allRoles: allRoles, // Todos los roles (por si se necesitan)
+    primaryRole: educationalRoles[0] || 'user', // Primer rol educativo
     username: decoded.preferred_username || '',
     givenName: decoded.given_name || '',
     familyName: decoded.family_name || '',
@@ -91,6 +107,36 @@ export function canAccessRoute(requiredRoles) {
     return getUserInfo() !== null;
   }
   return hasAnyRole(requiredRoles);
+}
+
+// Función para formatear roles para mostrar en la UI
+export function formatUserRoles(user, maxRoles = 2) {
+  if (!user || !user.roles || user.roles.length === 0) {
+    return 'User';
+  }
+  
+  // Función helper para capitalizar
+  const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
+  
+  // Mapeo de roles para mostrar nombres más amigables
+  const roleNames = {
+    admin: 'Administrador',
+    director: 'Director',
+    teacher: 'Profesor',
+    auxiliary: 'Auxiliar',
+    secretary: 'Secretario'
+  };
+  
+  // Formatear roles
+  const formattedRoles = user.roles.map(role => roleNames[role] || capitalize(role));
+  
+  if (formattedRoles.length === 1) {
+    return formattedRoles[0];
+  } else if (formattedRoles.length <= maxRoles) {
+    return formattedRoles.join(', ');
+  } else {
+    return `${formattedRoles.slice(0, maxRoles).join(', ')} (+${formattedRoles.length - maxRoles})`;
+  }
 }
 
 // Función para verificar si el token es válido
@@ -165,4 +211,120 @@ export async function refreshTokenKeycloak(refreshToken) {
   } catch (error) {
     return { success: false, error: 'Error de red o servidor' };
   }
+}
+
+// Función para manejar el login del director y cargar su institución
+export async function handleDirectorLogin() {
+  const userInfo = getUserInfo();
+  
+  if (!userInfo || !isDirector()) {
+    return { success: false, error: 'Usuario no es director' };
+  }
+
+  try {
+    // Importación dinámica para evitar dependencias circulares
+    const { default: institutionDirectorService } = await import('../services/institutions/institutionDirectorService');
+    
+    console.log('🏢 Director detectado, obteniendo institución...');
+    const institutionResult = await institutionDirectorService.getDirectorInstitution();
+    
+    if (institutionResult.success) {
+      console.log('✅ Institución del director obtenida:', institutionResult.data);
+      
+      // Guardar información de la institución en localStorage con clave genérica
+      if (institutionResult.data) {
+        localStorage.setItem('institution', JSON.stringify(institutionResult.data));
+      }
+      
+      return {
+        success: true,
+        institution: institutionResult.data,
+        message: 'Institución del director cargada exitosamente'
+      };
+    } else {
+      console.error('❌ Error al obtener institución del director:', institutionResult.error);
+      return {
+        success: false,
+        error: institutionResult.error || 'No se pudo cargar la institución del director'
+      };
+    }
+  } catch (error) {
+    console.error('Error en handleDirectorLogin:', error);
+    return {
+      success: false,
+      error: 'Error al cargar la institución del director'
+    };
+  }
+}
+
+// Función para manejar el login del personal y cargar su institución
+export async function handlePersonalLogin() {
+  const userInfo = getUserInfo();
+  
+  if (!userInfo || !hasAnyRole(['teacher', 'auxiliary', 'secretary'])) {
+    return { success: false, error: 'Usuario no es personal educativo' };
+  }
+
+  try {
+    // Importación dinámica para evitar dependencias circulares
+    const { default: institutionPersonalService } = await import('../services/institutions/institutionPersonalService');
+    
+    console.log('🏫 Personal detectado, obteniendo institución...');
+    const institutionResult = await institutionPersonalService.getPersonalInstitution();
+    
+    if (institutionResult.success) {
+      console.log('✅ Institución del personal obtenida:', institutionResult.data);
+      
+      // Guardar información de la institución en localStorage con clave genérica
+      if (institutionResult.data) {
+        localStorage.setItem('institution', JSON.stringify(institutionResult.data));
+      }
+      
+      return {
+        success: true,
+        institution: institutionResult.data,
+        message: 'Institución del personal cargada exitosamente'
+      };
+    } else {
+      console.error('❌ Error al obtener institución del personal:', institutionResult.error);
+      return {
+        success: false,
+        error: institutionResult.error || 'No se pudo cargar la institución del personal'
+      };
+    }
+  } catch (error) {
+    console.error('Error en handlePersonalLogin:', error);
+    return {
+      success: false,
+      error: 'Error al cargar la institución del personal'
+    };
+  }
+}
+
+// Función genérica para obtener la institución desde localStorage
+export function getUserInstitution() {
+  try {
+    const institutionData = localStorage.getItem('institution');
+    return institutionData ? JSON.parse(institutionData) : null;
+  } catch (error) {
+    console.error('Error al obtener institución desde localStorage:', error);
+    return null;
+  }
+}
+
+// Función para obtener la institución del director (mantener compatibilidad)
+export function getDirectorInstitution() {
+  return getUserInstitution();
+}
+
+// Función para limpiar datos de institución al hacer logout
+export function clearInstitutionData() {
+  localStorage.removeItem('institution');
+  // Mantener compatibilidad con el sistema anterior
+  localStorage.removeItem('director_institution');
+}
+
+// Función legacy para mantener compatibilidad
+export function clearDirectorData() {
+  clearInstitutionData();
 }

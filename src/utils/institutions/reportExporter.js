@@ -36,7 +36,7 @@ export class ReportExporter {
       // Hoja 2: Detalle por Institución
       const detailData = [
         [
-          'ID', 'Nombre', 'Código', 'Código Modular', 'Estado',
+          'ID', 'Nombre', 'Código', 'Estado',
           'Total Sedes', 'Sedes Activas', 'Sedes Inactivas',
           'Email Contacto', 'Teléfono', 'Dirección', 'Fecha Creación'
         ]
@@ -46,8 +46,7 @@ export class ReportExporter {
         detailData.push([
           inst.id,
           inst.name,
-          inst.codeName,
-          inst.modularCode,
+          inst.codeInstitution,
           inst.status === 'A' ? 'Activo' : 'Inactivo',
           inst.headquartersCount,
           inst.activeHeadquarters,
@@ -65,24 +64,28 @@ export class ReportExporter {
       // Hoja 3: Sedes por Institución
       const headquartersData = [
         [
-          'Institución', 'ID Sede', 'Nombre Sede', 'Código Sede',
-          'Estado Sede', 'Dirección', 'Contacto', 'Email', 'Teléfono'
+          'Institución', 'ID Sede', 'Nombre Sede',
+          'Códigos Modulares', 'Estado Sede', 'Dirección', 'Teléfono'
         ]
       ];
       
       institutions.forEach(inst => {
         if (inst.headquarters && inst.headquarters.length > 0) {
           inst.headquarters.forEach(hq => {
+            // Procesar códigos modulares
+            let modularCodesText = 'Sin códigos';
+            if (Array.isArray(hq.modularCode) && hq.modularCode.length > 0) {
+              modularCodesText = hq.modularCode.join(', ');
+            }
+
             headquartersData.push([
               inst.name,
               hq.id,
-              hq.headquartersName,
-              hq.headquartersCode,
+              hq.name,
+              modularCodesText,
               hq.status === 'A' ? 'Activo' : 'Inactivo',
               hq.address,
-              hq.contactPerson,
-              hq.contactEmail,
-              hq.contactPhone
+              hq.phone
             ]);
           });
         }
@@ -147,7 +150,7 @@ export class ReportExporter {
       
       const institutionData = institutions.map(inst => [
         inst.name.substring(0, 25) + (inst.name.length > 25 ? '...' : ''),
-        inst.codeName,
+        inst.codeInstitution,
         inst.status === 'A' ? 'Activo' : 'Inactivo',
         inst.headquartersCount.toString(),
         inst.activeHeadquarters.toString(),
@@ -187,7 +190,7 @@ export class ReportExporter {
   static exportToCSV(institutions) {
     try {
       const headers = [
-        'ID', 'Nombre', 'Código', 'Código Modular', 'Estado',
+        'ID', 'Nombre', 'Código', 'Estado',
         'Total Sedes', 'Sedes Activas', 'Sedes Inactivas',
         'Email Contacto', 'Teléfono', 'Dirección', 'Fecha Creación'
       ];
@@ -197,8 +200,7 @@ export class ReportExporter {
         ...institutions.map(inst => [
           inst.id,
           `"${inst.name}"`,
-          inst.codeName,
-          inst.modularCode,
+          inst.codeInstitution,
           inst.status === 'A' ? 'Activo' : 'Inactivo',
           inst.headquartersCount,
           inst.activeHeadquarters,

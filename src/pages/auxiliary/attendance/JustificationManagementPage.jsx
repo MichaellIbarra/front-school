@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars */
+﻿/* eslint-disable no-unused-vars */
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import FeatherIcon from "feather-icons-react/build/FeatherIcon";
@@ -14,6 +14,7 @@ import {
   JustificationType 
 } from "../../../types/attendance";
 import { pdficon, pdficon2, pdficon3, pdficon4, plusicon, refreshicon, searchnormal } from "../../../components/imagepath";
+import AttendanceReportUtils from "../../../utils/attendance/attendanceReports";
 
 const JustificationManagementPage = () => {
   const navigate = useNavigate();
@@ -44,6 +45,11 @@ const JustificationManagementPage = () => {
     approvalComments: ''
   });
   
+  // Estados para estudiantes ausentes
+  const [absentStudentsYesterday, setAbsentStudentsYesterday] = useState([]);
+  const [loadingAbsentStudents, setLoadingAbsentStudents] = useState(false);
+  const [selectedAbsentStudent, setSelectedAbsentStudent] = useState(null);
+  
   // Obtener datos del estado de navegación si viene de AttendanceListPage
   useEffect(() => {
     if (location.state?.createMode && location.state?.student) {
@@ -60,6 +66,73 @@ const JustificationManagementPage = () => {
   useEffect(() => {
     loadJustifications(activeTab);
   }, [activeTab]);
+
+  /**
+   * Obtiene la fecha de ayer en formato YYYY-MM-DD
+   */
+  const getYesterdayDate = () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const year = yesterday.getFullYear();
+    const month = String(yesterday.getMonth() + 1).padStart(2, '0');
+    const day = String(yesterday.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  /**
+   * Formatea fecha en formato DD/MM/YYYY
+   */
+  const formatDateLocal = (dateString) => {
+    if (!dateString) return 'N/A';
+    
+    if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const [year, month, day] = dateString.split('-');
+      return `${day}/${month}/${year}`;
+    }
+    
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  /**
+   * Carga estudiantes que faltaron ayer
+   */
+  const loadAbsentStudentsFromYesterday = async () => {
+    setLoadingAbsentStudents(true);
+    try {
+      const yesterdayDate = getYesterdayDate();
+      console.log('🔍 Buscando estudiantes ausentes del:', yesterdayDate);
+      
+      // Usar el m\u00e9todo optimizado del servicio que ya filtra correctamente
+      const response = await attendanceService.getAbsentStudentsByDate(yesterdayDate);
+      console.log('📡 Respuesta de API:', response);
+      
+      if (response.success) {
+        const absentStudents = response.data || [];
+        console.log(`📊 ${absentStudents.length} estudiante(s) ausente(s) de ayer`);
+        
+        setAbsentStudentsYesterday(absentStudents);
+        
+        if (absentStudents.length === 0) {
+          showWarning(`No hay estudiantes ausentes del ${formatDateLocal(yesterdayDate)} para justificar`);
+        } else {
+          showSuccess(`Se encontraron ${absentStudents.length} estudiante(s) ausente(s) del ${formatDateLocal(yesterdayDate)}`);
+        }
+      } else {
+        showError(response.error || 'Error al cargar estudiantes ausentes');
+        setAbsentStudentsYesterday([]);
+      }
+    } catch (err) {
+      console.error('❌ Error al cargar estudiantes ausentes:', err);
+      showError(err instanceof Error ? err.message : 'Error al cargar estudiantes ausentes');
+      setAbsentStudentsYesterday([]);
+    } finally {
+      setLoadingAbsentStudents(false);
+    }
+  };
 
   /**
    * Carga justificaciones según el tipo seleccionado
@@ -107,10 +180,73 @@ const JustificationManagementPage = () => {
   };
 
   /**
+   * Exportar justificaciones a PDF
+   */
+  const exportJustificationsToPDF = () => {
+    if (justifications.length === 0) {
+      showWarning('No hay justificaciones para exportar');
+      return;
+    }
+    const tabName = activeTab === 'all' ? 'Todas' : 
+                   activeTab === 'pending' ? 'Pendientes' : 
+                   activeTab === 'inactive' ? 'Eliminadas' : activeTab;
+    AttendanceReportUtils.exportJustificationsToPDF(justifications, tabName);
+    showSuccess('Reporte PDF de justificaciones generado correctamente');
+  };
+
+  /**
+   * Exportar justificaciones a Excel
+   */
+  const exportJustificationsToExcel = () => {
+    if (justifications.length === 0) {
+      showWarning('No hay justificaciones para exportar');
+      return;
+    }
+    const tabName = activeTab === 'all' ? 'Todas' : 
+                   activeTab === 'pending' ? 'Pendientes' : 
+                   activeTab === 'inactive' ? 'Eliminadas' : activeTab;
+    AttendanceReportUtils.exportJustificationsToExcel(justifications, tabName);
+    showSuccess('Reporte Excel de justificaciones descargado correctamente');
+  };
+
+  /**
+   * Exportar justificaciones a CSV
+   */
+  const exportJustificationsToCSV = () => {
+    if (justifications.length === 0) {
+      showWarning('No hay justificaciones para exportar');
+      return;
+    }
+    const tabName = activeTab === 'all' ? 'Todas' : 
+                   activeTab === 'pending' ? 'Pendientes' : 
+                   activeTab === 'inactive' ? 'Eliminadas' : activeTab;
+    AttendanceReportUtils.exportJustificationsToCSV(justifications, tabName);
+    showSuccess('Reporte CSV de justificaciones descargado correctamente');
+  };
+
+  /**
    * Maneja el cambio de tab
    */
   const handleTabChange = (tab) => {
     setActiveTab(tab);
+  };
+
+  /**
+   * Abre modal para crear justificación y carga estudiantes ausentes de ayer
+   */
+  const handleOpenCreateModal = async () => {
+    setFormData({
+      attendanceId: '',
+      justificationType: 'MEDICAL',
+      justificationReason: '',
+      submittedBy: '',
+      approvalComments: ''
+    });
+    setSelectedAbsentStudent(null);
+    setShowCreateModal(true);
+    
+    // Cargar estudiantes ausentes de ayer
+    await loadAbsentStudentsFromYesterday();
   };
 
   /**
@@ -177,35 +313,73 @@ const JustificationManagementPage = () => {
    */
   const saveJustification = async () => {
     try {
+      // Validaciones para crear nueva justificación
+      if (!selectedJustification) {
+        if (!selectedAbsentStudent) {
+          showWarning('Por favor seleccione un estudiante ausente');
+          return;
+        }
+        
+        if (!formData.justificationReason.trim()) {
+          showWarning('Por favor ingrese el motivo de la justificación');
+          return;
+        }
+        
+        if (!formData.submittedBy.trim()) {
+          showWarning('Por favor ingrese quién envía la justificación');
+          return;
+        }
+      }
+      
       let response;
       
       if (selectedJustification) {
         // Editar justificación existente
+        console.log('✏️ Actualizando justificación:', selectedJustification.id);
         response = await attendanceService.updateJustification(selectedJustification.id, formData);
       } else {
-        // Crear nueva justificación
-        response = await attendanceService.createJustification({
-          ...formData,
-          submissionDate: new Date().toISOString()
-        });
+        // Crear nueva justificación con el estudiante seleccionado
+        const attendanceId = selectedAbsentStudent.id || selectedAbsentStudent.studentEnrollmentId;
+        
+        if (!attendanceId) {
+          showError('El estudiante seleccionado no tiene un ID válido');
+          return;
+        }
+        
+        const justificationData = {
+          attendanceId: attendanceId,
+          justificationType: formData.justificationType,
+          justificationReason: formData.justificationReason.trim(),
+          submissionDate: new Date().toISOString(),
+          submittedBy: formData.submittedBy.trim() || 'Auxiliar',
+          approvalStatus: 'PENDING'
+        };
+        
+        console.log('🆕 Creando justificación:', justificationData);
+        response = await attendanceService.createJustification(justificationData);
       }
 
       if (response.success) {
         showSuccess(selectedJustification ? 'Justificación actualizada correctamente' : 'Justificación creada correctamente');
+        // Limpiar estados
         setShowEditModal(false);
         setShowCreateModal(false);
         setSelectedJustification(null);
+        setSelectedAbsentStudent(null);
+        setAbsentStudentsYesterday([]);
+        // Recargar lista
         loadJustifications(activeTab);
       } else {
         if (response.validationErrors) {
           const errors = Object.values(response.validationErrors).join(', ');
           showError(`Errores de validación: ${errors}`);
         } else {
-          showError(response.error);
+          showError(response.error || 'Error al guardar la justificación');
         }
       }
     } catch (error) {
-      showError('Error al guardar la justificación');
+      console.error('❌ Error al guardar justificación:', error);
+      showError(error instanceof Error ? error.message : 'Error al guardar la justificación');
     }
   };
 
@@ -355,7 +529,7 @@ const JustificationManagementPage = () => {
                                 <Link
                                   to="#"
                                   className="btn btn-primary add-pluss ms-2"
-                                  onClick={() => setShowCreateModal(true)}
+                                  onClick={handleOpenCreateModal}
                                   title="Nueva Justificación"
                                 >
                                   <img src={plusicon} alt="Add" />
@@ -373,6 +547,30 @@ const JustificationManagementPage = () => {
                           </div>
                         </div>
                         <div className="col-auto text-end float-end ms-auto download-grp">
+                          <button 
+                            className="btn btn-success btn-sm me-2"
+                            onClick={exportJustificationsToCSV}
+                            disabled={justifications.length === 0}
+                            title="Exportar a CSV"
+                          >
+                            📄 CSV
+                          </button>
+                          <button 
+                            className="btn btn-success btn-sm me-2"
+                            onClick={exportJustificationsToExcel}
+                            disabled={justifications.length === 0}
+                            title="Exportar a Excel"
+                          >
+                            📊 Excel
+                          </button>
+                          <button 
+                            className="btn btn-danger btn-sm me-2"
+                            onClick={exportJustificationsToPDF}
+                            disabled={justifications.length === 0}
+                            title="Exportar a PDF"
+                          >
+                            📑 PDF
+                          </button>
                           <Link to="/auxiliary/attendance" className="btn btn-outline-primary me-2">
                             🔍 Buscar Estudiantes
                           </Link>
@@ -586,6 +784,8 @@ const JustificationManagementPage = () => {
                     setShowCreateModal(false);
                     setShowEditModal(false);
                     setSelectedJustification(null);
+                    setSelectedAbsentStudent(null);
+                    setAbsentStudentsYesterday([]);
                   }}
                 >
                   <span>&times;</span>
@@ -593,36 +793,121 @@ const JustificationManagementPage = () => {
               </div>
               <div className="modal-body">
                 <form onSubmit={(e) => e.preventDefault()}>
-                  <div className="row">
-                    <div className="col-md-6">
-                      <div className="form-group">
-                        <label>ID de Asistencia <span className="text-danger">*</span></label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          value={formData.attendanceId}
-                          onChange={(e) => setFormData({...formData, attendanceId: e.target.value})}
-                          placeholder="ID de asistencia"
-                          required
-                        />
+                  {/* Solo mostrar selector en modo crear, no en editar */}
+                  {!selectedJustification && (
+                    <div className="row">
+                      <div className="col-md-12">
+                        <div className="form-group">
+                          <label>Estudiante Ausente (Ayer) <span className="text-danger">*</span></label>
+                          {loadingAbsentStudents ? (
+                            <div className="text-center py-3">
+                              <div className="spinner-border text-primary" role="status">
+                                <span className="sr-only">Cargando...</span>
+                              </div>
+                              <p className="text-muted mt-2">Cargando estudiantes ausentes...</p>
+                            </div>
+                          ) : absentStudentsYesterday.length > 0 ? (
+                            <>
+                              <select
+                                className="form-control form-select"
+                                value={selectedAbsentStudent ? (selectedAbsentStudent.id || selectedAbsentStudent.studentEnrollmentId) : ''}
+                                onChange={(e) => {
+                                  const student = absentStudentsYesterday.find(
+                                    s => (s.id || s.studentEnrollmentId) === e.target.value
+                                  );
+                                  setSelectedAbsentStudent(student);
+                                }}
+                                required
+                              >
+                                <option value="">Seleccione un estudiante ausente</option>
+                                {absentStudentsYesterday.map((student) => {
+                                  const grade = student.grade ? `${student.grade}°` : '';
+                                  const section = student.section ? ` - Sección ${student.section}` : '';
+                                  const course = student.course ? ` - ${student.course}` : '';
+                                  const academicInfo = grade || section || course ? ` (${grade}${section}${course})` : '';
+                                  
+                                  return (
+                                    <option 
+                                      key={student.id || student.studentEnrollmentId} 
+                                      value={student.id || student.studentEnrollmentId}
+                                    >
+                                      {student.studentName}{academicInfo} - ID: {student.studentEnrollmentId} - {formatDateLocal(student.entryDate)}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                              <small className="form-text text-muted">
+                                ⚠️ Solo se pueden justificar ausencias del día anterior ({formatDateLocal(getYesterdayDate())})
+                              </small>
+                            </>
+                          ) : (
+                            <div className="alert alert-warning">
+                              <i className="feather-alert-triangle me-2"></i>
+                              <strong>No hay estudiantes ausentes de ayer</strong><br/>
+                              Solo se pueden justificar ausencias del día anterior. No se encontraron estudiantes ausentes para el {formatDateLocal(getYesterdayDate())}.
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <div className="col-md-6">
-                      <div className="form-group">
-                        <label>Tipo de Justificación <span className="text-danger">*</span></label>
-                        <Select
-                          value={justificationTypeOptions.find(option => option.value === formData.justificationType)}
-                          onChange={(selectedOption) => setFormData({...formData, justificationType: selectedOption.value})}
-                          options={justificationTypeOptions}
-                          menuPortalTarget={document.body}
-                          styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
-                          components={{
-                            IndicatorSeparator: () => null
-                          }}
-                        />
+                  )}
+                  
+                  {/* Mostrar ID cuando está editando */}
+                  {selectedJustification && (
+                    <div className="row">
+                      <div className="col-md-6">
+                        <div className="form-group">
+                          <label>ID de Asistencia <span className="text-danger">*</span></label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={formData.attendanceId}
+                            onChange={(e) => setFormData({...formData, attendanceId: e.target.value})}
+                            placeholder="ID de asistencia"
+                            required
+                            disabled
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="form-group">
+                          <label>Tipo de Justificación <span className="text-danger">*</span></label>
+                          <Select
+                            value={justificationTypeOptions.find(option => option.value === formData.justificationType)}
+                            onChange={(selectedOption) => setFormData({...formData, justificationType: selectedOption.value})}
+                            options={justificationTypeOptions}
+                            menuPortalTarget={document.body}
+                            styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
+                            components={{
+                              IndicatorSeparator: () => null
+                            }}
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
+                  
+                  {/* Tipo de justificación para crear nuevo */}
+                  {!selectedJustification && (
+                    <div className="row">
+                      <div className="col-md-12">
+                        <div className="form-group">
+                          <label>Tipo de Justificación <span className="text-danger">*</span></label>
+                          <Select
+                            value={justificationTypeOptions.find(option => option.value === formData.justificationType)}
+                            onChange={(selectedOption) => setFormData({...formData, justificationType: selectedOption.value})}
+                            options={justificationTypeOptions}
+                            menuPortalTarget={document.body}
+                            styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
+                            components={{
+                              IndicatorSeparator: () => null
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
                   <div className="row">
                     <div className="col-md-12">
                       <div className="form-group">
@@ -663,6 +948,8 @@ const JustificationManagementPage = () => {
                     setShowCreateModal(false);
                     setShowEditModal(false);
                     setSelectedJustification(null);
+                    setSelectedAbsentStudent(null);
+                    setAbsentStudentsYesterday([]);
                   }}
                 >
                   Cancelar
@@ -671,6 +958,7 @@ const JustificationManagementPage = () => {
                   type="button" 
                   className="btn btn-primary"
                   onClick={saveJustification}
+                  disabled={!selectedJustification && (!selectedAbsentStudent || !formData.justificationReason.trim())}
                 >
                   {selectedJustification ? 'Actualizar' : 'Crear'} Justificación
                 </button>

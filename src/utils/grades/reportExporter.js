@@ -84,13 +84,41 @@ export class GradeReportExporter {
             <meta charset="utf-8">
             <title>Reporte de Calificaciones</title>
             <style>
-              body { font-family: Arial, sans-serif; margin: 40px; text-align: center; }
-              .no-data { color: #666; font-style: italic; }
+              body { 
+                font-family: Arial, sans-serif; 
+                margin: 40px; 
+                text-align: center; 
+                background-color: #f8f9fa;
+              }
+              .container {
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 40px;
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+              }
+              h1 { 
+                color: #333; 
+                margin-bottom: 20px;
+              }
+              .no-data { 
+                color: #666; 
+                font-style: italic; 
+                font-size: 18px;
+              }
+              .icon {
+                font-size: 64px;
+                margin-bottom: 20px;
+              }
             </style>
           </head>
           <body>
-            <h1>Reporte de Calificaciones</h1>
-            <p class="no-data">No hay datos para mostrar</p>
+            <div class="container">
+              <div class="icon">📋</div>
+              <h1>Reporte de Calificaciones</h1>
+              <p class="no-data">No hay datos para mostrar en este momento</p>
+            </div>
           </body>
           </html>
         `;
@@ -113,26 +141,31 @@ export class GradeReportExporter {
         return { success: true };
       }
 
-      // Usar la función de exportToPDF para imprimir
+      // Usar la función de exportToPDF mejorada para imprimir
       GradeExportUtils.exportToPDF(
         grades,
-        ['Estudiante', 'Curso', 'Período', 'Nivel de Logro', 'Fecha'],
+        ['Estudiante', 'Curso', 'Período', 'Tipo Evaluación', 'Nivel de Logro', 'Fecha', 'Observaciones'],
         (grade) => {
           const levelInfo = AchievementLevel[grade.achievementLevel];
           const levelClass = GradeExportUtils.getAchievementLevelClass(grade.achievementLevel);
+          const observations = grade.remarks ? GradeExportUtils.sanitizeHTML(grade.remarks) : '-';
           
           return `
-            <td>${GradeExportUtils.sanitizeHTML(grade.studentId)}</td>
+            <td style="font-weight: 600;">${GradeExportUtils.sanitizeHTML(grade.studentId)}</td>
             <td>${GradeExportUtils.sanitizeHTML(grade.courseId)}</td>
-            <td>${GradeExportUtils.sanitizeHTML(grade.academicPeriod)}</td>
-            <td class="${levelClass}">
-              ${grade.achievementLevel} - ${levelInfo?.name || ''}
+            <td style="text-align: center;">${GradeExportUtils.sanitizeHTML(grade.academicPeriod)}</td>
+            <td style="font-size: 9px;">${GradeExportUtils.sanitizeHTML(grade.evaluationType)}</td>
+            <td style="text-align: center;">
+              <span class="${levelClass}">
+                ${grade.achievementLevel} - ${levelInfo?.name || ''}
+              </span>
             </td>
-            <td>${GradeExportUtils.sanitizeHTML(formatDate(grade.evaluationDate))}</td>
+            <td style="text-align: center;">${GradeExportUtils.sanitizeHTML(formatDate(grade.evaluationDate))}</td>
+            <td style="font-size: 9px; max-width: 150px;">${observations}</td>
           `;
         },
-        'Reporte de Calificaciones',
-        'Listado de Evaluaciones Académicas'
+        'Reporte de Calificaciones Académicas',
+        'Sistema de Evaluación Educativa'
       );
       
       return { success: true };

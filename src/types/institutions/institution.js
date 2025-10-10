@@ -5,28 +5,29 @@
 export const Institution = {
   id: null,
   name: '',
-  codeName: '',
+  codeInstitution: '',
   logo: '',
-  modularCode: '',
   address: '',
   contactEmail: '',
   contactPhone: '',
   status: 'A', // A = Active, I = Inactive
   uiSettings: {
-    color: '#3498DB',
+    color: '#FF0000',
     logoPosition: 'LEFT', // LEFT, CENTER, RIGHT
     showStudentPhotos: false
   },
   evaluationSystem: {
-    gradeScale: 'NUMERICAL_0_100', // NUMERICAL_0_100, NUMERICAL_0_20, LETTER_GRADE
-    minimumPassingGrade: 60.0,
-    showDecimals: false
+    gradeScale: 'NUMERICAL_0_20', // NUMERICAL_0_100, NUMERICAL_0_20, LETTER_GRADE
+    minimumPassingGrade: 10.5,
+    showDecimals: true
   },
   scheduleSettings: {
-    morningStartTime: '07:30:00',
-    morningEndTime: '11:30:00',
-    afternoonStartTime: '13:00:00',
-    afternoonEndTime: '17:00:00'
+    morningStartTime: '08:00:00',
+    morningEndTime: '12:00:00',
+    afternoonStartTime: '14:00:00',
+    afternoonEndTime: '18:00:00',
+    nightStartTime: '19:00:00',
+    nightEndTime: '22:00:00'
   },
   createdAt: null,
   updatedAt: null
@@ -73,19 +74,12 @@ export const validateInstitution = (institution) => {
   }
   
   // Validación del código de la institución
-  if (!institution.codeName || institution.codeName.trim() === '') {
-    errors.codeName = 'El código de la institución es obligatorio';
-  } else if (institution.codeName.trim().length < 2 || institution.codeName.trim().length > 10) {
-    errors.codeName = 'El código debe tener entre 2 y 10 caracteres';
-  } else if (!/^[A-Z0-9]+$/.test(institution.codeName.trim())) {
-    errors.codeName = 'El código solo puede contener letras mayúsculas y números';
-  }
-  
-  // Validación del código modular
-  if (!institution.modularCode || institution.modularCode.trim() === '') {
-    errors.modularCode = 'El código modular es obligatorio';
-  } else if (institution.modularCode.trim().length < 5 || institution.modularCode.trim().length > 10) {
-    errors.modularCode = 'El código modular debe tener entre 5 y 10 caracteres';
+  if (!institution.codeInstitution || institution.codeInstitution.trim() === '') {
+    errors.codeInstitution = 'El código de la institución es obligatorio';
+  } else if (institution.codeInstitution.trim().length < 6 || institution.codeInstitution.trim().length > 12) {
+    errors.codeInstitution = 'El código debe tener entre 6 y 12 caracteres';
+  } else if (!/^[0-9]+$/.test(institution.codeInstitution.trim())) {
+    errors.codeInstitution = 'El código de institución debe contener solo números';
   }
   
   // Validación de la dirección
@@ -103,8 +97,12 @@ export const validateInstitution = (institution) => {
   // Validación del teléfono de contacto
   if (!institution.contactPhone || institution.contactPhone.trim() === '') {
     errors.contactPhone = 'El teléfono de contacto es obligatorio';
-  } else if (!/^[0-9]{9,12}$/.test(institution.contactPhone.trim())) {
-    errors.contactPhone = 'El teléfono debe contener entre 9 y 12 dígitos';
+  } else {
+    // Extraer solo números del teléfono para validar
+    const phoneNumbers = institution.contactPhone.replace(/\D/g, '');
+    if (phoneNumbers.length < 9 || phoneNumbers.length > 12) {
+      errors.contactPhone = 'El teléfono debe contener entre 9 y 12 dígitos';
+    }
   }
   
   // Validación del estado

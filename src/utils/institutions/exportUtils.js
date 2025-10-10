@@ -237,15 +237,14 @@ export class ExportUtils {
    */
   static exportInstitutionsToCSV(institutions) {
     const headers = [
-      'ID', 'Nombre', 'Código', 'Código Modular', 'Estado',
+      'ID', 'Nombre', 'Código', 'Estado',
       'Email Contacto', 'Teléfono', 'Dirección', 'Fecha Creación'
     ];
 
     const mapFunction = (institution) => [
       ExportUtils.sanitizeCSV(institution.id),
       ExportUtils.sanitizeCSV(institution.name),
-      ExportUtils.sanitizeCSV(institution.codeName),
-      ExportUtils.sanitizeCSV(institution.modularCode),
+      ExportUtils.sanitizeCSV(institution.codeInstitution),
       ExportUtils.sanitizeCSV(institution.status === 'A' ? 'Activo' : 'Inactivo'),
       ExportUtils.sanitizeCSV(institution.contactEmail),
       ExportUtils.sanitizeCSV(institution.contactPhone),
@@ -266,7 +265,7 @@ export class ExportUtils {
 
     const mapFunction = (institution) => `
       <td>${ExportUtils.sanitizeHTML(institution.name)}</td>
-      <td>${ExportUtils.sanitizeHTML(institution.codeName)}</td>
+      <td>${ExportUtils.sanitizeHTML(institution.codeInstitution)}</td>
       <td class="${institution.status === 'A' ? 'active' : 'inactive'}">
         ${institution.status === 'A' ? 'Activo' : 'Inactivo'}
       </td>
@@ -288,15 +287,14 @@ export class ExportUtils {
    */
   static exportInstitutionsToExcel(institutions) {
     const headers = [
-      'ID', 'Nombre', 'Código', 'Código Modular', 'Estado',
+      'ID', 'Nombre', 'Código', 'Estado',
       'Email Contacto', 'Teléfono', 'Dirección', 'Fecha Creación'
     ];
 
     const mapFunction = (institution) => [
       institution.id,
       institution.name,
-      institution.codeName,
-      institution.modularCode,
+      institution.codeInstitution,
       institution.status === 'A' ? 'Activo' : 'Inactivo',
       institution.contactEmail,
       institution.contactPhone,
@@ -312,21 +310,27 @@ export class ExportUtils {
    */
   static exportHeadquartersToCSV(headquarters, institutionName) {
     const headers = [
-      'ID', 'Nombre Sede', 'Código Sede', 'Estado', 'Dirección',
-      'Persona Contacto', 'Email', 'Teléfono', 'Fecha Creación'
+      'ID', 'Nombre Sede', 'Códigos Modulares', 'Estado', 'Dirección',
+      'Teléfono', 'Fecha Creación'
     ];
 
-    const mapFunction = (hq) => [
-      ExportUtils.sanitizeCSV(hq.id),
-      ExportUtils.sanitizeCSV(hq.headquartersName),
-      ExportUtils.sanitizeCSV(hq.headquartersCode),
-      ExportUtils.sanitizeCSV(hq.status === 'A' ? 'Activo' : 'Inactivo'),
-      ExportUtils.sanitizeCSV(hq.address),
-      ExportUtils.sanitizeCSV(hq.contactPerson),
-      ExportUtils.sanitizeCSV(hq.contactEmail),
-      ExportUtils.sanitizeCSV(hq.contactPhone),
-      ExportUtils.sanitizeCSV(hq.createdAt ? new Date(hq.createdAt).toLocaleDateString() : '')
-    ];
+    const mapFunction = (hq) => {
+      // Procesar códigos modulares
+      let modularCodesText = 'Sin códigos';
+      if (Array.isArray(hq.modularCode) && hq.modularCode.length > 0) {
+        modularCodesText = hq.modularCode.join(', ');
+      }
+
+      return [
+        ExportUtils.sanitizeCSV(hq.id),
+        ExportUtils.sanitizeCSV(hq.name),
+        ExportUtils.sanitizeCSV(modularCodesText),
+        ExportUtils.sanitizeCSV(hq.status === 'A' ? 'Activo' : 'Inactivo'),
+        ExportUtils.sanitizeCSV(hq.address),
+        ExportUtils.sanitizeCSV(hq.phone),
+        ExportUtils.sanitizeCSV(hq.createdAt ? new Date(hq.createdAt).toLocaleDateString() : '')
+      ];
+    };
 
     ExportUtils.exportToCSV(headquarters, headers, mapFunction, `sedes_${institutionName || 'institucion'}`);
   }
@@ -336,18 +340,25 @@ export class ExportUtils {
    */
   static exportHeadquartersToPDF(headquarters, institutionName) {
     const headers = [
-      'Nombre Sede', 'Código', 'Estado', 'Contacto', 'Teléfono'
+      'Nombre Sede', 'Códigos Modulares', 'Estado', 'Teléfono'
     ];
 
-    const mapFunction = (hq) => `
-      <td>${ExportUtils.sanitizeHTML(hq.headquartersName)}</td>
-      <td>${ExportUtils.sanitizeHTML(hq.headquartersCode)}</td>
-      <td class="${hq.status === 'A' ? 'active' : 'inactive'}">
-        ${hq.status === 'A' ? 'Activo' : 'Inactivo'}
-      </td>
-      <td>${ExportUtils.sanitizeHTML(hq.contactPerson)}</td>
-      <td>${ExportUtils.sanitizeHTML(hq.contactPhone)}</td>
-    `;
+    const mapFunction = (hq) => {
+      // Procesar códigos modulares
+      let modularCodesText = 'Sin códigos';
+      if (Array.isArray(hq.modularCode) && hq.modularCode.length > 0) {
+        modularCodesText = hq.modularCode.join(', ');
+      }
+
+      return `
+        <td>${ExportUtils.sanitizeHTML(hq.name)}</td>
+        <td>${ExportUtils.sanitizeHTML(modularCodesText)}</td>
+        <td class="${hq.status === 'A' ? 'active' : 'inactive'}">
+          ${hq.status === 'A' ? 'Activo' : 'Inactivo'}
+        </td>
+        <td>${ExportUtils.sanitizeHTML(hq.phone)}</td>
+      `;
+    };
 
     ExportUtils.exportToPDF(
       headquarters, 
@@ -363,21 +374,27 @@ export class ExportUtils {
    */
   static exportHeadquartersToExcel(headquarters, institutionName) {
     const headers = [
-      'ID', 'Nombre Sede', 'Código Sede', 'Estado', 'Dirección',
-      'Persona Contacto', 'Email', 'Teléfono', 'Fecha Creación'
+      'ID', 'Nombre Sede', 'Códigos Modulares', 'Estado', 'Dirección',
+      'Teléfono', 'Fecha Creación'
     ];
 
-    const mapFunction = (hq) => [
-      hq.id,
-      hq.headquartersName,
-      hq.headquartersCode,
-      hq.status === 'A' ? 'Activo' : 'Inactivo',
-      hq.address,
-      hq.contactPerson,
-      hq.contactEmail,
-      hq.contactPhone,
-      hq.createdAt ? new Date(hq.createdAt).toLocaleDateString() : ''
-    ];
+    const mapFunction = (hq) => {
+      // Procesar códigos modulares
+      let modularCodesText = 'Sin códigos';
+      if (Array.isArray(hq.modularCode) && hq.modularCode.length > 0) {
+        modularCodesText = hq.modularCode.join(', ');
+      }
+
+      return [
+        hq.id,
+        hq.name,
+        modularCodesText,
+        hq.status === 'A' ? 'Activo' : 'Inactivo',
+        hq.address,
+        hq.phone,
+        hq.createdAt ? new Date(hq.createdAt).toLocaleDateString() : ''
+      ];
+    };
 
     ExportUtils.exportToExcel(headquarters, headers, mapFunction, `sedes_${institutionName || 'institucion'}`, 'Sedes');
   }

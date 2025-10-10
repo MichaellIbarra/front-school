@@ -1,5 +1,4 @@
 // Utilidades de exportación para reportes de asistencias y justificaciones
-import { message } from 'antd';
 
 export class AttendanceReportUtils {
   /**

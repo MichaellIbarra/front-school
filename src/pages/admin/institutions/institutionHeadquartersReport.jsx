@@ -19,7 +19,7 @@ import Sidebar from '../../../components/Sidebar';
 import AlertModal from '../../../components/AlertModal';
 import useAlert from '../../../hooks/useAlert';
 import InstitutionStatsChart from './InstitutionStatsChart';
-import institutionService from '../../../services/institutions/institutionService';
+import InstitutionAdminService from '../../../services/institutions/institutionAdminService';
 import headquarterService from '../../../services/institutions/headquarterService';
 import { InstitutionStatus, HeadquarterStatus, AdminModuleConstants } from '../../../types/institutions';
 import ReportExporter from '../../../utils/institutions/reportExporter';
@@ -73,7 +73,7 @@ const InstitutionHeadquartersReport = () => {
       setLoading(true);
       
       // Obtener todas las instituciones
-      const institutionsResponse = await institutionService.getAllInstitutions();
+      const institutionsResponse = await InstitutionAdminService.getAllInstitutions();
       
       if (!institutionsResponse.success) {
         showError('Error al cargar datos', institutionsResponse.error);
@@ -114,8 +114,7 @@ const InstitutionHeadquartersReport = () => {
               return {
                 id: institution.id,
                 name: institution.name,
-                codeName: institution.codeName,
-                modularCode: institution.modularCode,
+                codeInstitution: institution.codeInstitution,
                 status: institution.status,
                 contactEmail: institution.contactEmail,
                 contactPhone: institution.contactPhone,
@@ -131,8 +130,7 @@ const InstitutionHeadquartersReport = () => {
               return {
                 id: institution.id,
                 name: institution.name,
-                codeName: institution.codeName,
-                modularCode: institution.modularCode,
+                codeInstitution: institution.codeInstitution,
                 status: institution.status,
                 contactEmail: institution.contactEmail,
                 contactPhone: institution.contactPhone,
@@ -149,8 +147,7 @@ const InstitutionHeadquartersReport = () => {
             return {
               id: institution.id,
               name: institution.name,
-              codeName: institution.codeName,
-              modularCode: institution.modularCode,
+              codeInstitution: institution.codeInstitution,
               status: institution.status,
               contactEmail: institution.contactEmail,
               contactPhone: institution.contactPhone,
@@ -205,7 +202,7 @@ const InstitutionHeadquartersReport = () => {
   // Configuración del gráfico de barras
   const getBarChartData = () => {
     const filteredInstitutions = getFilteredInstitutions();
-    const labels = filteredInstitutions.map(inst => inst.codeName || inst.name.substring(0, 15));
+    const labels = filteredInstitutions.map(inst => inst.codeInstitution || inst.name.substring(0, 15));
     const activeData = filteredInstitutions.map(inst => inst.activeHeadquarters);
     const inactiveData = filteredInstitutions.map(inst => inst.inactiveHeadquarters);
 
@@ -237,7 +234,7 @@ const InstitutionHeadquartersReport = () => {
   // Configuración del gráfico circular
   const getDoughnutChartData = () => {
     const filteredInstitutions = getFilteredInstitutions();
-    const labels = filteredInstitutions.map(inst => inst.codeName || inst.name.substring(0, 20));
+    const labels = filteredInstitutions.map(inst => inst.codeInstitution || inst.name.substring(0, 20));
     const data = filteredInstitutions.map(inst => inst.headquartersCount);
     
     const colors = AdminModuleConstants.DEFAULT_COLORS.concat([
@@ -263,7 +260,7 @@ const InstitutionHeadquartersReport = () => {
   // Configuración del gráfico de líneas
   const getLineChartData = () => {
     const filteredInstitutions = getFilteredInstitutions();
-    const labels = filteredInstitutions.map((inst, index) => `${inst.codeName || `Inst ${index + 1}`}`);
+    const labels = filteredInstitutions.map((inst, index) => `${inst.codeInstitution || `Inst ${index + 1}`}`);
     const totalData = filteredInstitutions.map(inst => inst.headquartersCount);
     const activeData = filteredInstitutions.map(inst => inst.activeHeadquarters);
 
@@ -623,7 +620,6 @@ const InstitutionHeadquartersReport = () => {
                         <tr>
                           <th>Institución</th>
                           <th>Código</th>
-                          <th>Código Modular</th>
                           <th>Sedes Activas</th>
                           <th>Sedes Inactivas</th>
                           <th>Total Sedes</th>
@@ -655,12 +651,7 @@ const InstitutionHeadquartersReport = () => {
                             </td>
                             <td>
                               <span className="badge bg-info">
-                                {institution.codeName}
-                              </span>
-                            </td>
-                            <td>
-                              <span className="badge bg-secondary">
-                                {institution.modularCode}
+                                {institution.codeInstitution}
                               </span>
                             </td>
                             <td>

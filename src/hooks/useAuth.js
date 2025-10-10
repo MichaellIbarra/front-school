@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getUserInfo, isTokenValid, refreshTokenKeycloak } from '../auth/authService';
+import { getUserInfo, isTokenValid, refreshTokenKeycloak, clearInstitutionData } from '../auth/authService';
 
 const useAuth = () => {
   const [user, setUser] = useState(null);
@@ -95,6 +95,10 @@ const useAuth = () => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('token_expires');
+    
+    // Limpiar datos de institución (director y personal)
+    clearInstitutionData();
+    
     setUser(null);
     setIsAuthenticated(false);
   };

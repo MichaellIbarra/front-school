@@ -23,7 +23,7 @@ import {
   Legend,
 } from 'chart.js';
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
-import institutionService from '../../../services/institutions/institutionService';
+import InstitutionAdminService from '../../../services/institutions/institutionAdminService';
 import headquarterService from '../../../services/institutions/headquarterService';
 import { InstitutionStatus, HeadquarterStatus } from '../../../types/institutions';
 import useAlert from '../../../hooks/useAlert';
@@ -82,7 +82,7 @@ const InstitutionHeadquartersReport = () => {
       console.log('🔄 Cargando datos para reportes...');
       
       // Cargar instituciones
-      const institutionsResponse = await institutionService.getAllInstitutions();
+      const institutionsResponse = await InstitutionAdminService.getAllInstitutions();
       
       if (institutionsResponse.success && institutionsResponse.data) {
         const institutionsData = institutionsResponse.data;
@@ -189,7 +189,7 @@ const InstitutionHeadquartersReport = () => {
   const getBarChartData = () => {
     const filteredData = getFilteredInstitutions();
     return {
-      labels: filteredData.map(inst => inst.codeName || inst.name.substring(0, 10)),
+      labels: filteredData.map(inst => inst.codeInstitution || inst.name.substring(0, 10)),
       datasets: [
         {
           label: 'Sedes Activas',
@@ -228,7 +228,7 @@ const InstitutionHeadquartersReport = () => {
   const getLineChartData = () => {
     const filteredData = getFilteredInstitutions();
     return {
-      labels: filteredData.map(inst => inst.codeName || inst.name.substring(0, 10)),
+      labels: filteredData.map(inst => inst.codeInstitution || inst.name.substring(0, 10)),
       datasets: [
         {
           label: 'Total de Sedes por Institución',

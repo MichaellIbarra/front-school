@@ -225,7 +225,7 @@ const PeriodList = () => {
       }
       return <span className="badge badge-info">Activo</span>;
     }
-    return <span className="badge badge-warning text-dark">INACTIVO</span>;
+    return <span className="badge badge-secondary">Inactivo</span>;
   };
 
   if (loading) {

@@ -9,7 +9,7 @@ import { useState } from "react";
 
 import { Eye, EyeOff } from "feather-icons-react/build/IconComponents";
 import useTitle from "../../../hooks/useTitle";
-import { loginKeycloak } from "../../../auth/authService";
+import { loginKeycloak, handleDirectorLogin, handlePersonalLogin, isDirector, hasAnyRole } from "../../../auth/authService";
 import useAuth from "../../../hooks/useAuth";
 
 // import ReactPasswordToggleIcon from 'react-password-toggle-icon';
@@ -63,15 +63,68 @@ const Login = () => {
       const result = await loginKeycloak(formData.username, formData.password);
       
       if (result.success) {
-        // Login exitoso - actualizar información del usuario inmediatamente
-        updateUserInfo();
-        // Redirigir al dashboard
-        navigate('/dashboard');
+        console.log('✅ Login exitoso');
+        
+        // Actualizar información del usuario inmediatamente
+        await updateUserInfo();
+        
+        // Verificar si el usuario es director
+        if (isDirector()) {
+          console.log('🏢 Usuario es director, cargando institución...');
+          setError(''); // Limpiar errores previos
+          
+          try {
+            const directorResult = await handleDirectorLogin();
+            
+            if (directorResult.success) {
+              console.log('✅ Institución del director cargada exitosamente');
+              // Redirigir al dashboard después de cargar la institución
+              navigate('/dashboard');
+            } else {
+              console.warn('⚠️ Error al cargar institución del director:', directorResult.error);
+              // Aún así redirigir al dashboard, pero mostrar advertencia
+              navigate('/dashboard');
+            }
+          } catch (directorError) {
+            console.error('❌ Error en proceso de director:', directorError);
+            // Redirigir al dashboard de todas formas
+            navigate('/dashboard');
+          }
+        } 
+        // Verificar si el usuario es personal educativo
+        else if (hasAnyRole(['teacher', 'auxiliary', 'secretary'])) {
+          console.log('🏫 Usuario es personal educativo, cargando institución...');
+          setError(''); // Limpiar errores previos
+          
+          try {
+            const personalResult = await handlePersonalLogin();
+            
+            if (personalResult.success) {
+              console.log('✅ Institución del personal cargada exitosamente');
+              // Redirigir al dashboard después de cargar la institución
+              navigate('/dashboard');
+            } else {
+              console.warn('⚠️ Error al cargar institución del personal:', personalResult.error);
+              // Aún así redirigir al dashboard, pero mostrar advertencia
+              navigate('/dashboard');
+            }
+          } catch (personalError) {
+            console.error('❌ Error en proceso de personal:', personalError);
+            // Redirigir al dashboard de todas formas
+            navigate('/dashboard');
+          }
+        } 
+        else {
+          // Usuario no es director ni personal, redirigir normalmente (ej: admin)
+          console.log('👤 Usuario no requiere institución, redirigiendo al dashboard');
+          navigate('/dashboard');
+        }
       } else {
-        // Mostrar error
+        // Mostrar error de login
         setError(result.error || 'Error al iniciar sesión');
       }
     } catch (error) {
+      console.error('Error en handleSubmit:', error);
       setError('Error de conexión. Intenta nuevamente.');
     } finally {
       setLoading(false);

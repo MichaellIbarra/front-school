@@ -61,7 +61,7 @@ const InstitutionStatsChart = ({ institutions = [] }) => {
         colors: ['transparent']
       },
       xaxis: {
-        categories: institutions.map(inst => inst.codeName || inst.name.substring(0, 10)),
+        categories: institutions.map(inst => inst.codeInstitution || inst.name.substring(0, 10)),
         title: {
           text: 'Instituciones'
         },
@@ -273,7 +273,7 @@ InstitutionStatsChart.propTypes = {
     PropTypes.shape({
       id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
       name: PropTypes.string,
-      codeName: PropTypes.string,
+      codeInstitution: PropTypes.number,
       status: PropTypes.string,
       headquartersCount: PropTypes.number,
       activeHeadquarters: PropTypes.number,

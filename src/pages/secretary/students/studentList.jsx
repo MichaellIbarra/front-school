@@ -25,13 +25,9 @@ const StudentList = () => {
   
   // Estados para filtros y búsqueda
   const [searchText, setSearchText] = useState('');
-  const [activeTab, setActiveTab] = useState('ACTIVE');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [genderFilter, setGenderFilter] = useState('all');
   const [filteredStudents, setFilteredStudents] = useState([]);
-  
-  // Estados para modal de detalles
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState(null);
 
   // Cargar estudiantes al montar el componente
   useEffect(() => {
@@ -41,7 +37,7 @@ const StudentList = () => {
   // Aplicar filtros cuando cambien los datos, búsqueda o filtros
   useEffect(() => {
     applyFilters();
-  }, [students, searchText, activeTab, genderFilter]);
+  }, [students, searchText, statusFilter, genderFilter]);
 
   /**
    * Carga todos los estudiantes desde el servicio
@@ -84,8 +80,10 @@ const StudentList = () => {
       );
     }
 
-    // Filtro por estado (siempre filtra por el tab activo)
-    filtered = filtered.filter(student => student.status === activeTab);
+    // Filtro por estado
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(student => student.status === statusFilter);
+    }
 
     // Filtro por género
     if (genderFilter !== 'all') {
@@ -115,16 +113,34 @@ const StudentList = () => {
    * Muestra detalles del estudiante
    */
   const handleView = (student) => {
-    setSelectedStudent(student);
-    setShowDetailsModal(true);
-  };
+    const age = calculateAge(student.birthDate);
+    const details = `
+Documento: ${student.documentType} ${student.documentNumber}
+Fecha de Nacimiento: ${formatBirthDate(student.birthDate)} (${age} años)
+Género: ${student.gender === 'MALE' ? 'Masculino' : 'Femenino'}
+Dirección: ${student.address}
+Distrito: ${student.district}, ${student.province}, ${student.department}
+Teléfono: ${student.phone || 'No registrado'}
+Email: ${student.email || 'No registrado'}
 
-  /**
-   * Cierra el modal de detalles
-   */
-  const handleCloseDetailsModal = () => {
-    setShowDetailsModal(false);
-    setSelectedStudent(null);
+APODERADO:
+Nombre: ${student.guardianName} ${student.guardianLastName}
+Documento: ${student.guardianDocumentType} ${student.guardianDocumentNumber}
+Teléfono: ${student.guardianPhone || 'No registrado'}
+Email: ${student.guardianEmail || 'No registrado'}
+Relación: ${student.guardianRelationship}
+
+Estado: ${getStatusText(student.status)}
+Creado: ${formatDateTime(student.createdAt)}
+    `.trim();
+
+    showAlert({
+      title: `Detalles de ${student.firstName} ${student.lastName}`,
+      message: details,
+      type: 'info',
+      showCancel: false,
+      confirmText: 'Cerrar'
+    });
   };
 
   /**
@@ -255,37 +271,6 @@ const StudentList = () => {
     });
   };
 
-  /**
-   * Navega a la página de importación masiva de estudiantes
-   */
-  const handleBulkCreate = () => {
-    navigate('/secretary/students/bulk-import');
-  };
-
-  /**
-   * Exporta la lista de estudiantes actual a CSV
-   */
-  const handleExportStudents = async () => {
-    try {
-      // Importar dinámicamente la utilidad de exportación
-      const { default: ExportUtils } = await import('../../../utils/students/exportUtils');
-      
-      // Usar los estudiantes filtrados actuales
-      const dataToExport = filteredStudents.length > 0 ? filteredStudents : students;
-      
-      if (dataToExport.length === 0) {
-        showWarning('No hay estudiantes para exportar');
-        return;
-      }
-
-      ExportUtils.exportStudentsToCSV(dataToExport);
-      showSuccess(`${dataToExport.length} estudiantes exportados exitosamente`);
-    } catch (error) {
-      console.error('Error al exportar estudiantes:', error);
-      showError('Error al exportar los estudiantes');
-    }
-  };
-
   // Configuración de selección de filas
   const rowSelection = {
     selectedRowKeys,
@@ -352,6 +337,14 @@ const StudentList = () => {
           {getStatusText(status)}
         </Tag>
       ),
+      filters: [
+        { text: 'Activo', value: StudentStatus.ACTIVE },
+        { text: 'Inactivo', value: StudentStatus.INACTIVE },
+        { text: 'Transferido', value: StudentStatus.TRANSFERRED },
+        { text: 'Graduado', value: StudentStatus.GRADUATED },
+        { text: 'Fallecido', value: StudentStatus.DECEASED },
+      ],
+      onFilter: (value, record) => record.status === value,
     },
     {
       title: 'Fecha Registro',
@@ -451,7 +444,7 @@ const StudentList = () => {
               <div className="card card-table">
                 <div className="card-body">
                   <div className="row mb-3 mt-3">
-                    <div className="col-lg-4 col-md-6 col-sm-12 mb-2">
+                    <div className="col-lg-3 col-md-6 col-sm-12 mb-2">
                       <div className="top-nav-search">
                         <Input
                           placeholder="Buscar por nombre, documento, email..."
@@ -461,6 +454,21 @@ const StudentList = () => {
                           className="w-100"
                         />
                       </div>
+                    </div>
+                    <div className="col-lg-2 col-md-3 col-sm-6 mb-2">
+                      <Select
+                        placeholder="Estado"
+                        value={statusFilter}
+                        onChange={setStatusFilter}
+                        className="w-100"
+                      >
+                        <Option value="all">Todos los estados</Option>
+                        <Option value={StudentStatus.ACTIVE}>Activo</Option>
+                        <Option value={StudentStatus.INACTIVE}>Inactivo</Option>
+                        <Option value={StudentStatus.TRANSFERRED}>Transferido</Option>
+                        <Option value={StudentStatus.GRADUATED}>Graduado</Option>
+                        <Option value={StudentStatus.DECEASED}>Fallecido</Option>
+                      </Select>
                     </div>
                     <div className="col-lg-2 col-md-3 col-sm-6 mb-2">
                       <Select
@@ -474,7 +482,7 @@ const StudentList = () => {
                         <Option value={Gender.FEMALE}>Femenino</Option>
                       </Select>
                     </div>
-                    <div className="col-lg-6 col-md-12 col-sm-12 mb-2">
+                    <div className="col-lg-5 col-md-12 col-sm-12 mb-2">
                       <div className="d-flex flex-wrap justify-content-end gap-2">
                         <Button
                           type="primary"
@@ -483,20 +491,6 @@ const StudentList = () => {
                           className="btn-sm"
                         >
                           Nuevo Estudiante
-                        </Button>
-                        <Button
-                          icon={<FileTextOutlined />}
-                          onClick={handleBulkCreate}
-                          className="btn-sm"
-                        >
-                          Importar Lote
-                        </Button>
-                        <Button
-                          icon={<DownloadOutlined />}
-                          onClick={handleExportStudents}
-                          className="btn-sm"
-                        >
-                          Exportar
                         </Button>
                         <Button
                           icon={<UserOutlined />}
@@ -517,77 +511,6 @@ const StudentList = () => {
                         )}
                       </div>
                     </div>
-                  </div>
-
-                  {/* Pestañas por estado */}
-                  <div className="mb-3">
-                    <ul className="nav nav-tabs nav-tabs-solid">
-                      <li className="nav-item">
-                        <button 
-                          className={`nav-link ${activeTab === StudentStatus.ACTIVE ? 'active' : ''}`}
-                          onClick={() => setActiveTab(StudentStatus.ACTIVE)}
-                          type="button"
-                        >
-                          <CheckOutlined style={{ color: '#52c41a', marginRight: '8px' }} />
-                          Activos
-                          <Tag color="success" style={{ marginLeft: '8px' }}>
-                            {students.filter(s => s.status === StudentStatus.ACTIVE).length}
-                          </Tag>
-                        </button>
-                      </li>
-                      <li className="nav-item">
-                        <button 
-                          className={`nav-link ${activeTab === StudentStatus.INACTIVE ? 'active' : ''}`}
-                          onClick={() => setActiveTab(StudentStatus.INACTIVE)}
-                          type="button"
-                        >
-                          <CloseOutlined style={{ color: '#faad14', marginRight: '8px' }} />
-                          Inactivos
-                          <Tag color="warning" style={{ marginLeft: '8px' }}>
-                            {students.filter(s => s.status === StudentStatus.INACTIVE).length}
-                          </Tag>
-                        </button>
-                      </li>
-                      <li className="nav-item">
-                        <button 
-                          className={`nav-link ${activeTab === StudentStatus.TRANSFERRED ? 'active' : ''}`}
-                          onClick={() => setActiveTab(StudentStatus.TRANSFERRED)}
-                          type="button"
-                        >
-                          <UndoOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
-                          Transferidos
-                          <Tag color="blue" style={{ marginLeft: '8px' }}>
-                            {students.filter(s => s.status === StudentStatus.TRANSFERRED).length}
-                          </Tag>
-                        </button>
-                      </li>
-                      <li className="nav-item">
-                        <button 
-                          className={`nav-link ${activeTab === StudentStatus.GRADUATED ? 'active' : ''}`}
-                          onClick={() => setActiveTab(StudentStatus.GRADUATED)}
-                          type="button"
-                        >
-                          <span style={{ marginRight: '8px' }}>🎓</span>
-                          Graduados
-                          <Tag color="purple" style={{ marginLeft: '8px' }}>
-                            {students.filter(s => s.status === StudentStatus.GRADUATED).length}
-                          </Tag>
-                        </button>
-                      </li>
-                      <li className="nav-item">
-                        <button 
-                          className={`nav-link ${activeTab === StudentStatus.DECEASED ? 'active' : ''}`}
-                          onClick={() => setActiveTab(StudentStatus.DECEASED)}
-                          type="button"
-                        >
-                          <DeleteOutlined style={{ color: '#ff4d4f', marginRight: '8px' }} />
-                          Retirados
-                          <Tag color="error" style={{ marginLeft: '8px' }}>
-                            {students.filter(s => s.status === StudentStatus.DECEASED).length}
-                          </Tag>
-                        </button>
-                      </li>
-                    </ul>
                   </div>
 
                   {/* Tabla de estudiantes */}
@@ -620,215 +543,6 @@ const StudentList = () => {
       {/* Sidebar y Header */}
       <Sidebar />
       <Header />
-      
-      {/* Modal de Detalles del Estudiante */}
-      {selectedStudent && (
-        <div className={`modal fade ${showDetailsModal ? 'show' : ''}`} 
-             style={{ display: showDetailsModal ? 'block' : 'none' }}
-             id="student_details_modal" 
-             tabIndex="-1" 
-             role="dialog">
-          <div className="modal-dialog modal-dialog-centered modal-lg" role="document">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">
-                  <UserOutlined style={{ marginRight: '8px' }} />
-                  Detalles del Estudiante
-                </h5>
-                <button 
-                  type="button" 
-                  className="btn-close" 
-                  onClick={handleCloseDetailsModal}
-                  aria-label="Close"
-                />
-              </div>
-              <div className="modal-body">
-                <div className="row">
-                  {/* Información Personal */}
-                  <div className="col-md-6">
-                    <div className="card">
-                      <div className="card-header">
-                        <h6 className="card-title mb-0">
-                          <UserOutlined style={{ marginRight: '6px' }} />
-                          Información Personal
-                        </h6>
-                      </div>
-                      <div className="card-body">
-                        <div className="row mb-2">
-                          <div className="col-5"><strong>Nombres:</strong></div>
-                          <div className="col-7">{selectedStudent.firstName}</div>
-                        </div>
-                        <div className="row mb-2">
-                          <div className="col-5"><strong>Apellidos:</strong></div>
-                          <div className="col-7">{selectedStudent.lastName}</div>
-                        </div>
-                        <div className="row mb-2">
-                          <div className="col-5"><strong>Documento:</strong></div>
-                          <div className="col-7">{selectedStudent.documentType}: {selectedStudent.documentNumber}</div>
-                        </div>
-                        <div className="row mb-2">
-                          <div className="col-5"><strong>Fecha Nac.:</strong></div>
-                          <div className="col-7">
-                            {formatBirthDate(selectedStudent.birthDate)} 
-                            <small className="text-muted"> ({calculateAge(selectedStudent.birthDate)} años)</small>
-                          </div>
-                        </div>
-                        <div className="row mb-2">
-                          <div className="col-5"><strong>Género:</strong></div>
-                          <div className="col-7">{selectedStudent.gender === 'MALE' ? 'Masculino' : 'Femenino'}</div>
-                        </div>
-                        <div className="row mb-2">
-                          <div className="col-5"><strong>Estado:</strong></div>
-                          <div className="col-7">
-                            <Tag color={getStatusColor(selectedStudent.status)}>
-                              {getStatusText(selectedStudent.status)}
-                            </Tag>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Información de Contacto */}
-                  <div className="col-md-6">
-                    <div className="card">
-                      <div className="card-header">
-                        <h6 className="card-title mb-0">
-                          📍 Información de Contacto
-                        </h6>
-                      </div>
-                      <div className="card-body">
-                        <div className="row mb-2">
-                          <div className="col-4"><strong>Dirección:</strong></div>
-                          <div className="col-8">{selectedStudent.address}</div>
-                        </div>
-                        <div className="row mb-2">
-                          <div className="col-4"><strong>Distrito:</strong></div>
-                          <div className="col-8">{selectedStudent.district}</div>
-                        </div>
-                        <div className="row mb-2">
-                          <div className="col-4"><strong>Provincia:</strong></div>
-                          <div className="col-8">{selectedStudent.province}</div>
-                        </div>
-                        <div className="row mb-2">
-                          <div className="col-4"><strong>Departamento:</strong></div>
-                          <div className="col-8">{selectedStudent.department}</div>
-                        </div>
-                        <div className="row mb-2">
-                          <div className="col-4"><strong>Teléfono:</strong></div>
-                          <div className="col-8">{selectedStudent.phone || <span className="text-muted">No registrado</span>}</div>
-                        </div>
-                        <div className="row mb-2">
-                          <div className="col-4"><strong>Email:</strong></div>
-                          <div className="col-8">{selectedStudent.email || <span className="text-muted">No registrado</span>}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Información del Apoderado */}
-                  <div className="col-12 mt-3">
-                    <div className="card">
-                      <div className="card-header">
-                        <h6 className="card-title mb-0">
-                          👥 Información del Apoderado
-                        </h6>
-                      </div>
-                      <div className="card-body">
-                        <div className="row">
-                          <div className="col-md-6">
-                            <div className="row mb-2">
-                              <div className="col-4"><strong>Nombres:</strong></div>
-                              <div className="col-8">{selectedStudent.guardianName}</div>
-                            </div>
-                            <div className="row mb-2">
-                              <div className="col-4"><strong>Apellidos:</strong></div>
-                              <div className="col-8">{selectedStudent.guardianLastName}</div>
-                            </div>
-                            <div className="row mb-2">
-                              <div className="col-4"><strong>Documento:</strong></div>
-                              <div className="col-8">{selectedStudent.guardianDocumentType}: {selectedStudent.guardianDocumentNumber}</div>
-                            </div>
-                          </div>
-                          <div className="col-md-6">
-                            <div className="row mb-2">
-                              <div className="col-4"><strong>Relación:</strong></div>
-                              <div className="col-8">{selectedStudent.guardianRelationship}</div>
-                            </div>
-                            <div className="row mb-2">
-                              <div className="col-4"><strong>Teléfono:</strong></div>
-                              <div className="col-8">{selectedStudent.guardianPhone || <span className="text-muted">No registrado</span>}</div>
-                            </div>
-                            <div className="row mb-2">
-                              <div className="col-4"><strong>Email:</strong></div>
-                              <div className="col-8">{selectedStudent.guardianEmail || <span className="text-muted">No registrado</span>}</div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Información de Registro */}
-                  <div className="col-12 mt-3">
-                    <div className="card">
-                      <div className="card-header">
-                        <h6 className="card-title mb-0">
-                          📅 Información de Registro
-                        </h6>
-                      </div>
-                      <div className="card-body">
-                        <div className="row">
-                          <div className="col-md-6">
-                            <div className="row mb-2">
-                              <div className="col-4"><strong>Fecha Registro:</strong></div>
-                              <div className="col-8">{formatDateTime(selectedStudent.createdAt)}</div>
-                            </div>
-                          </div>
-                          <div className="col-md-6">
-                            <div className="row mb-2">
-                              <div className="col-4"><strong>Última Actualización:</strong></div>
-                              <div className="col-8">{formatDateTime(selectedStudent.updatedAt)}</div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button 
-                  type="button" 
-                  className="btn btn-secondary" 
-                  onClick={handleCloseDetailsModal}
-                >
-                  Cerrar
-                </button>
-                <button 
-                  type="button" 
-                  className="btn btn-primary"
-                  onClick={() => {
-                    handleCloseDetailsModal();
-                    handleEdit(selectedStudent);
-                  }}
-                >
-                  <EditOutlined style={{ marginRight: '6px' }} />
-                  Editar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Overlay del modal */}
-      {showDetailsModal && (
-        <div 
-          className="modal-backdrop fade show" 
-          onClick={handleCloseDetailsModal}
-        />
-      )}
       
       {/* AlertModal para confirmaciones */}
       <AlertModal 

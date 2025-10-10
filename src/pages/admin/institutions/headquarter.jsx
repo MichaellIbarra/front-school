@@ -9,8 +9,8 @@ import Header from "../../../components/Header";
 import Sidebar from "../../../components/Sidebar";
 import AlertModal from "../../../components/AlertModal";
 import useAlert from "../../../hooks/useAlert";
-import headquarterService from "../../../services/institutions/headquarterService";
-import institutionService from "../../../services/institutions/institutionService";
+import headquarterAdminService from "../../../services/institutions/headquarterAdminService";
+import InstitutionAdminService from "../../../services/institutions/institutionAdminService";
 import { HeadquarterStatus } from "../../../types/institutions";
 import ExportUtils from '../../../utils/institutions/exportUtils';
 
@@ -48,7 +48,7 @@ const HeadquarterList = () => {
    */
   const loadInstitution = async () => {
     try {
-      const response = await institutionService.getInstitutionById(institutionId);
+      const response = await InstitutionAdminService.getInstitutionById(institutionId);
       if (response.success && response.data) {
         setInstitution(response.data);
       } else {
@@ -67,7 +67,7 @@ const HeadquarterList = () => {
   const loadHeadquarters = async () => {
     setLoading(true);
     try {
-      const response = await headquarterService.getHeadquartersByInstitutionId(institutionId);
+      const response = await headquarterAdminService.getHeadquartersByInstitution(institutionId);
       
       if (response.success) {
         setHeadquarters(response.data || []);
@@ -92,11 +92,12 @@ const HeadquarterList = () => {
     if (searchText) {
       const searchLower = searchText.toLowerCase();
       filtered = filtered.filter(hq => 
-        hq.headquartersName.toLowerCase().includes(searchLower) ||
-        hq.headquartersCode.toLowerCase().includes(searchLower) ||
-        hq.contactPerson.toLowerCase().includes(searchLower) ||
-        hq.contactEmail.toLowerCase().includes(searchLower) ||
-        hq.address.toLowerCase().includes(searchLower)
+        hq.name.toLowerCase().includes(searchLower) ||
+        hq.phone.toLowerCase().includes(searchLower) ||
+        hq.address.toLowerCase().includes(searchLower) ||
+        (Array.isArray(hq.modularCode) && hq.modularCode.some(code => 
+          code.toLowerCase().includes(searchLower)
+        ))
       );
     }
 
@@ -128,15 +129,19 @@ const HeadquarterList = () => {
    * Muestra detalles de la sede
    */
   const handleView = (headquarter) => {
+    // Procesar códigos modulares
+    let modularCodesText = 'Sin códigos';
+    if (Array.isArray(headquarter.modularCode) && headquarter.modularCode.length > 0) {
+      modularCodesText = headquarter.modularCode.join(', ');
+    }
+
     showAlert({
-      title: `Sede: ${headquarter.headquartersName}`,
+      title: `Sede: ${headquarter.name}`,
       message: `
         <div style="text-align: left;">
-          <p><strong>Código:</strong> ${headquarter.headquartersCode}</p>
+          <p><strong>Códigos Modulares:</strong> ${modularCodesText}</p>
           <p><strong>Dirección:</strong> ${headquarter.address}</p>
-          <p><strong>Contacto:</strong> ${headquarter.contactPerson}</p>
-          <p><strong>Email:</strong> ${headquarter.contactEmail}</p>
-          <p><strong>Teléfono:</strong> ${headquarter.contactPhone}</p>
+          <p><strong>Teléfono:</strong> ${headquarter.phone || 'Sin teléfono'}</p>
           <p><strong>Estado:</strong> ${headquarter.status === 'A' ? 'Activo' : 'Inactivo'}</p>
           <p><strong>Fecha Creación:</strong> ${new Date(headquarter.createdAt).toLocaleDateString()}</p>
         </div>
@@ -158,11 +163,16 @@ const HeadquarterList = () => {
     
     showAlert({
       title: `¿${action.charAt(0).toUpperCase() + action.slice(1)} sede?`,
-      message: `¿Estás seguro de que deseas ${action} la sede "${headquarter.headquartersName}"?`,
+      message: `¿Estás seguro de que deseas ${action} la sede "${headquarter.name}"?`,
       type: 'warning',
       onConfirm: async () => {
         try {
-          const response = await headquarterService.toggleHeadquarterStatus(headquarter.id, headquarter.status);
+          let response;
+          if (headquarter.status === 'A') {
+            response = await headquarterAdminService.deleteHeadquarter(headquarter.id);
+          } else {
+            response = await headquarterAdminService.restoreHeadquarter(headquarter.id);
+          }
           
           if (response.success) {
             showSuccess(`Sede ${newStatus.toLowerCase()}`, `La sede ha sido ${newStatus.toLowerCase()} exitosamente`);
@@ -183,11 +193,11 @@ const HeadquarterList = () => {
   const handleRestore = async (headquarter) => {
     showAlert({
       title: '¿Restaurar sede?',
-      message: `¿Estás seguro de que deseas restaurar la sede "${headquarter.headquartersName}"?`,
+      message: `¿Estás seguro de que deseas restaurar la sede "${headquarter.name}"?`,
       type: 'warning',
       onConfirm: async () => {
         try {
-          const response = await headquarterService.restoreHeadquarter(headquarter.id);
+          const response = await headquarterAdminService.restoreHeadquarter(headquarter.id);
           
           if (response.success) {
             showSuccess('Sede restaurada', response.message);
@@ -222,7 +232,7 @@ const HeadquarterList = () => {
 
           for (const id of selectedRowKeys) {
             try {
-              const response = await headquarterService.deleteHeadquarter(id);
+              const response = await headquarterAdminService.deleteHeadquarter(id);
               if (response.success) {
                 successCount++;
               } else {
@@ -269,16 +279,20 @@ const HeadquarterList = () => {
   const columns = [
     {
       title: 'Sede',
-      dataIndex: 'headquartersName',
-      key: 'headquartersName',
+      dataIndex: 'name',
+      key: 'name',
       render: (text, record) => (
         <div>
           <strong>{text}</strong>
           <br />
-          <small className="text-muted">Código: {record.headquartersCode}</small>
+          <small className="text-muted">
+            {Array.isArray(record.modularCode) && record.modularCode.length > 0 
+              ? `Códigos: ${record.modularCode.slice(0, 2).join(', ')}${record.modularCode.length > 2 ? '...' : ''}` 
+              : 'Sin códigos modulares'}
+          </small>
         </div>
       ),
-      sorter: (a, b) => a.headquartersName.localeCompare(b.headquartersName),
+      sorter: (a, b) => a.name.localeCompare(b.name),
     },
     {
       title: 'Dirección',
@@ -293,13 +307,44 @@ const HeadquarterList = () => {
       ),
     },
     {
-      title: 'Contacto',
-      key: 'contact',
-      render: (_, record) => (
+      title: 'Códigos Modulares',
+      dataIndex: 'modularCode',
+      key: 'modularCode',
+      render: (modularCode) => {
+        // Manejar tanto arrays como strings JSON (compatibilidad)
+        let codes = [];
+        if (Array.isArray(modularCode)) {
+          codes = modularCode;
+        } else {
+          try {
+            codes = JSON.parse(modularCode || '[]');
+          } catch (e) {
+            return <span className="text-muted">Formato inválido</span>;
+          }
+        }
+        
+        if (codes.length === 0) {
+          return <span className="text-muted">Sin códigos</span>;
+        }
+        
+        return (
+          <div>
+            {codes.map((code, index) => (
+              <Tag key={index} color="blue" className="mb-1">
+                {code}
+              </Tag>
+            ))}
+          </div>
+        );
+      },
+    },
+    {
+      title: 'Teléfono',
+      dataIndex: 'phone',
+      key: 'phone',
+      render: (phone) => (
         <div>
-          <div><strong>{record.contactPerson}</strong></div>
-          <div><small>{record.contactEmail}</small></div>
-          <div><small>{record.contactPhone}</small></div>
+          <span>{phone || 'Sin teléfono'}</span>
         </div>
       ),
     },

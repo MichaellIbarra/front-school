@@ -5,12 +5,106 @@ import { Link } from "react-router-dom";
 import { blog, dashboard, doctor, doctorschedule, logout, menuicon04, menuicon06, menuicon08, menuicon09, menuicon10, menuicon11, menuicon12, menuicon14, menuicon15, menuicon16, patients, sidemenu } from './imagepath';
 import Scrollbars from "react-custom-scrollbars-2";
 import useAuth from "../hooks/useAuth";
-import { hasRole, isAdmin, isDirector, isTeacher, isAuxiliary, isSecretary } from "../auth/authService";
+import { hasRole, isAdmin, isDirector, isTeacher, isAuxiliary, isSecretary, getUserInstitution, hasAnyRole } from "../auth/authService";
 
 
 const Sidebar = (props) => {
   const [sidebar, setSidebar] = useState("");
   const { user, isAuthenticated, logout } = useAuth();
+
+  // Función para obtener los estilos dinámicos del sidebar
+  const getSidebarStyles = () => {
+    if (user && (isDirector() || hasAnyRole(['teacher', 'auxiliary', 'secretary']))) {
+      const institution = getUserInstitution();
+      if (institution && institution.uiSettings && institution.uiSettings.color) {
+        const color = institution.uiSettings.color;
+        return {
+          background: `linear-gradient(180deg, ${color} 0%, ${color}ee 100%)`,
+          borderRight: `1px solid ${color}33`
+        };
+      }
+    }
+    return {}; // Estilos por defecto
+  };
+
+  // Aplicar estilos dinámicos a los enlaces del sidebar usando CSS inyectado
+  useEffect(() => {
+    const applySidebarLinkStyles = () => {
+      // Limpiar estilos previos
+      const existingStyle = document.getElementById('sidebar-theme-styles');
+      if (existingStyle) {
+        existingStyle.remove();
+      }
+
+      // Aplicar estilos si es director o personal educativo y tiene institución
+      if (user && (isDirector() || hasAnyRole(['teacher', 'auxiliary', 'secretary']))) {
+        const institution = getUserInstitution();
+        
+        if (institution && institution.uiSettings && institution.uiSettings.color) {
+          const color = institution.uiSettings.color;
+          
+          // Crear elemento style dinámico para el sidebar
+          const style = document.createElement('style');
+          style.id = 'sidebar-theme-styles';
+          style.innerHTML = `
+            /* Estilos dinámicos para los enlaces del sidebar */
+            .sidebar .sidebar-menu a {
+              color: rgba(255, 255, 255, 0.9) !important;
+              transition: all 0.3s ease !important;
+            }
+            
+            .sidebar .sidebar-menu a:hover,
+            .sidebar .sidebar-menu .active {
+              color: white !important;
+              background-color: rgba(255, 255, 255, 0.15) !important;
+              border-left: 4px solid white !important;
+              padding-left: 20px !important;
+            }
+            
+            .sidebar .sidebar-menu .submenu a {
+              color: rgba(255, 255, 255, 0.8) !important;
+            }
+            
+            .sidebar .sidebar-menu .submenu a:hover {
+              color: white !important;
+              background-color: rgba(255, 255, 255, 0.1) !important;
+            }
+            
+            /* Ajustar iconos en sidebar si existen */
+            .sidebar .sidebar-menu img {
+              filter: brightness(0) invert(1) opacity(0.9) !important;
+            }
+            
+            .sidebar .sidebar-menu a:hover img,
+            .sidebar .sidebar-menu .active img {
+              filter: brightness(0) invert(1) !important;
+            }
+          `;
+          
+          document.head.appendChild(style);
+          
+          console.log('🎨 Estilos de sidebar aplicados:', {
+            institutionName: institution.name,
+            color: color,
+            userRoles: user.roles
+          });
+        }
+      } else {
+        console.log('👤 Usuario no requiere tema de sidebar o no tiene institución');
+      }
+    };
+
+    // Aplicar estilos cuando el componente se monte o cuando cambien los datos del usuario
+    applySidebarLinkStyles();
+
+    // Cleanup al desmontar el componente
+    return () => {
+      const existingStyle = document.getElementById('sidebar-theme-styles');
+      if (existingStyle) {
+        existingStyle.remove();
+      }
+    };
+  }, [user]);
 
   const handleClick = (e, item, item1, item3) => {
     const div = document.querySelector(`#${item}`);
@@ -43,7 +137,7 @@ const Sidebar = (props) => {
   };
   return (
     <>
-      <div className="sidebar" id="sidebar">
+      <div className="sidebar" id="sidebar" style={getSidebarStyles()}>
         <Scrollbars
           autoHide
           autoHideTimeout={1000}
@@ -340,6 +434,18 @@ const Sidebar = (props) => {
                       </li>
                       <li>
                         <Link className={props?.activeClassName === 'period-add' ? 'active' : ''} to="/secretary/periods/add">Agregar Período</Link>
+                      </li>
+                      <li>
+                        <Link className={props?.activeClassName === 'classroom-list' ? 'active' : ''} to="/secretary/classrooms">Gestión de Aulas</Link>
+                      </li>
+                      <li>
+                        <Link className={props?.activeClassName === 'classroom-add' ? 'active' : ''} to="/secretary/classrooms/add">Agregar Aula</Link>
+                      </li>
+                      <li>
+                        <Link className={props?.activeClassName === 'teacher-assignment-list' ? 'active' : ''} to="/secretary/teacher-assignments">Asignaciones de Profesores</Link>
+                      </li>
+                      <li>
+                        <Link className={props?.activeClassName === 'teacher-assignment-add' ? 'active' : ''} to="/secretary/teacher-assignments/add">Agregar Asignación</Link>
                       </li>
                     </ul>
                   </li>
