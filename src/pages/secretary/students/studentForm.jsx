@@ -1,15 +1,29 @@
 /* eslint-disable no-unused-vars */
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useParams, useLocation } from "react-router-dom";
-import { Form, Input, Select, Button, Card, Row, Col, Divider } from "antd";
-import { SaveOutlined, ArrowLeftOutlined } from "@ant-design/icons";
+import { Form, Input, Select, Button, Card, Row, Col, Divider, Spin } from "antd";
+import { SaveOutlined, ArrowLeftOutlined, SearchOutlined } from "@ant-design/icons";
 import Header from "../../../components/Header";
 import Sidebar from "../../../components/Sidebar";
 import AlertModal from "../../../components/AlertModal";
 import useAlert from "../../../hooks/useAlert";
 import studentService from "../../../services/students/studentService";
+import reniecService from "../../../services/students/reniecService";
 import { Student, DocumentType, Gender, GuardianRelationship, validateStudent } from "../../../types/students/students";
-// Usando Date nativo de JavaScript
+
+// Suprimir warning de compatibilidad de Ant Design con React 19
+const originalError = console.error;
+const originalWarn = console.warn;
+
+console.error = (...args) => {
+  if (typeof args[0] === 'string' && args[0].includes('antd: compatible')) return;
+  originalError(...args);
+};
+
+console.warn = (...args) => {
+  if (typeof args[0] === 'string' && args[0].includes('antd: compatible')) return;
+  originalWarn(...args);
+};
 
 const { Option } = Select;
 
@@ -21,6 +35,7 @@ const StudentForm = () => {
   const { alertState, showAlert, showSuccess, showError, handleConfirm: alertConfirm, handleCancel: alertCancel } = useAlert();
   
   const [loading, setLoading] = useState(false);
+  const [searchingReniec, setSearchingReniec] = useState(false);
   const [student, setStudent] = useState(Student);
   const isEdit = Boolean(id);
 
@@ -78,6 +93,59 @@ const StudentForm = () => {
     };
     
     form.setFieldsValue(formData);
+  };
+
+  /**
+   * Busca datos del estudiante en RENIEC por DNI
+   */
+  const handleSearchReniec = async () => {
+    const dni = form.getFieldValue('documentNumber');
+    
+    if (!dni || dni.length !== 8) {
+      showError('Por favor ingrese un DNI válido de 8 dígitos');
+      return;
+    }
+
+    setSearchingReniec(true);
+    try {
+      const response = await reniecService.searchByDNI(dni);
+      
+      if (response.success && response.data) {
+        // Rellenar el formulario con los datos de RENIEC
+        const fieldsToSet = {
+          firstName: response.data.firstName,
+          lastName: response.data.lastName,
+          documentType: response.data.documentType,
+          birthDate: response.data.birthDate,
+          gender: response.data.gender,
+          address: response.data.address
+        };
+
+        // Agregar datos del apoderado si existen
+        if (response.data.guardianName) {
+          fieldsToSet.guardianName = response.data.guardianName;
+        }
+        if (response.data.guardianLastName) {
+          fieldsToSet.guardianLastName = response.data.guardianLastName;
+        }
+        if (response.data.guardianRelationship) {
+          fieldsToSet.guardianRelationship = response.data.guardianRelationship;
+        }
+        if (response.data.guardianDocumentType) {
+          fieldsToSet.guardianDocumentType = response.data.guardianDocumentType;
+        }
+
+        form.setFieldsValue(fieldsToSet);
+        
+        showSuccess('Datos encontrados en RENIEC y completados automáticamente');
+      } else {
+        showError(response.error || 'No se encontraron datos en RENIEC');
+      }
+    } catch (error) {
+      showError('Error al consultar RENIEC');
+    } finally {
+      setSearchingReniec(false);
+    }
   };
 
   /**
@@ -219,9 +287,27 @@ const StudentForm = () => {
                               { pattern: /^\d{8}$/, message: 'Debe tener 8 dígitos' }
                             ]}
                           >
-                            <Input placeholder="Ingrese el número de documento" maxLength={8} />
+                            <Input 
+                              placeholder="Ingrese el número de documento" 
+                              maxLength={8}
+                            />
                           </Form.Item>
                         </Col>
+                        {!isEdit && form.getFieldValue('documentType') === 'DNI' && (
+                          <Col xs={24} sm={12} md={4}>
+                            <Form.Item label=" " colon={false}>
+                              <Button
+                                type="primary"
+                                icon={<SearchOutlined />}
+                                onClick={handleSearchReniec}
+                                loading={searchingReniec}
+                                block
+                              >
+                                Buscar RENIEC
+                              </Button>
+                            </Form.Item>
+                          </Col>
+                        )}
                         <Col xs={24} sm={12} md={8}>
                           <Form.Item
                             label="Fecha de Nacimiento"

@@ -12,6 +12,13 @@ import useAlert from "../../../hooks/useAlert";
 import studentService from "../../../services/students/studentService";
 import { StudentStatus, Gender, getStatusText, getStatusColor, formatBirthDate, calculateAge, formatDateTime, arrayToDate } from "../../../types/students/students";
 
+// Suprimir warning de compatibilidad de Ant Design con React 19
+const originalWarn = console.warn;
+console.warn = (...args) => {
+  if (typeof args[0] === 'string' && args[0].includes('antd: compatible')) return;
+  originalWarn(...args);
+};
+
 const { Option } = Select;
 
 const StudentList = () => {

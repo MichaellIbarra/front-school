@@ -34,29 +34,34 @@ class StudentService {
       const refreshToken = localStorage.getItem('refresh_token');
       
       if (refreshToken) {
-        const refreshResult = await refreshTokenKeycloak(refreshToken);
-        if (refreshResult.success) {
-          console.log('✅ Token refrescado correctamente, reintentando petición...');
-          throw new Error('TOKEN_REFRESHED'); // Señal especial para reintentar
-        } else {
-          console.log('❌ Error al refrescar token:', refreshResult.error);
-          // Limpiar tokens inválidos
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          localStorage.removeItem('token_expires');
-          console.log('🚪 Redirigiendo al login...');
-          // Redirigir al login
-          setTimeout(() => {
-            window.location.href = '/login';
-          }, 1000);
+        try {
+          // Agregar timeout al refresh para evitar cuelgues
+          const refreshPromise = refreshTokenKeycloak(refreshToken);
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('REFRESH_TIMEOUT')), 10000)
+          );
+          
+          const refreshResult = await Promise.race([refreshPromise, timeoutPromise]);
+          
+          if (refreshResult && refreshResult.success) {
+            console.log('✅ Token refrescado correctamente, reintentando petición...');
+            throw new Error('TOKEN_REFRESHED'); // Señal especial para reintentar
+          } else {
+            console.log('❌ Error al refrescar token:', refreshResult?.error || 'Unknown error');
+            this.clearTokensAndRedirect();
+          }
+        } catch (error) {
+          if (error.message === 'REFRESH_TIMEOUT') {
+            console.log('⏰ Timeout al refrescar token, limpiando sesión...');
+          } else {
+            console.log('❌ Error al refrescar token:', error.message);
+          }
+          this.clearTokensAndRedirect();
           throw new Error('Sesión expirada. Redirigiendo al login...');
         }
       } else {
         console.log('❌ No hay refresh token disponible');
-        // No hay refresh token, redirigir al login
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 1000);
+        this.clearTokensAndRedirect();
         throw new Error('Sesión expirada. Redirigiendo al login...');
       }
     }
@@ -91,6 +96,21 @@ class StudentService {
       console.error('Error parsing JSON response:', error);
       return {}; // Respuesta vacía en caso de error de parsing
     }
+  }
+
+  /**
+   * Limpia tokens y redirige al login
+   */
+  clearTokensAndRedirect() {
+    // Limpiar tokens inválidos
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('token_expires');
+    console.log('🚪 Tokens limpiados, redirigiendo al login...');
+    // Redirigir al login con un pequeño delay
+    setTimeout(() => {
+      window.location.href = '/login';
+    }, 1000);
   }
 
   /**
@@ -282,25 +302,25 @@ class StudentService {
 
       // Crear el payload sin el ID (se genera en el backend)
       const payload = {
-        firstName: studentData.firstName,
-        lastName: studentData.lastName,
-        documentType: studentData.documentType,
-        documentNumber: studentData.documentNumber,
+        firstName: studentData.firstName || '',
+        lastName: studentData.lastName || '',
+        documentType: studentData.documentType || 'DNI',
+        documentNumber: studentData.documentNumber || '',
         birthDate: formatDateForBackend(studentData.birthDate),
-        gender: studentData.gender,
-        address: studentData.address,
-        district: studentData.district,
-        province: studentData.province,
-        department: studentData.department,
+        gender: studentData.gender || 'MALE',
+        address: studentData.address || '',
+        district: studentData.district || '',
+        province: studentData.province || '',
+        department: studentData.department || '',
         phone: studentData.phone || '',
         email: studentData.email || '',
-        guardianName: studentData.guardianName,
-        guardianLastName: studentData.guardianLastName,
-        guardianDocumentType: studentData.guardianDocumentType,
-        guardianDocumentNumber: studentData.guardianDocumentNumber,
+        guardianName: studentData.guardianName || '',
+        guardianLastName: studentData.guardianLastName || '',
+        guardianDocumentType: studentData.guardianDocumentType || 'DNI',
+        guardianDocumentNumber: studentData.guardianDocumentNumber || '',
         guardianPhone: studentData.guardianPhone || '',
         guardianEmail: studentData.guardianEmail || '',
-        guardianRelationship: studentData.guardianRelationship
+        guardianRelationship: studentData.guardianRelationship || 'FATHER'
       };
 
       return await this.executeWithRetry(async () => {
@@ -309,6 +329,19 @@ class StudentService {
           headers: this.getAuthHeaders(),
           body: JSON.stringify(payload)
         });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          
+          // Parsear el error para obtener el mensaje
+          try {
+            const errorJson = JSON.parse(errorText);
+            const errorMessage = errorJson.metadata?.message || errorText;
+            throw new Error(errorMessage);
+          } catch (parseError) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+        }
 
         const result = await this.handleResponse(response);
         
@@ -928,6 +961,70 @@ class StudentService {
       return {
         success: false,
         error: error.message || 'Error al obtener estudiantes no matriculados para el aula'
+      };
+    }
+  }
+
+  /**
+   * Obtiene estudiantes que no están matriculados (para matrícula masiva)
+   * GET /api/v1/students/not-enrolled
+   */
+  async getUnEnrolledStudents() {
+    try {
+      return await this.executeWithRetry(async () => {
+        const response = await fetch(`${this.baseURL}/not-enrolled`, {
+          method: 'GET',
+          headers: this.getAuthHeaders()
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.data || [],
+          metadata: result.metadata,
+          message: 'Estudiantes no matriculados obtenidos exitosamente'
+        };
+      });
+    } catch (error) {
+      if (error.message === 'TOKEN_REFRESHED') {
+        // Reintentar después del refresh del token
+        return this.getUnEnrolledStudents();
+      }
+      
+      // Método alternativo si falla el endpoint principal
+      console.warn('⚠️ Endpoint /not-enrolled falló, intentando método alternativo:', error.message);
+      
+      try {
+        console.log('🔄 Intentando obtener estudiantes no matriculados desde todos los estudiantes...');
+        const allStudentsResult = await this.getAllStudents();
+        
+        if (allStudentsResult.success) {
+          console.log(`📊 Procesando ${allStudentsResult.data.length} estudiantes para filtrar no matriculados...`);
+          const unEnrolledStudents = allStudentsResult.data.filter(student => 
+            student.status === 'ACTIVE' && (!student.isEnrolled || student.isEnrolled === false)
+          );
+          
+          console.log(`✅ Encontrados ${unEnrolledStudents.length} estudiantes no matriculados (de ${allStudentsResult.data.length} totales) usando filtro alternativo`);
+          
+          return {
+            success: true,
+            data: unEnrolledStudents,
+            metadata: { total: unEnrolledStudents.length },
+            message: 'Estudiantes no matriculados obtenidos exitosamente (método alternativo)'
+          };
+        } else {
+          console.error('❌ Falló también el método alternativo para obtener todos los estudiantes');
+        }
+      } catch (alternativeError) {
+        console.error('❌ También falló el método alternativo:', alternativeError);
+      }
+      
+      console.error('❌ Error al obtener estudiantes no matriculados:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener estudiantes no matriculados',
+        data: []
       };
     }
   }

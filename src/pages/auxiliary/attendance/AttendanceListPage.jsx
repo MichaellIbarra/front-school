@@ -63,6 +63,7 @@ const AttendanceListPage = () => {
   const [filterGrade, setFilterGrade] = useState('');
   const [filterSection, setFilterSection] = useState('');
   const [filterCourse, setFilterCourse] = useState('');
+  const [filterStudentId, setFilterStudentId] = useState(''); // Nuevo: filtro por estudiante específico
   
   // Estados para crear asistencia
   const [studentSearchText, setStudentSearchText] = useState('');
@@ -103,32 +104,139 @@ const AttendanceListPage = () => {
     label
   }));
 
-  // Opciones para filtros académicos
+  // Opciones para filtros académicos (con cascada dependiente)
+  // 1. Obtener todos los datos combinados
+  const allData = useMemo(() => {
+    return [...students, ...allAttendances, ...localStudents];
+  }, [students, allAttendances, localStudents]);
+
+  // 2. Obtener grados únicos (siempre disponibles)
+  const uniqueGrades = useMemo(() => {
+    const gradesSet = new Set();
+    allData.forEach(s => {
+      if (s.grade) {
+        const normalizedGrade = String(s.grade).trim();
+        gradesSet.add(normalizedGrade);
+      }
+    });
+    return Array.from(gradesSet).sort();
+  }, [allData]);
+
   const gradeOptions = [
     { value: '', label: 'Todos los Grados' },
-    { value: '1', label: '1° Secundaria' },
-    { value: '2', label: '2° Secundaria' },
-    { value: '3', label: '3° Secundaria' }
+    ...uniqueGrades.map(grade => ({ 
+      value: grade, 
+      label: `${grade}° Secundaria` 
+    }))
   ];
+
+  // 3. Obtener secciones únicas (filtradas por grado si está seleccionado)
+  const uniqueSections = useMemo(() => {
+    const sectionsSet = new Set();
+    allData.forEach(s => {
+      // Si hay filtro de grado, solo incluir secciones de ese grado
+      if (filterGrade) {
+        // Normalizar grados para comparación (eliminar °)
+        const normalizedGrade = String(s.grade || '').trim().replace('°', '');
+        const normalizedFilter = String(filterGrade).trim().replace('°', '');
+        if (normalizedGrade === normalizedFilter && s.section) {
+          sectionsSet.add(s.section);
+        }
+      } else {
+        // Sin filtro de grado, mostrar todas las secciones
+        s.section && sectionsSet.add(s.section);
+      }
+    });
+    return Array.from(sectionsSet).sort();
+  }, [allData, filterGrade]);
 
   const sectionOptions = [
     { value: '', label: 'Todas las Secciones' },
-    { value: 'A', label: 'Sección A' },
-    { value: 'B', label: 'Sección B' }
+    ...uniqueSections.map(section => ({ 
+      value: section, 
+      label: `Sección ${section}` 
+    }))
   ];
 
-  // Obtener cursos únicos de los datos
+  // 4. Obtener cursos únicos (filtrados por grado y sección si están seleccionados)
   const uniqueCourses = useMemo(() => {
     const coursesSet = new Set();
-    students.forEach(s => s.course && coursesSet.add(s.course));
-    allAttendances.forEach(s => s.course && coursesSet.add(s.course));
-    localStudents.forEach(s => s.course && coursesSet.add(s.course));
+    allData.forEach(s => {
+      let includeThis = true;
+      
+      // Filtrar por grado si está seleccionado (normalizar para comparación)
+      if (filterGrade) {
+        const normalizedGrade = String(s.grade || '').trim().replace('°', '');
+        const normalizedFilter = String(filterGrade).trim().replace('°', '');
+        if (normalizedGrade !== normalizedFilter) {
+          includeThis = false;
+        }
+      }
+      
+      // Filtrar por sección si está seleccionada
+      if (filterSection && s.section !== filterSection) {
+        includeThis = false;
+      }
+      
+      if (includeThis && s.course) {
+        coursesSet.add(s.course);
+      }
+    });
     return Array.from(coursesSet).sort();
-  }, [students, allAttendances, localStudents]);
+  }, [allData, filterGrade, filterSection]);
 
   const courseOptions = [
     { value: '', label: 'Todos los Cursos' },
     ...uniqueCourses.map(course => ({ value: course, label: course }))
+  ];
+
+  // 5. Obtener estudiantes únicos (filtrados por grado, sección y curso si están seleccionados)
+  const uniqueStudents = useMemo(() => {
+    const studentsMap = new Map();
+    
+    allData.forEach(s => {
+      const id = s.studentEnrollmentId || s.enrollmentId;
+      const name = s.studentName || s.name;
+      
+      if (!id || !name) return;
+      
+      let includeThis = true;
+      
+      // Filtrar por grado si está seleccionado (normalizar para comparación)
+      if (filterGrade) {
+        const normalizedGrade = String(s.grade || '').trim().replace('°', '');
+        const normalizedFilter = String(filterGrade).trim().replace('°', '');
+        if (normalizedGrade !== normalizedFilter) {
+          includeThis = false;
+        }
+      }
+      
+      // Filtrar por sección si está seleccionada
+      if (filterSection && s.section !== filterSection) {
+        includeThis = false;
+      }
+      
+      // Filtrar por curso si está seleccionado
+      if (filterCourse && s.course !== filterCourse) {
+        includeThis = false;
+      }
+      
+      if (includeThis && !studentsMap.has(id)) {
+        studentsMap.set(id, { id, name, grade: s.grade, section: s.section, course: s.course });
+      }
+    });
+    
+    return Array.from(studentsMap.values()).sort((a, b) => 
+      a.name.localeCompare(b.name, 'es')
+    );
+  }, [allData, filterGrade, filterSection, filterCourse]);
+
+  const studentOptions = [
+    { value: '', label: 'Todos los Estudiantes' },
+    ...uniqueStudents.map(student => ({ 
+      value: student.id, 
+      label: `${student.name} (ID: ${student.id})` 
+    }))
   ];
 
   // Cargar estudiantes al cambiar los filtros
@@ -151,6 +259,47 @@ const AttendanceListPage = () => {
       return () => document.removeEventListener('click', handleClickOutside);
     }
   }, [showStudentDropdown]);
+
+  /**
+   * Funciones de manejo para filtros en cascada
+   */
+  const handleGradeChange = (selectedOption) => {
+    const newGrade = selectedOption.value;
+    setFilterGrade(newGrade);
+    
+    // Si cambia el grado, limpiar filtros dependientes
+    if (newGrade !== filterGrade) {
+      setFilterSection('');
+      setFilterCourse('');
+      setFilterStudentId('');
+    }
+  };
+
+  const handleSectionChange = (selectedOption) => {
+    const newSection = selectedOption.value;
+    setFilterSection(newSection);
+    
+    // Si cambia la sección, limpiar filtros dependientes
+    if (newSection !== filterSection) {
+      setFilterCourse('');
+      setFilterStudentId('');
+    }
+  };
+
+  const handleCourseChange = (selectedOption) => {
+    const newCourse = selectedOption.value;
+    setFilterCourse(newCourse);
+    
+    // Si cambia el curso, limpiar filtro de estudiante
+    if (newCourse !== filterCourse) {
+      setFilterStudentId('');
+    }
+  };
+
+  const handleStudentChange = (selectedOption) => {
+    const newStudentId = selectedOption.value;
+    setFilterStudentId(newStudentId);
+  };
 
   /**
    * Carga estudiantes locales para crear asistencias
@@ -702,15 +851,6 @@ const AttendanceListPage = () => {
    * Determina el estado de asistencia de un estudiante basado en todos los indicadores disponibles
    */
   const determineAttendanceStatus = (student) => {
-    // Debug para entender los datos
-    console.log('🔍 Determinando estado para:', student.studentName, {
-      observations: student.observations,
-      registrationMethod: student.registrationMethod,
-      registeredBy: student.registeredBy,
-      attendanceStatus: student.attendanceStatus,
-      status: student.status
-    });
-    
     const observations = (student.observations || '').toLowerCase();
     
     // 1. PRIORIDAD: Verificar palabras clave de ausencia en observaciones
@@ -878,7 +1018,24 @@ const AttendanceListPage = () => {
       showWarning('No hay datos para exportar');
       return;
     }
-    AttendanceReportUtils.exportAbsentStudentsToPDF(students, SEARCH_TYPE_LABELS[searchType]);
+    
+    // Determinar el nivel de reporte
+    const reportLevel = filterStudentId 
+      ? 'ESTUDIANTE' 
+      : (filterGrade && filterSection) 
+        ? 'GRADO-SECCION' 
+        : 'GENERAL';
+    
+    const filterInfo = {
+      level: reportLevel,
+      studentId: filterStudentId,
+      studentName: filterStudentId ? studentOptions.find(opt => opt.value === filterStudentId)?.label : null,
+      grade: filterGrade,
+      section: filterSection,
+      course: filterCourse
+    };
+    
+    AttendanceReportUtils.exportAbsentStudentsToPDF(students, SEARCH_TYPE_LABELS[searchType], filterInfo);
     showSuccess('Reporte PDF generado correctamente');
   };
 
@@ -907,40 +1064,72 @@ const AttendanceListPage = () => {
   };
 
   /**
-   * Exportar todas las asistencias a PDF
+   * Exportar todas las asistencias a PDF (usa datos filtrados)
    */
   const exportAllAttendancesToPDF = () => {
-    if (allAttendances.length === 0) {
-      showWarning('No hay datos para exportar');
+    // Usar getCurrentData para obtener los datos filtrados actuales
+    const dataToExport = getCurrentData;
+    
+    if (dataToExport.length === 0) {
+      showWarning('No hay datos para exportar. Aplica los filtros o carga datos primero.');
       return;
     }
-    // Usar la misma funcin de ausentes pero con todos los registros
-    AttendanceReportUtils.exportAbsentStudentsToPDF(allAttendances, 'Todas las Asistencias');
-    showSuccess('Reporte PDF generado correctamente');
+    
+    // Detectar nivel de reporte basado en los filtros activos
+    const reportLevel = filterStudentId 
+      ? 'ESTUDIANTE' 
+      : (filterGrade && filterSection) 
+        ? 'GRADO-SECCION' 
+        : 'GENERAL';
+
+    const filterInfo = {
+      level: reportLevel,
+      studentId: filterStudentId,
+      studentName: filterStudentId ? studentOptions.find(opt => opt.value === filterStudentId)?.label : null,
+      grade: filterGrade,
+      section: filterSection,
+      course: filterCourse
+    };
+    
+    console.log('📄 Generando reporte PDF con:', {
+      registros: dataToExport.length,
+      nivel: reportLevel,
+      filtros: filterInfo
+    });
+    
+    // Usar la misma función de ausentes pero con los datos filtrados
+    AttendanceReportUtils.exportAbsentStudentsToPDF(dataToExport, 'Reporte de Asistencias', filterInfo);
+    showSuccess(`✓ Reporte PDF generado: ${dataToExport.length} registro(s)`);
   };
 
   /**
-   * Exportar todas las asistencias a Excel
+   * Exportar todas las asistencias a Excel (usa datos filtrados)
    */
   const exportAllAttendancesToExcel = () => {
-    if (allAttendances.length === 0) {
-      showWarning('No hay datos para exportar');
+    const dataToExport = getCurrentData;
+    
+    if (dataToExport.length === 0) {
+      showWarning('No hay datos para exportar. Aplica los filtros o carga datos primero.');
       return;
     }
-    AttendanceReportUtils.exportAbsentStudentsToExcel(allAttendances, 'Todas las Asistencias');
-    showSuccess('Reporte Excel descargado correctamente');
+    
+    AttendanceReportUtils.exportAbsentStudentsToExcel(dataToExport, 'Reporte de Asistencias');
+    showSuccess(`✓ Reporte Excel descargado: ${dataToExport.length} registro(s)`);
   };
 
   /**
-   * Exportar todas las asistencias a CSV
+   * Exportar todas las asistencias a CSV (usa datos filtrados)
    */
   const exportAllAttendancesToCSV = () => {
-    if (allAttendances.length === 0) {
-      showWarning('No hay datos para exportar');
+    const dataToExport = getCurrentData;
+    
+    if (dataToExport.length === 0) {
+      showWarning('No hay datos para exportar. Aplica los filtros o carga datos primero.');
       return;
     }
-    AttendanceReportUtils.exportAbsentStudentsToCSV(allAttendances, 'Todas las Asistencias');
-    showSuccess('Reporte CSV descargado correctamente');
+    
+    AttendanceReportUtils.exportAbsentStudentsToCSV(dataToExport, 'Reporte de Asistencias');
+    showSuccess(`✓ Reporte CSV descargado: ${dataToExport.length} registro(s)`);
   };
 
   /**
@@ -997,50 +1186,116 @@ const AttendanceListPage = () => {
   };
 
   /**
-   * Filtrar estudiantes por texto de bsqueda y filtros académicos
+   * Filtrar estudiantes por texto de búsqueda y filtros académicos
    */
-  const filteredStudents = students.filter(student => {
-    // Filtro por texto
-    if (searchText) {
-      const search = searchText.toLowerCase();
-      const matchesText = (
-        student.studentName?.toLowerCase().includes(search) ||
-        student.studentEnrollmentId?.toLowerCase().includes(search) ||
-        student.email?.toLowerCase().includes(search)
-      );
-      if (!matchesText) return false;
-    }
-    
-    // Filtros académicos
-    if (filterGrade && student.grade !== filterGrade) return false;
-    if (filterSection && student.section !== filterSection) return false;
-    if (filterCourse && student.course !== filterCourse) return false;
-    
-    return true;
-  });
+  const filteredStudents = useMemo(() => {
+    return students.filter(student => {
+      // Filtro por texto
+      if (searchText) {
+        const search = searchText.toLowerCase();
+        const matchesText = (
+          student.studentName?.toLowerCase().includes(search) ||
+          student.studentEnrollmentId?.toLowerCase().includes(search) ||
+          student.email?.toLowerCase().includes(search)
+        );
+        if (!matchesText) return false;
+      }
+      
+      // PRIORIDAD: Si hay filtro de estudiante específico, solo aplicar ese filtro
+      if (filterStudentId) {
+        return student.studentEnrollmentId === filterStudentId;
+      }
+      
+      // Si no hay filtro de estudiante, aplicar filtros académicos
+      if (filterGrade) {
+        // Normalizar ambos valores: eliminar "°" y espacios para comparar
+        const studentGrade = String(student.grade || '').trim().replace('°', '');
+        const filterGradeStr = String(filterGrade).trim().replace('°', '');
+        if (studentGrade !== filterGradeStr) return false;
+      }
+      
+      if (filterSection) {
+        const studentSection = String(student.section || '').trim().toUpperCase();
+        const filterSectionStr = String(filterSection).trim().toUpperCase();
+        if (studentSection !== filterSectionStr) return false;
+      }
+      
+      if (filterCourse) {
+        const studentCourse = String(student.course || '').trim();
+        const filterCourseStr = String(filterCourse).trim();
+        if (studentCourse !== filterCourseStr) return false;
+      }
+      
+      return true;
+    }).sort((a, b) => {
+      // Ordenar alfabéticamente por nombre
+      const nameA = (a.studentName || '').toLowerCase();
+      const nameB = (b.studentName || '').toLowerCase();
+      return nameA.localeCompare(nameB, 'es');
+    });
+  }, [students, searchText, filterGrade, filterSection, filterCourse, filterStudentId]);
 
   /**
-   * Filtrar todas las asistencias por texto de bsqueda y filtros académicos
+   * Filtrar todas las asistencias por texto de búsqueda y filtros académicos
    */
-  const filteredAllAttendances = allAttendances.filter(attendance => {
-    // Filtro por texto
-    if (searchText) {
-      const search = searchText.toLowerCase();
-      const matchesText = (
-        attendance.studentName?.toLowerCase().includes(search) ||
-        attendance.studentEnrollmentId?.toLowerCase().includes(search) ||
-        attendance.email?.toLowerCase().includes(search)
-      );
-      if (!matchesText) return false;
-    }
+  const filteredAllAttendances = useMemo(() => {
+    console.log('🔄 Filtrando asistencias con:', { 
+      filterGrade, 
+      filterSection, 
+      filterCourse, 
+      filterStudentId, 
+      searchText,
+      totalRecords: allAttendances.length 
+    });
+
+    const filtered = allAttendances.filter(attendance => {
+      // Filtro por texto
+      if (searchText) {
+        const search = searchText.toLowerCase();
+        const matchesText = (
+          attendance.studentName?.toLowerCase().includes(search) ||
+          attendance.studentEnrollmentId?.toLowerCase().includes(search) ||
+          attendance.email?.toLowerCase().includes(search)
+        );
+        if (!matchesText) return false;
+      }
+      
+      // PRIORIDAD: Si hay filtro de estudiante específico, solo aplicar ese filtro
+      if (filterStudentId) {
+        return attendance.studentEnrollmentId === filterStudentId;
+      }
+      
+      // Si no hay filtro de estudiante, aplicar filtros académicos
+      if (filterGrade) {
+        const attendanceGrade = String(attendance.grade || '').trim().replace('°', '');
+        const filterGradeStr = String(filterGrade).trim().replace('°', '');
+        if (attendanceGrade !== filterGradeStr) return false;
+      }
+      
+      if (filterSection) {
+        const attendanceSection = String(attendance.section || '').trim().toUpperCase();
+        const filterSectionStr = String(filterSection).trim().toUpperCase();
+        if (attendanceSection !== filterSectionStr) return false;
+      }
+      
+      if (filterCourse) {
+        const attendanceCourse = String(attendance.course || '').trim();
+        const filterCourseStr = String(filterCourse).trim();
+        if (attendanceCourse !== filterCourseStr) return false;
+      }
+      
+      return true;
+    }).sort((a, b) => {
+      // Ordenar alfabéticamente por nombre
+      const nameA = (a.studentName || '').toLowerCase();
+      const nameB = (b.studentName || '').toLowerCase();
+      return nameA.localeCompare(nameB, 'es');
+    });
+
+    console.log('✅ Resultado filtrado:', filtered.length, 'registros de', allAttendances.length, 'totales');
     
-    // Filtros académicos
-    if (filterGrade && attendance.grade !== filterGrade) return false;
-    if (filterSection && attendance.section !== filterSection) return false;
-    if (filterCourse && attendance.course !== filterCourse) return false;
-    
-    return true;
-  });
+    return filtered;
+  }, [allAttendances, searchText, filterGrade, filterSection, filterCourse, filterStudentId]);
 
   /**
    * Filtrar estudiantes locales (para crear asistencias) por filtros académicos
@@ -1052,14 +1307,27 @@ const AttendanceListPage = () => {
     if (filterCourse && student.course !== filterCourse) return false;
     
     return true;
+  }).sort((a, b) => {
+    // Ordenar alfabéticamente por nombre
+    const nameA = (a.name || '').toLowerCase();
+    const nameB = (b.name || '').toLowerCase();
+    return nameA.localeCompare(nameB, 'es');
   });
 
   /**
    * Obtener datos actuales segn la vista activa
    */
-  const getCurrentData = () => {
-    return activeView === 'list-all' ? filteredAllAttendances : filteredStudents;
-  };
+  const getCurrentData = useMemo(() => {
+    const data = activeView === 'list-all' ? filteredAllAttendances : filteredStudents;
+    console.log('📊 getCurrentData recalculado:', {
+      activeView,
+      dataLength: data.length,
+      filterGrade,
+      filterSection,
+      filterCourse
+    });
+    return data;
+  }, [activeView, filteredAllAttendances, filteredStudents, filterGrade, filterSection, filterCourse]);
 
   /**
    * Refreshar datos segn la vista activa
@@ -1273,7 +1541,7 @@ const AttendanceListPage = () => {
                               <label>Grado (Filtro)</label>
                               <Select
                                 value={gradeOptions.find(option => option.value === filterGrade)}
-                                onChange={(selectedOption) => setFilterGrade(selectedOption.value)}
+                                onChange={handleGradeChange}
                                 options={gradeOptions}
                                 menuPortalTarget={document.body}
                                 styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
@@ -1290,7 +1558,7 @@ const AttendanceListPage = () => {
                               <label>Sección (Filtro)</label>
                               <Select
                                 value={sectionOptions.find(option => option.value === filterSection)}
-                                onChange={(selectedOption) => setFilterSection(selectedOption.value)}
+                                onChange={handleSectionChange}
                                 options={sectionOptions}
                                 menuPortalTarget={document.body}
                                 styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
@@ -1307,7 +1575,7 @@ const AttendanceListPage = () => {
                               <label>Curso (Filtro)</label>
                               <Select
                                 value={courseOptions.find(option => option.value === filterCourse)}
-                                onChange={(selectedOption) => setFilterCourse(selectedOption.value)}
+                                onChange={handleCourseChange}
                                 options={courseOptions}
                                 menuPortalTarget={document.body}
                                 styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
@@ -1316,6 +1584,31 @@ const AttendanceListPage = () => {
                                 }}
                                 placeholder="Todos los Cursos"
                               />
+                            </div>
+                          </div>
+
+                          {/* Filtro por Estudiante Individual (NIVEL ESTUDIANTE) */}
+                          <div className="col-12 col-md-6 col-xl-4">
+                            <div className="form-group local-forms">
+                              <label>
+                                Estudiante Específico (Nivel Individual) 
+                                {filterStudentId && <span className="badge badge-success ms-2">Activo</span>}
+                              </label>
+                              <Select
+                                value={studentOptions.find(option => option.value === filterStudentId)}
+                                onChange={handleStudentChange}
+                                options={studentOptions}
+                                menuPortalTarget={document.body}
+                                styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
+                                components={{
+                                  IndicatorSeparator: () => null
+                                }}
+                                placeholder="Seleccionar un estudiante..."
+                                isClearable
+                              />
+                              <small className="text-muted">
+                                Seleccione para ver solo asistencias/faltas de este estudiante
+                              </small>
                             </div>
                           </div>
 
@@ -1329,7 +1622,7 @@ const AttendanceListPage = () => {
                               >
                                 {loading ? 'Buscando...' : ' Buscar Estudiantes'}
                               </button>
-                              {(filterGrade || filterSection || filterCourse) && (
+                              {(filterGrade || filterSection || filterCourse || filterStudentId) && (
                                 <button
                                   type="button"
                                   className="btn btn-secondary"
@@ -1337,8 +1630,9 @@ const AttendanceListPage = () => {
                                     setFilterGrade('');
                                     setFilterSection('');
                                     setFilterCourse('');
+                                    setFilterStudentId('');
                                   }}
-                                  title="Limpiar filtros académicos"
+                                  title="Limpiar todos los filtros"
                                 >
                                   <FeatherIcon icon="x-circle" /> Limpiar Filtros
                                 </button>
@@ -1415,7 +1709,7 @@ const AttendanceListPage = () => {
                                           <label className="form-label mb-1 small">Filtrar por Grado</label>
                                           <Select
                                             value={gradeOptions.find(option => option.value === filterGrade)}
-                                            onChange={(selectedOption) => setFilterGrade(selectedOption.value)}
+                                            onChange={handleGradeChange}
                                             options={gradeOptions}
                                             menuPortalTarget={document.body}
                                             styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
@@ -1427,7 +1721,7 @@ const AttendanceListPage = () => {
                                           <label className="form-label mb-1 small">Filtrar por Sección</label>
                                           <Select
                                             value={sectionOptions.find(option => option.value === filterSection)}
-                                            onChange={(selectedOption) => setFilterSection(selectedOption.value)}
+                                            onChange={handleSectionChange}
                                             options={sectionOptions}
                                             menuPortalTarget={document.body}
                                             styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
@@ -1439,7 +1733,7 @@ const AttendanceListPage = () => {
                                           <label className="form-label mb-1 small">Filtrar por Curso</label>
                                           <Select
                                             value={courseOptions.find(option => option.value === filterCourse)}
-                                            onChange={(selectedOption) => setFilterCourse(selectedOption.value)}
+                                            onChange={handleCourseChange}
                                             options={courseOptions}
                                             menuPortalTarget={document.body}
                                             styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
@@ -1500,6 +1794,7 @@ const AttendanceListPage = () => {
                                 <table className="table table-bordered table-hover table-striped">
                                   <thead className="table-primary" style={{position: 'sticky', top: 0, zIndex: 10}}>
                                     <tr>
+                                      <th style={{width: '40px'}} className="text-center">#</th>
                                       <th style={{width: '50px'}} className="text-center">
                                         <input
                                           type="checkbox"
@@ -1519,6 +1814,9 @@ const AttendanceListPage = () => {
                                   <tbody>
                                     {filteredLocalStudents.map((student, index) => (
                                       <tr key={student.id || student.enrollmentId || index}>
+                                        <td className="text-center">
+                                          <strong className="text-muted">{index + 1}</strong>
+                                        </td>
                                         <td className="text-center">
                                           <input
                                             type="checkbox"
@@ -1859,11 +2157,11 @@ const AttendanceListPage = () => {
                           <div className="card">
                             <div className="card-body py-2">
                               <div className="row align-items-end">
-                                <div className="col-md-3">
+                                <div className="col-md-2">
                                   <label className="form-label mb-1 small">Filtrar por Grado</label>
                                   <Select
                                     value={gradeOptions.find(option => option.value === filterGrade)}
-                                    onChange={(selectedOption) => setFilterGrade(selectedOption.value)}
+                                    onChange={handleGradeChange}
                                     options={gradeOptions}
                                     menuPortalTarget={document.body}
                                     styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
@@ -1871,11 +2169,11 @@ const AttendanceListPage = () => {
                                     placeholder="Todos"
                                   />
                                 </div>
-                                <div className="col-md-3">
+                                <div className="col-md-2">
                                   <label className="form-label mb-1 small">Filtrar por Sección</label>
                                   <Select
                                     value={sectionOptions.find(option => option.value === filterSection)}
-                                    onChange={(selectedOption) => setFilterSection(selectedOption.value)}
+                                    onChange={handleSectionChange}
                                     options={sectionOptions}
                                     menuPortalTarget={document.body}
                                     styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
@@ -1883,11 +2181,11 @@ const AttendanceListPage = () => {
                                     placeholder="Todas"
                                   />
                                 </div>
-                                <div className="col-md-3">
+                                <div className="col-md-2">
                                   <label className="form-label mb-1 small">Filtrar por Curso</label>
                                   <Select
                                     value={courseOptions.find(option => option.value === filterCourse)}
-                                    onChange={(selectedOption) => setFilterCourse(selectedOption.value)}
+                                    onChange={handleCourseChange}
                                     options={courseOptions}
                                     menuPortalTarget={document.body}
                                     styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
@@ -1895,8 +2193,21 @@ const AttendanceListPage = () => {
                                     placeholder="Todos"
                                   />
                                 </div>
-                                <div className="col-md-3">
-                                  {(filterGrade || filterSection || filterCourse) && (
+                                <div className="col-md-4">
+                                  <label className="form-label mb-1 small">Estudiante Individual</label>
+                                  <Select
+                                    value={studentOptions.find(option => option.value === filterStudentId)}
+                                    onChange={handleStudentChange}
+                                    options={studentOptions}
+                                    menuPortalTarget={document.body}
+                                    styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
+                                    components={{ IndicatorSeparator: () => null }}
+                                    placeholder="Todos los estudiantes..."
+                                    isClearable
+                                  />
+                                </div>
+                                <div className="col-md-2">
+                                  {(filterGrade || filterSection || filterCourse || filterStudentId) && (
                                     <button
                                       type="button"
                                       className="btn btn-secondary btn-sm w-100"
@@ -1904,9 +2215,10 @@ const AttendanceListPage = () => {
                                         setFilterGrade('');
                                         setFilterSection('');
                                         setFilterCourse('');
+                                        setFilterStudentId('');
                                       }}
                                     >
-                                      <FeatherIcon icon="x-circle" size={14} /> Limpiar Filtros
+                                      <FeatherIcon icon="x-circle" size={14} /> Limpiar
                                     </button>
                                   )}
                                 </div>
@@ -1922,32 +2234,35 @@ const AttendanceListPage = () => {
                         <div className="d-flex justify-content-between align-items-center">
                           <h6 className="mb-0">
                             {activeView === 'search' 
-                              ? ` Resultados de bsqueda: ${getCurrentData().length} registro(s)`
-                              : ` Todas las asistencias: ${getCurrentData().length} registro(s)`
+                              ? ` Resultados de bsqueda: ${getCurrentData.length} registro(s)`
+                              : ` Todas las asistencias: ${getCurrentData.length} registro(s)`
                             }
                           </h6>
                           <div className="d-flex gap-2">
-                            {/* Botones de exportacin segn la vista activa */}
+                            {/* Botones de exportación según la vista activa - EXPORTA LOS DATOS FILTRADOS */}
                             <button 
                               className="btn btn-success btn-sm"
                               onClick={() => activeView === 'search' ? exportAbsentStudentsToCSV() : exportAllAttendancesToCSV()}
-                              title="Exportar a CSV"
+                              title={`Exportar a CSV - ${getCurrentData.length} registro(s) actual(es)`}
+                              disabled={getCurrentData.length === 0}
                             >
-                               CSV
+                               CSV ({getCurrentData.length})
                             </button>
                             <button 
                               className="btn btn-success btn-sm"
                               onClick={() => activeView === 'search' ? exportAbsentStudentsToExcel() : exportAllAttendancesToExcel()}
-                              title="Exportar a Excel"
+                              title={`Exportar a Excel - ${getCurrentData.length} registro(s) actual(es)`}
+                              disabled={getCurrentData.length === 0}
                             >
-                               Excel
+                               Excel ({getCurrentData.length})
                             </button>
                             <button 
                               className="btn btn-danger btn-sm"
                               onClick={() => activeView === 'search' ? exportAbsentStudentsToPDF() : exportAllAttendancesToPDF()}
-                              title="Exportar a PDF"
+                              title={`Exportar a PDF - ${getCurrentData.length} registro(s) actual(es)`}
+                              disabled={getCurrentData.length === 0}
                             >
-                               PDF
+                               PDF ({getCurrentData.length})
                             </button>
                             <button 
                               className="btn btn-primary btn-sm"
@@ -1998,6 +2313,7 @@ const AttendanceListPage = () => {
                       <table className="table border-0 star-student table-hover table-center mb-0 datatable table-striped">
                         <thead className="student-thread">
                           <tr>
+                            <th style={{width: '50px'}}>#</th>
                             <th>Estudiante</th>
                             <th>Grado</th>
                             <th>Sección</th>
@@ -2012,9 +2328,16 @@ const AttendanceListPage = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {getCurrentData().length > 0 ? (
-                            getCurrentData().map((student, index) => (
-                              <tr key={student.studentEnrollmentId || index}>
+                          {getCurrentData.length > 0 ? (
+                            getCurrentData.map((student, index) => {
+                              // Crear key única combinando ID + fecha + hora + index para evitar duplicados
+                              const uniqueKey = `${student.studentEnrollmentId || 'unknown'}-${student.entryDate || 'nodate'}-${student.entryTime || 'notime'}-${index}`;
+                              
+                              return (
+                              <tr key={uniqueKey}>
+                                <td className="text-center">
+                                  <strong>{index + 1}</strong>
+                                </td>
                                 <td>
                                   <h2 className="table-avatar">
                                     <span className="student-avatar-text">
@@ -2198,7 +2521,8 @@ const AttendanceListPage = () => {
                                   </div>
                                 </td>
                               </tr>
-                            ))
+                              );
+                            })
                           ) : (
                             <tr>
                               <td colSpan="9" className="text-center py-4">
@@ -2233,14 +2557,19 @@ const AttendanceListPage = () => {
                     </div>
 
                     {/* Informacin adicional */}
-                    {getCurrentData().length > 0 && (
+                    {getCurrentData.length > 0 && (
                       <div className="row mt-3">
                         <div className="col-sm-12">
                           <div className="d-flex justify-content-between align-items-center">
                             <div>
-                              {(filterGrade || filterSection || filterCourse) && (
+                              {(filterGrade || filterSection || filterCourse || filterStudentId) && (
                                 <div className="mb-2">
                                   <small className="text-muted me-2">Filtros activos:</small>
+                                  {filterStudentId && (
+                                    <span className="badge badge-warning me-1">
+                                      👤 Estudiante: {studentOptions.find(opt => opt.value === filterStudentId)?.label || filterStudentId}
+                                    </span>
+                                  )}
                                   {filterGrade && (
                                     <span className="badge badge-primary me-1">
                                       Grado: {filterGrade}°

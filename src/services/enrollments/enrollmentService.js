@@ -34,29 +34,34 @@ class EnrollmentService {
       const refreshToken = localStorage.getItem('refresh_token');
       
       if (refreshToken) {
-        const refreshResult = await refreshTokenKeycloak(refreshToken);
-        if (refreshResult.success) {
-          console.log('✅ Token refrescado correctamente, reintentando petición...');
-          throw new Error('TOKEN_REFRESHED'); // Señal especial para reintentar
-        } else {
-          console.log('❌ Error al refrescar token:', refreshResult.error);
-          // Limpiar tokens inválidos
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          localStorage.removeItem('token_expires');
-          console.log('🚪 Redirigiendo al login...');
-          // Redirigir al login
-          setTimeout(() => {
-            window.location.href = '/login';
-          }, 1000);
+        try {
+          // Agregar timeout al refresh para evitar cuelgues
+          const refreshPromise = refreshTokenKeycloak(refreshToken);
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('REFRESH_TIMEOUT')), 10000)
+          );
+          
+          const refreshResult = await Promise.race([refreshPromise, timeoutPromise]);
+          
+          if (refreshResult && refreshResult.success) {
+            console.log('✅ Token refrescado correctamente, reintentando petición...');
+            throw new Error('TOKEN_REFRESHED'); // Señal especial para reintentar
+          } else {
+            console.log('❌ Error al refrescar token:', refreshResult?.error || 'Unknown error');
+            this.clearTokensAndRedirect();
+          }
+        } catch (error) {
+          if (error.message === 'REFRESH_TIMEOUT') {
+            console.log('⏰ Timeout al refrescar token, limpiando sesión...');
+          } else {
+            console.log('❌ Error al refrescar token:', error.message);
+          }
+          this.clearTokensAndRedirect();
           throw new Error('Sesión expirada. Redirigiendo al login...');
         }
       } else {
         console.log('❌ No hay refresh token disponible');
-        // No hay refresh token, redirigir al login
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 1000);
+        this.clearTokensAndRedirect();
         throw new Error('Sesión expirada. Redirigiendo al login...');
       }
     }
@@ -91,6 +96,21 @@ class EnrollmentService {
       console.error('Error parsing JSON response:', error);
       return {}; // Respuesta vacía en caso de error de parsing
     }
+  }
+
+  /**
+   * Limpia tokens y redirige al login
+   */
+  clearTokensAndRedirect() {
+    // Limpiar tokens inválidos
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('token_expires');
+    console.log('🚪 Tokens limpiados, redirigiendo al login...');
+    // Redirigir al login con un pequeño delay
+    setTimeout(() => {
+      window.location.href = '/login';
+    }, 1000);
   }
 
   /**
@@ -426,15 +446,15 @@ class EnrollmentService {
         const existingEnrollments = response.data || [];
         return generateEnrollmentNumber(existingEnrollments);
       } else {
-        // Si no se pueden obtener las matrículas, generar con correlativo 001
+        // Si no se pueden obtener las matrículas, generar con correlativo 0001
         const currentYear = new Date().getFullYear();
-        return `MAT-${currentYear}-001`;
+        return `MAT-${currentYear}-0001`;
       }
     } catch (error) {
       console.error('Error al generar número de matrícula:', error);
-      // Fallback: generar con correlativo 001
+      // Fallback: generar con correlativo 0001
       const currentYear = new Date().getFullYear();
-      return `MAT-${currentYear}-001`;
+      return `MAT-${currentYear}-0001`;
     }
   }
 
@@ -588,6 +608,138 @@ class EnrollmentService {
         metadata: result.metadata
       };
     });
+  }
+
+  /**
+   * Obtiene el último número de matrícula para generar el siguiente
+   */
+  async getLastEnrollmentNumber() {
+    try {
+      return await this.executeWithRetry(async () => {
+        const response = await fetch(`${this.baseURL}/last-number`, {
+          method: 'GET',
+          headers: this.getAuthHeaders()
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.data,
+          message: 'Último número obtenido exitosamente'
+        };
+      });
+    } catch (error) {
+      // Método alternativo si falla el endpoint principal
+      console.warn('⚠️ Endpoint /last-number falló, intentando método alternativo:', error.message);
+      
+      try {
+        console.log('🔄 Intentando obtener último número desde matrículas existentes...');
+        const enrollmentsResult = await this.getAllEnrollments();
+        
+        if (enrollmentsResult.success) {
+          console.log(`📊 Procesando ${enrollmentsResult.data.length} matrículas para encontrar último número...`);
+          
+          const currentYear = new Date().getFullYear();
+          const enrollmentNumbers = enrollmentsResult.data
+            .filter(enrollment => enrollment.enrollmentNumber && enrollment.enrollmentNumber.includes(`MAT-${currentYear}-`))
+            .map(enrollment => {
+              // Extraer el número correlativo de formatos como "MAT-2025-0001"
+              const parts = enrollment.enrollmentNumber.split('-');
+              if (parts.length >= 3) {
+                const correlative = parseInt(parts[2]);
+                return isNaN(correlative) ? 0 : correlative;
+              }
+              return 0;
+            })
+            .filter(num => num > 0);
+          
+          const lastNumber = enrollmentNumbers.length > 0 ? Math.max(...enrollmentNumbers) : 0;
+          
+          console.log(`✅ Último número de matrícula encontrado: ${lastNumber} (de ${enrollmentNumbers.length} números válidos) usando método alternativo`);
+          
+          return {
+            success: true,
+            data: lastNumber,
+            message: 'Último número obtenido exitosamente (método alternativo)'
+          };
+        }
+      } catch (alternativeError) {
+        console.error('❌ También falló el método alternativo:', alternativeError);
+      }
+      
+      console.error('❌ Error al obtener último número de matrícula:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener el último número de matrícula',
+        data: 0
+      };
+    }
+  }
+
+  /**
+   * Obtiene las aulas disponibles para matrícula
+   */
+  async getAvailableClassrooms() {
+    try {
+      return await this.executeWithRetry(async () => {
+        const response = await fetch(`${this.baseURL}/classrooms/available`, {
+          method: 'GET',
+          headers: this.getAuthHeaders()
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.data,
+          message: 'Aulas obtenidas exitosamente'
+        };
+      });
+    } catch (error) {
+      // Método alternativo si falla el endpoint principal
+      console.warn('⚠️ Endpoint /classrooms/available falló, intentando método alternativo:', error.message);
+      
+      try {
+        console.log('🔄 Intentando obtener aulas desde matrículas existentes...');
+        const enrollmentsResult = await this.getAllEnrollments();
+        
+        if (enrollmentsResult.success) {
+          console.log(`📊 Procesando ${enrollmentsResult.data.length} matrículas para extraer aulas...`);
+          const uniqueClassrooms = {};
+          
+          enrollmentsResult.data.forEach(enrollment => {
+            if (enrollment.classroomId) {
+              uniqueClassrooms[enrollment.classroomId] = {
+                id: enrollment.classroomId,
+                name: enrollment.classroomName || `Aula ${enrollment.classroomId}`,
+                status: 'ACTIVE'
+              };
+            }
+          });
+          
+          const classroomsArray = Object.values(uniqueClassrooms);
+          console.log(`✅ Encontradas ${classroomsArray.length} aulas únicas usando método alternativo:`, classroomsArray.map(c => c.name));
+          
+          return {
+            success: true,
+            data: classroomsArray,
+            message: 'Aulas obtenidas exitosamente (método alternativo)'
+          };
+        } else {
+          console.error('❌ Falló también el método alternativo para obtener matrículas');
+        }
+      } catch (alternativeError) {
+        console.error('❌ También falló el método alternativo:', alternativeError);
+      }
+      
+      console.error('❌ Error al obtener aulas disponibles:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener las aulas disponibles',
+        data: []
+      };
+    }
   }
 
   /**

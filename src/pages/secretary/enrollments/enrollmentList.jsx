@@ -2,12 +2,13 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Table, Button, Input, Select, Space, Dropdown, Tag, Tooltip, Menu } from "antd";
-import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, UndoOutlined, CheckOutlined, CloseOutlined, EyeOutlined, UserOutlined, FileTextOutlined, DownloadOutlined } from "@ant-design/icons";
+import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, UndoOutlined, CheckOutlined, CloseOutlined, EyeOutlined, UserOutlined, FileTextOutlined, DownloadOutlined, UsergroupAddOutlined } from "@ant-design/icons";
 import FeatherIcon from "feather-icons-react";
 import { MoreHorizontal, Filter } from "react-feather";
 import Header from "../../../components/Header";
 import Sidebar from "../../../components/Sidebar";
 import AlertModal from "../../../components/AlertModal";
+import BulkEnrollmentModal from "./BulkEnrollmentModal";
 import useAlert from "../../../hooks/useAlert";
 import enrollmentService from "../../../services/enrollments/enrollmentService";
 import studentService from "../../../services/students/studentService";
@@ -28,6 +29,14 @@ const EnrollmentList = () => {
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [filteredEnrollments, setFilteredEnrollments] = useState([]);
+  const [statistics, setStatistics] = useState(null);
+  
+  // Estados para modal de detalles
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedEnrollment, setSelectedEnrollment] = useState(null);
+  
+  // Estados para modal de matrícula masiva
+  const [showBulkModal, setShowBulkModal] = useState(false);
 
   // Cargar matrículas al montar el componente
   useEffect(() => {
@@ -38,6 +47,13 @@ const EnrollmentList = () => {
   useEffect(() => {
     applyFilters();
   }, [enrollments, searchText, statusFilter]);
+
+  // Cargar estadísticas cuando cambien las matrículas
+  useEffect(() => {
+    if (enrollments.length > 0) {
+      loadStatistics();
+    }
+  }, [enrollments]);
 
   /**
    * Carga todas las matrículas desde el servicio
@@ -91,6 +107,55 @@ const EnrollmentList = () => {
    */
   const handleCreate = () => {
     navigate('/secretary/enrollments/add');
+  };
+
+  /**
+   * Abre el modal de matrícula masiva
+   */
+  const handleBulkEnrollment = () => {
+    setShowBulkModal(true);
+  };
+
+  /**
+   * Cierra el modal de matrícula masiva
+   */
+  const handleCloseBulkModal = () => {
+    setShowBulkModal(false);
+  };
+
+  /**
+   * Maneja el éxito de la matrícula masiva
+   */
+  const handleBulkEnrollmentSuccess = () => {
+    loadEnrollments(); // Recargar la lista
+    loadStatistics(); // Recargar estadísticas
+  };
+
+  /**
+   * Carga estadísticas de matrículas
+   */
+  const loadStatistics = async () => {
+    try {
+      // Calcular estadísticas básicas desde los datos locales
+      const stats = enrollments.reduce((acc, enrollment) => {
+        const classroom = enrollment.classroomId || 'Sin aula';
+        acc[classroom] = (acc[classroom] || 0) + 1;
+        return acc;
+      }, {});
+      
+      setStatistics(stats);
+    } catch (error) {
+      console.error('Error al cargar estadísticas:', error);
+      setStatistics(null);
+    }
+  };
+
+  /**
+   * Cierra el modal de detalles
+   */
+  const handleCloseDetailsModal = () => {
+    setShowDetailsModal(false);
+    setSelectedEnrollment(null);
   };
 
   /**
@@ -239,6 +304,60 @@ Creado: ${formatDateTime(enrollment.createdAt)}
         }
       },
     });
+  };
+
+  /**
+   * Exporta la lista de matrículas actual a CSV
+   */
+  const handleExportEnrollments = async () => {
+    try {
+      // Importar dinámicamente la utilidad de exportación
+      const { default: EnrollmentExportUtils } = await import('../../../utils/enrollments/exportUtils');
+      
+      // Usar las matrículas filtradas actuales
+      const dataToExport = filteredEnrollments.length > 0 ? filteredEnrollments : enrollments;
+      
+      if (dataToExport.length === 0) {
+        showWarning('No hay matrículas para exportar');
+        return;
+      }
+
+      EnrollmentExportUtils.exportEnrollmentsToCSV(dataToExport);
+      showSuccess(`${dataToExport.length} matrículas exportadas exitosamente`);
+    } catch (error) {
+      console.error('Error al exportar matrículas:', error);
+      showError('Error al exportar las matrículas');
+    }
+  };
+
+  /**
+   * Muestra estadísticas de matrículas por aula
+   */
+  const handleViewAnalytics = () => {
+    if (!statistics) {
+      showWarning('No hay estadísticas disponibles');
+      return;
+    }
+
+    const analyticsText = Object.entries(statistics)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join('\n');
+
+    showAlert({
+      title: 'Estadísticas de Matrículas',
+      message: `Distribución de Matrículas:\n\n${analyticsText}`,
+      type: 'info',
+      showCancel: false,
+      confirmText: 'Cerrar'
+    });
+  };
+
+  /**
+   * Obtiene las aulas únicas para el filtro
+   */
+  const getUniqueClassrooms = () => {
+    const classrooms = [...new Set(enrollments.map(e => e.classroomId))].filter(Boolean);
+    return classrooms.sort();
   };
 
   // Configuración de selección de filas
@@ -453,6 +572,29 @@ Creado: ${formatDateTime(enrollment.createdAt)}
                           Nueva Matrícula
                         </Button>
                         <Button
+                          type="primary"
+                          icon={<UsergroupAddOutlined />}
+                          onClick={handleBulkEnrollment}
+                          className="btn-sm"
+                          style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
+                        >
+                          Matrícula Masiva
+                        </Button>
+                        <Button
+                          icon={<DownloadOutlined />}
+                          onClick={handleExportEnrollments}
+                          className="btn-sm"
+                        >
+                          Exportar
+                        </Button>
+                        <Button
+                          icon={<FileTextOutlined />}
+                          onClick={handleViewAnalytics}
+                          className="btn-sm"
+                        >
+                          Analytics
+                        </Button>
+                        <Button
                           icon={<UserOutlined />}
                           onClick={() => navigate('/secretary/students')}
                           className="btn-sm"
@@ -510,6 +652,239 @@ Creado: ${formatDateTime(enrollment.createdAt)}
       {/* Sidebar y Header */}
       <Sidebar />
       <Header />
+      
+      {/* Modal de Detalles de la Matrícula */}
+      {selectedEnrollment && (
+        <div className={`modal fade ${showDetailsModal ? 'show' : ''}`} 
+             style={{ display: showDetailsModal ? 'block' : 'none' }}
+             id="enrollment_details_modal" 
+             tabIndex="-1" 
+             role="dialog">
+          <div className="modal-dialog modal-dialog-centered modal-lg" role="document">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  <FileTextOutlined style={{ marginRight: '8px' }} />
+                  Detalles de la Matrícula
+                </h5>
+                <button 
+                  type="button" 
+                  className="btn-close" 
+                  onClick={handleCloseDetailsModal}
+                  aria-label="Close"
+                />
+              </div>
+              <div className="modal-body">
+                <div className="row">
+                  {/* Información de la Matrícula */}
+                  <div className="col-md-6">
+                    <div className="card">
+                      <div className="card-header">
+                        <h6 className="card-title mb-0">
+                          📋 Información de Matrícula
+                        </h6>
+                      </div>
+                      <div className="card-body">
+                        <div className="row mb-2">
+                          <div className="col-5"><strong>N° Matrícula:</strong></div>
+                          <div className="col-7">
+                            <span className="badge bg-primary">{selectedEnrollment.enrollmentNumber}</span>
+                          </div>
+                        </div>
+                        <div className="row mb-2">
+                          <div className="col-5"><strong>Fecha Matrícula:</strong></div>
+                          <div className="col-7">{formatEnrollmentDate(selectedEnrollment.enrollmentDate)}</div>
+                        </div>
+                        <div className="row mb-2">
+                          <div className="col-5"><strong>Aula:</strong></div>
+                          <div className="col-7">
+                            <span className="badge bg-info">{selectedEnrollment.classroomId}</span>
+                          </div>
+                        </div>
+                        <div className="row mb-2">
+                          <div className="col-5"><strong>Estado:</strong></div>
+                          <div className="col-7">
+                            <Tag color={getEnrollmentStatusColor(selectedEnrollment.status)}>
+                              {getEnrollmentStatusText(selectedEnrollment.status)}
+                            </Tag>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Información del Estudiante */}
+                  <div className="col-md-6">
+                    <div className="card">
+                      <div className="card-header">
+                        <h6 className="card-title mb-0">
+                          <UserOutlined style={{ marginRight: '6px' }} />
+                          Información del Estudiante
+                        </h6>
+                      </div>
+                      <div className="card-body">
+                        {selectedEnrollment.student ? (
+                          <>
+                            <div className="row mb-2">
+                              <div className="col-4"><strong>Nombre:</strong></div>
+                              <div className="col-8">
+                                {selectedEnrollment.student.firstName} {selectedEnrollment.student.lastName}
+                              </div>
+                            </div>
+                            <div className="row mb-2">
+                              <div className="col-4"><strong>Documento:</strong></div>
+                              <div className="col-8">
+                                {selectedEnrollment.student.documentType}: {selectedEnrollment.student.documentNumber}
+                              </div>
+                            </div>
+                            <div className="row mb-2">
+                              <div className="col-4"><strong>Email:</strong></div>
+                              <div className="col-8">
+                                {selectedEnrollment.student.email || <span className="text-muted">No registrado</span>}
+                              </div>
+                            </div>
+                            <div className="row mb-2">
+                              <div className="col-4"><strong>Teléfono:</strong></div>
+                              <div className="col-8">
+                                {selectedEnrollment.student.phone || <span className="text-muted">No registrado</span>}
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-center text-muted">
+                            <p>ID: {selectedEnrollment.studentId}</p>
+                            <small>Información del estudiante no disponible</small>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Información del Apoderado */}
+                  {selectedEnrollment.student && (
+                    <div className="col-12 mt-3">
+                      <div className="card">
+                        <div className="card-header">
+                          <h6 className="card-title mb-0">
+                            👥 Información del Apoderado
+                          </h6>
+                        </div>
+                        <div className="card-body">
+                          <div className="row">
+                            <div className="col-md-6">
+                              <div className="row mb-2">
+                                <div className="col-4"><strong>Nombre:</strong></div>
+                                <div className="col-8">
+                                  {selectedEnrollment.student.guardianName} {selectedEnrollment.student.guardianLastName}
+                                </div>
+                              </div>
+                              <div className="row mb-2">
+                                <div className="col-4"><strong>Documento:</strong></div>
+                                <div className="col-8">
+                                  {selectedEnrollment.student.guardianDocumentType}: {selectedEnrollment.student.guardianDocumentNumber}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="col-md-6">
+                              <div className="row mb-2">
+                                <div className="col-4"><strong>Relación:</strong></div>
+                                <div className="col-8">{selectedEnrollment.student.guardianRelationship}</div>
+                              </div>
+                              <div className="row mb-2">
+                                <div className="col-4"><strong>Teléfono:</strong></div>
+                                <div className="col-8">
+                                  {selectedEnrollment.student.guardianPhone || <span className="text-muted">No registrado</span>}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Información de Registro */}
+                  <div className="col-12 mt-3">
+                    <div className="card">
+                      <div className="card-header">
+                        <h6 className="card-title mb-0">
+                          📅 Información de Registro
+                        </h6>
+                      </div>
+                      <div className="card-body">
+                        <div className="row">
+                          <div className="col-md-6">
+                            <div className="row mb-2">
+                              <div className="col-4"><strong>Fecha Creación:</strong></div>
+                              <div className="col-8">{formatDateTime(selectedEnrollment.createdAt)}</div>
+                            </div>
+                          </div>
+                          <div className="col-md-6">
+                            <div className="row mb-2">
+                              <div className="col-4"><strong>Última Actualización:</strong></div>
+                              <div className="col-8">{formatDateTime(selectedEnrollment.updatedAt)}</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={handleCloseDetailsModal}
+                >
+                  Cerrar
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-primary"
+                  onClick={() => {
+                    handleCloseDetailsModal();
+                    handleEdit(selectedEnrollment);
+                  }}
+                >
+                  <EditOutlined style={{ marginRight: '6px' }} />
+                  Editar
+                </button>
+                {selectedEnrollment.student && (
+                  <button 
+                    type="button" 
+                    className="btn btn-info"
+                    onClick={() => {
+                      handleCloseDetailsModal();
+                      navigate('/secretary/students', { 
+                        state: { highlightStudent: selectedEnrollment.studentId } 
+                      });
+                    }}
+                  >
+                    <UserOutlined style={{ marginRight: '6px' }} />
+                    Ver Estudiante
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Overlay del modal */}
+      {showDetailsModal && (
+        <div 
+          className="modal-backdrop fade show" 
+          onClick={handleCloseDetailsModal}
+        />
+      )}
+      
+      {/* Modal de Matrícula Masiva */}
+      <BulkEnrollmentModal
+        visible={showBulkModal}
+        onCancel={handleCloseBulkModal}
+        onSuccess={handleBulkEnrollmentSuccess}
+      />
       
       {/* AlertModal para confirmaciones */}
       <AlertModal 

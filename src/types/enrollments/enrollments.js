@@ -208,8 +208,8 @@ export const generateEnrollmentNumber = (existingEnrollments = []) => {
   // Calcular el próximo número correlativo
   const nextCorrelative = currentYearEnrollments.length + 1;
   
-  // Formatear con ceros a la izquierda (3 dígitos)
-  const correlativeFormatted = nextCorrelative.toString().padStart(3, "0");
+  // Formatear con ceros a la izquierda (4 dígitos)
+  const correlativeFormatted = nextCorrelative.toString().padStart(4, "0");
   
   return `MAT-${currentYear}-${correlativeFormatted}`;
 };

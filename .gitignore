@@ -1,4 +1,18 @@
-/node_modules
 /dist
 /build
 /build-template.zip
+### react ###
+.DS_*
+*.log
+logs
+**/*.backup.*
+**/*.back.*
+
+node_modules
+bower_components
+
+*.sublime*
+
+psd
+thumb
+sketch

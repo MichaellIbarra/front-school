@@ -261,22 +261,276 @@ export class AttendanceReportUtils {
    * Exporta listado de estudiantes ausentes a PDF
    */
   static exportAbsentStudentsToPDF(students, searchType = '') {
+    // Agrupar estudiantes por grado y sección
+    const groupedStudents = students.reduce((acc, student) => {
+      const grade = student.grade || 'Sin Grado';
+      const section = student.section || 'Sin Sección';
+      const key = `${grade}-${section}`;
+      
+      if (!acc[key]) {
+        acc[key] = {
+          grade,
+          section,
+          students: []
+        };
+      }
+      acc[key].students.push(student);
+      return acc;
+    }, {});
+
+    // Ordenar estudiantes alfabéticamente dentro de cada grupo
+    Object.values(groupedStudents).forEach(group => {
+      group.students.sort((a, b) => {
+        const nameA = (a.studentName || '').toLowerCase();
+        const nameB = (b.studentName || '').toLowerCase();
+        return nameA.localeCompare(nameB, 'es');
+      });
+    });
+
     const headers = [
-      'ID Matrícula', 'Nombre', 'Email', 'Fecha', 'Observaciones'
+      '#', 'ID Matrícula', 'Nombre Estudiante', 'Grado', 'Sección', 'Curso', 'Fecha', 'Observaciones'
     ];
 
-    const mapFunction = (student) => `
-      <td>${AttendanceReportUtils.sanitizeHTML(student.studentEnrollmentId || '')}</td>
-      <td>${AttendanceReportUtils.sanitizeHTML(student.studentName || '')}</td>
-      <td>${AttendanceReportUtils.sanitizeHTML(student.email || '')}</td>
-      <td>${student.entryDate ? new Date(student.entryDate).toLocaleDateString('es-ES') : ''}</td>
-      <td>${AttendanceReportUtils.sanitizeHTML(student.observations || 'Sin observaciones')}</td>
+    // Generar filas HTML por grupo
+    let groupsHTML = '';
+    let globalIndex = 1;
+    
+    Object.keys(groupedStudents).sort().forEach(key => {
+      const group = groupedStudents[key];
+      const aula = `${group.grade}° Secundaria - Sección ${group.section}`;
+      
+      groupsHTML += `
+        <div class="group-section">
+          <h3 class="group-title">📚 Aula: ${aula}</h3>
+          <p class="group-info">Total de estudiantes: ${group.students.length}</p>
+          <table>
+            <thead>
+              <tr>
+                ${headers.map(h => `<th>${h}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${group.students.map((student) => `
+                <tr>
+                  <td class="text-center"><strong>${globalIndex++}</strong></td>
+                  <td>${AttendanceReportUtils.sanitizeHTML(student.studentEnrollmentId || '-')}</td>
+                  <td><strong>${AttendanceReportUtils.sanitizeHTML(student.studentName || 'Sin nombre')}</strong></td>
+                  <td class="text-center">${AttendanceReportUtils.sanitizeHTML(student.grade ? student.grade + '°' : '-')}</td>
+                  <td class="text-center">${AttendanceReportUtils.sanitizeHTML(student.section || '-')}</td>
+                  <td>${AttendanceReportUtils.sanitizeHTML(student.course || '-')}</td>
+                  <td class="text-center">${student.entryDate ? new Date(student.entryDate).toLocaleDateString('es-ES') : '-'}</td>
+                  <td>${AttendanceReportUtils.sanitizeHTML(student.observations || 'Sin observaciones')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    });
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Reporte de Asistencias</title>
+        <style>
+          @page { 
+            size: A4 landscape; 
+            margin: 15mm; 
+          }
+          body { 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            margin: 0;
+            padding: 20px;
+            font-size: 11px;
+            color: #333;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 15px;
+          }
+          .header h1 { 
+            color: #2c3e50; 
+            font-size: 24px;
+            margin: 5px 0;
+            font-weight: 700;
+          }
+          .header h2 { 
+            color: #34495e; 
+            font-size: 16px;
+            margin: 5px 0;
+            font-weight: 500;
+          }
+          .school-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #4CAF50;
+          }
+          .school-info h3 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+            font-size: 16px;
+          }
+          .school-info p {
+            margin: 5px 0;
+            color: #555;
+            font-size: 12px;
+          }
+          .report-info {
+            text-align: right;
+            margin-bottom: 20px;
+            font-size: 11px;
+            color: #666;
+          }
+          .group-section {
+            margin-bottom: 40px;
+            page-break-inside: avoid;
+          }
+          .group-title {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 20px;
+            margin: 0 0 5px 0;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+          }
+          .group-info {
+            background: #e3f2fd;
+            padding: 8px 20px;
+            margin: 0 0 15px 0;
+            border-left: 4px solid #2196F3;
+            font-size: 11px;
+            color: #1976D2;
+          }
+          table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-bottom: 20px;
+            font-size: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
+          th { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: 1px solid #5a67d8;
+            padding: 10px 8px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          td { 
+            border: 1px solid #dee2e6;
+            padding: 8px;
+            vertical-align: middle;
+          }
+          tr:nth-child(even) { 
+            background-color: #f8f9fa;
+          }
+          tr:hover {
+            background-color: #e7f3ff;
+          }
+          .text-center {
+            text-align: center;
+          }
+          .footer {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 2px solid #dee2e6;
+            text-align: center;
+            font-size: 10px;
+            color: #6c757d;
+          }
+          .summary {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+          }
+          .summary h3 {
+            margin: 0 0 10px 0;
+            color: #856404;
+            font-size: 14px;
+          }
+          .summary p {
+            margin: 5px 0;
+            font-size: 12px;
+            color: #856404;
+          }
+          @media print {
+            body { 
+              margin: 0;
+              padding: 15mm;
+            }
+            .group-section {
+              page-break-inside: avoid;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>🏫 REPORTE DE ASISTENCIAS</h1>
+          <h2>Sistema de Gestión Educativa</h2>
+        </div>
+
+        <div class="school-info">
+          <h3>🏛️ Información de la Institución</h3>
+          <p><strong>Colegio:</strong> Virgen de Guadalupe</p>
+          <p><strong>Nivel:</strong> Educación Secundaria</p>
+          <p><strong>Dirección:</strong> Av. Principal #123, Lima - Perú</p>
+        </div>
+
+        <div class="report-info">
+          <p><strong>Tipo de Reporte:</strong> ${searchType || 'Listado de Estudiantes'}</p>
+          <p><strong>Fecha de Generación:</strong> ${new Date().toLocaleString('es-ES')}</p>
+          <p><strong>Total de Registros:</strong> ${students.length}</p>
+        </div>
+
+        <div class="summary">
+          <h3>📊 Resumen del Reporte</h3>
+          <p><strong>Total de estudiantes:</strong> ${students.length}</p>
+          <p><strong>Grados involucrados:</strong> ${Object.keys(groupedStudents).length} aula(s)</p>
+        </div>
+
+        ${groupsHTML}
+
+        <div class="footer">
+          <p><strong>Virgen de Guadalupe</strong> - Sistema de Gestión Educativa</p>
+          <p>Este documento ha sido generado automáticamente el ${new Date().toLocaleString('es-ES')}</p>
+          <p>📞 Contacto: (01) 234-5678 | ✉️ info@virgenguadalupe.edu.pe | 🌐 www.virgenguadalupe.edu.pe</p>
+        </div>
+      </body>
+      </html>
     `;
 
-    const title = 'Reporte de Estudiantes Ausentes';
-    const subtitle = searchType ? `Tipo de búsqueda: ${searchType}` : '';
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const printWindow = window.open(url, '_blank');
     
-    AttendanceReportUtils.exportToPDF(students, headers, mapFunction, title, subtitle);
+    if (printWindow) {
+      printWindow.addEventListener('load', () => {
+        setTimeout(() => {
+          printWindow.print();
+          setTimeout(() => {
+            printWindow.close();
+            URL.revokeObjectURL(url);
+          }, 1000);
+        }, 500);
+      });
+      console.log('✅ Reporte PDF generado exitosamente');
+    } else {
+      console.error('❌ No se pudo abrir la ventana de impresión. Verifique el bloqueador de ventanas emergentes.');
+      alert('Por favor, permita ventanas emergentes para generar el reporte PDF');
+    }
   }
 
   /**
