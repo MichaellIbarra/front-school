@@ -16,6 +16,7 @@ export const DocumentType = {
 export const PasswordStatus = {
   TEMPORARY: 'TEMPORARY',
   PERMANENT: 'PERMANENT',
+  VALID: 'VALID',
   EXPIRED: 'EXPIRED'
 };
 
@@ -43,7 +44,8 @@ export const createUserModel = () => ({
   documentType: DocumentType.DNI,
   documentNumber: '',
   phone: '',
-  status: UserStatus.A
+  status: UserStatus.A,
+  institutionId: null // Solo se usa cuando el rol es DIRECTOR
 });
 
 // Estructura del modelo UserProfile (respuesta del servidor)
@@ -121,6 +123,7 @@ export const DocumentTypeLabels = {
 export const PasswordStatusLabels = {
   [PasswordStatus.TEMPORARY]: 'Temporal',
   [PasswordStatus.PERMANENT]: 'Permanente',
+  [PasswordStatus.VALID]: 'Válida',
   [PasswordStatus.EXPIRED]: 'Expirada'
 };
 
@@ -159,6 +162,7 @@ export const getPasswordStatusColor = (status) => {
   const colors = {
     [PasswordStatus.TEMPORARY]: 'warning',
     [PasswordStatus.PERMANENT]: 'success',
+    [PasswordStatus.VALID]: 'success',
     [PasswordStatus.EXPIRED]: 'danger'
   };
   return colors[status] || 'secondary';

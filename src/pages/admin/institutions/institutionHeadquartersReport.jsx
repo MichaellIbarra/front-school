@@ -442,7 +442,7 @@ const InstitutionHeadquartersReport = () => {
                   <h3 className="page-title">Reporte de Instituciones y Sedes</h3>
                   <ul className="breadcrumb">
                     <li className="breadcrumb-item">
-                      <Link to="/admin/dashboard">Dashboard</Link>
+                      <Link to="/dashboard">Dashboard</Link>
                     </li>
                     <li className="breadcrumb-item">
                       <Link to="/admin/institution">Instituciones</Link>

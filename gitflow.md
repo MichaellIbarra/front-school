@@ -54,10 +54,10 @@ git switch develop
 git pull origin develop
 # Traer las ramas remotas de los otros desarrolladores
 git fetch origin
-# Cambiar a la rama del desarrollador que se va a revisar
-git switch feature/<nombre-microservicio>-<descripción-corta>
+# Cambiar a la rama del desarrollador
+git switch develop
 # Hacer un merge de la rama develop para ver si hay conflictos
-git merge develop
+git merge feature/<nombre-microservicio>-<descripción-corta>
 # Si hay conflictos, resolverlos y hacer un commit
 git add .
 git commit -m "fix: resolve merge conflicts with develop"

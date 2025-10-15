@@ -75,7 +75,7 @@ const Header = () => {
   const handlesidebarmobilemenu = () => {
     document.body.classList.toggle("slide-nav");
     document.getElementsByTagName("html")[0].classList.toggle('menu-opened');
-    document.getElementsByClassName("sidebar-overlay")[0].classList.toggle("opened");
+    // document.getElementsByClassName("sidebar-overlay")[0].classList.toggle("opened");
   };
 
   const openDrawer = () => {

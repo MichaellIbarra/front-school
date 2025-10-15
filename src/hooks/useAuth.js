@@ -10,27 +10,35 @@ const useAuth = () => {
   const attemptTokenRefresh = useCallback(async () => {
     const refreshToken = localStorage.getItem('refresh_token');
     
-    if (refreshToken) {
-      console.log('🔄 Intentando refresh automático del token...');
-      try {
-        const refreshResult = await refreshTokenKeycloak(refreshToken);
-        if (refreshResult.success) {
-          console.log('✅ Token refrescado automáticamente');
-          return true;
-        } else {
-          console.log('❌ Error en refresh automático:', refreshResult.error);
-          // Limpiar tokens inválidos
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          localStorage.removeItem('token_expires');
-          return false;
-        }
-      } catch (error) {
-        console.error('Error en refresh automático:', error);
+    if (!refreshToken) {
+      console.log('🔑 No hay refresh token disponible');
+      return false;
+    }
+
+    console.log('🔄 Intentando refresh automático del token...');
+    try {
+      const refreshResult = await refreshTokenKeycloak(refreshToken);
+      if (refreshResult.success) {
+        console.log('✅ Token refrescado automáticamente');
+        return true;
+      } else {
+        console.log('❌ Error en refresh automático:', refreshResult.error);
+        // Limpiar tokens inválidos inmediatamente
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('token_expires');
+        clearInstitutionData();
         return false;
       }
+    } catch (error) {
+      console.error('❌ Exception en refresh automático:', error);
+      // Limpiar tokens en caso de excepción también
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('token_expires');
+      clearInstitutionData();
+      return false;
     }
-    return false;
   }, []);
 
   const checkAuth = useCallback(async () => {
@@ -54,7 +62,12 @@ const useAuth = () => {
           setUser(newUserInfo);
           setIsAuthenticated(true);
         } else {
-          // No se pudo refrescar el token
+          // No se pudo refrescar el token, limpiar todo y desautenticar
+          console.log('🔑 Refresh token inválido, limpiando datos de autenticación');
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('token_expires');
+          clearInstitutionData(); // Limpiar también datos de institución
           setUser(null);
           setIsAuthenticated(false);
         }

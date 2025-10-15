@@ -275,7 +275,7 @@ Creado: ${new Date(institution.createdAt).toLocaleDateString()}
                   <h3 className="page-title">Gestión de Instituciones</h3>
                   <ul className="breadcrumb">
                     <li className="breadcrumb-item">
-                      <Link to="/admin/dashboard">Dashboard</Link>
+                      <Link to="/dashboard">Dashboard</Link>
                     </li>
                     <li className="breadcrumb-item active">Instituciones</li>
                   </ul>

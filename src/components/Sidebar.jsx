@@ -165,36 +165,6 @@ const Sidebar = (props) => {
                   </Link>
                 </li>
 
-                <li className="submenu">
-                  <Link to="#" id="menu-item3" onClick={(e) => handleClick(e, "menu-item3", "menu-items3")}>
-                    <span className="menu-side">
-                      <img src={menuicon08} alt="" />
-                    </span>{" "}
-                    <span> Staff </span> <span className="menu-arrow" />
-                  </Link>
-                  <ul style={{ display: "none" }} className="menu-items3">
-                      <li>
-                        <Link className={props?.activeClassName === 'staff-list' ? 'active' : ''} to="/stafflist">Staff List</Link>
-                      </li>
-                      <li>
-                        <Link className={props?.activeClassName === 'add-staff' ? 'active' : ''} to="/addstaff">Add Staff</Link>
-                      </li>
-                    <li>
-                      <Link className={props?.activeClassName === 'staff-profile' ? 'active' : ''} to="/staffprofile">Staff Profile</Link>
-                    </li>
-                      <li>
-                        <Link className={props?.activeClassName === 'leaves' ? 'active' : ''} to="/leave">Leaves</Link>
-                      </li>
-
-                      <li>
-                        <Link className={props?.activeClassName === 'holidays' ? 'active' : ''} to="/holiday">Holidays</Link>
-                      </li>
-                      <li>
-                        <Link className={props?.activeClassName === 'attendance' ? 'active' : ''} to="/attendence">Attendance</Link>
-                      </li>
-                  </ul>
-                </li>
-
                 {/* Gestión de FUTS - Solo Secretary */}
                 {isSecretary() && (
                   <li className="submenu">
@@ -211,23 +181,6 @@ const Sidebar = (props) => {
                     </ul>
                   </li>
                 )}
-
-                <li className="submenu">
-                  <Link to="#" id="menu-item13" onClick={(e) => handleClick(e, "menu-item13", "menu-items13")}>
-                    <span className="menu-side">
-                      <img src={menuicon15} alt="" />
-                    </span>{" "}
-                    <span> Invoice </span> <span className="menu-arrow" />
-                  </Link>
-                  <ul style={{ display: "none" }} className="menu-items13">
-                        <li>
-                          <Link className={props?.activeClassName === 'add-invoice' ? 'active' : ''} to="/add-invoice"> Add Invoices</Link>
-                        </li>
-                        <li>
-                          <Link className={props?.activeClassName === 'edit-invoice' ? 'active' : ''} to="/edit-invoice"> Edit Invoices</Link>
-                        </li>
-                  </ul>
-                </li>
 
                 {/* Settings - Solo Admin */}
                 {isAdmin() && (
@@ -247,7 +200,7 @@ const Sidebar = (props) => {
                     <span className="menu-side">
                       <i className="fa fa-users"></i>
                     </span>{" "}
-                    <span>Admin/Director</span> <span className="menu-arrow" />
+                    <span>Directores</span> <span className="menu-arrow" />
                   </Link>
                   <ul style={{ display: "none" }} className="menu-items-admin-users">
                     <li>
@@ -280,18 +233,6 @@ const Sidebar = (props) => {
                         </Link>
                       </li>
                     </ul>
-                  </li>
-                )}
-
-                {/* Ejemplo - Solo Admin */}
-                {isAdmin() && (
-                     <li>
-                    <Link to="/admin/prueba">
-                      <span className="menu-side">
-                        <img src={menuicon16} alt="" />
-                      </span>{" "}
-                      <span>pruebaAdmin</span>
-                    </Link>
                   </li>
                 )}
 
@@ -359,19 +300,6 @@ const Sidebar = (props) => {
                 </li>
                 )}
 
-                
-                {/* Ejemplo - Solo isAuxiliary */}
-                {isAuxiliary() && (
-                     <li>
-                    <Link to="/auxiliary/prueba">
-                      <span className="menu-side">
-                        <img src={menuicon16} alt="" />
-                      </span>{" "}
-                      <span>pruebaAuxiliar</span>
-                    </Link>
-                  </li>
-                )}
-
                 {/* Estudiantes - Solo isSecretary */}
                 {isSecretary() && (
                   <li className="submenu">
@@ -420,7 +348,7 @@ const Sidebar = (props) => {
                       <span className="menu-side">
                         <i className="fa fa-graduation-cap"></i>
                       </span>{" "}
-                      <span> Director Académico </span> <span className="menu-arrow" />
+                      <span> Académico </span> <span className="menu-arrow" />
                     </Link>
                     <ul style={{ display: "none" }} className="menu-items-courses">
                       <li>
@@ -450,102 +378,6 @@ const Sidebar = (props) => {
                     </ul>
                   </li>
                 )}
-
-                <li className="menu-title">UI Elements</li>
-                <li className="submenu">
-                  <Link to="#" id="menu-item14" onClick={(e) => handleClick(e, "menu-item14", "menu-items14")}>
-                    <i className="fa fa-laptop" /> <span> Components</span>{" "}
-                    <span className="menu-arrow" />
-                  </Link>
-                  <ul style={{ display: "none" }} className="menu-items14">
-                    <li>
-                      <Link className={props?.activeClassName === 'uikit' ? 'active' : ''} to="/ui-kit">UI Kit</Link>
-                    </li>
-                    <li>
-                      <Link className={props?.activeClassName === 'typography' ? 'active' : ''} to="/typography">Typography</Link>
-                    </li>
-                    <li>
-                      <Link className={props?.activeClassName === 'tabs' ? 'active' : ''} to="/tab">Tabs</Link>
-                    </li>
-                  </ul>
-                </li>
-
-                <li className="submenu">
-                  <Link to="#" id="menu-item15" onClick={(e) => handleClick(e, "menu-item15", "menu-items15")}>
-                    <i className="fa fa-edit" /> <span> Forms</span>{" "}
-                    <span className="menu-arrow" />
-                  </Link>
-                  <ul style={{ display: "none" }} className="menu-items15">
-                    {/* Teacher puede usar formularios básicos */}
-                    {(isTeacher() || isDirector() || isAdmin()) && (
-                      <>
-                        <li>
-                          <Link className={props?.activeClassName === 'basic-input' ? 'active' : ''} to="/basic-input">Basic Inputs</Link>
-                        </li>
-                        <li>
-                          <Link className={props?.activeClassName === 'horizontal-form' ? 'active' : ''} to="/horizontal-form">Horizontal Form</Link>
-                        </li>
-                      </>
-                    )}
-
-                    {/* Solo Director y Admin pueden usar formularios avanzados */}
-                    {(isDirector() || isAdmin()) && (
-                      <>
-                        <li>
-                          <Link className={props?.activeClassName === 'input-groups' ? 'active' : ''} to="/inputgroup">Input Groups</Link>
-                        </li>
-                        <li>
-                          <Link className={props?.activeClassName === 'vertical-form' ? 'active' : ''} to="/vertical-form">Vertical Form</Link>
-                        </li>
-                      </>
-                    )}
-                  </ul>
-                </li>
-
-                <li className="submenu">
-                  <Link to="#" id="menu-item16" onClick={(e) => handleClick(e, "menu-item16", "menu-items16")}>
-                    <i className="fa fa-table" /> <span> Tables</span>{" "}
-                    <span className="menu-arrow" />
-                  </Link>
-                  <ul style={{ display: "none" }} className="menu-items16">
-                    <li>
-                      <Link className={props?.activeClassName === 'basic-table' ? 'active' : ''} to="/basic-table">Basic Tables</Link>
-                    </li>
-
-                    {/* Solo Director y Admin pueden usar Data Tables avanzadas */}
-                    {(isDirector() || isAdmin()) && (
-                      <li>
-                        <Link className={props?.activeClassName === 'data-table' ? 'active' : ''} to="/data-table">Data Table</Link>
-                      </li>
-                    )}
-                  </ul>
-                </li>
-
-                <li className="menu-title">Extras</li>
-                <li className="submenu">
-                  <Link to="#" id="menu-item17" onClick={(e) => handleClick(e, "menu-item17", "menu-items17")}>
-                    <i className="fa fa-columns" /> <span>Pages</span>{" "}
-                    <span className="menu-arrow" />
-                  </Link>
-                  <ul style={{ display: "none" }} className="menu-items17">
-                    {/* Solo mostrar login si no está autenticado */}
-                    {!isAuthenticated && (
-                      <li>
-                        <Link to="/login"> Login </Link>
-                      </li>
-                    )}
-
-                    {/* Cambio de contraseña para todos */}
-                    <li>
-                      <Link className={props?.activeClassName === 'changepassword' ? 'active' : ''} to="/changepassword"> Change Password </Link>
-                    </li>
-
-                    {/* Perfil para todos */}
-                    <li>
-                      <Link className={props?.activeClassName === 'profile' ? 'active' : ''} to="/profile"> Profile </Link>
-                    </li>
-                  </ul>
-                </li>
 
 
               </ul>

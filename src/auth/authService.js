@@ -33,17 +33,32 @@ function getEducationalRoles(allRoles) {
   return allRoles.filter(role => VALID_EDUCATIONAL_ROLES.includes(role));
 }
 
+// Caché para evitar decodificar el JWT múltiples veces
+let cachedUserInfo = null;
+let lastToken = null;
+
 // Función para obtener información del usuario desde el token
 export function getUserInfo() {
   const token = localStorage.getItem('access_token');
    
   if (!token) {
+    // Limpiar caché si no hay token
+    cachedUserInfo = null;
+    lastToken = null;
     return null;
+  }
+  
+  // Si el token no ha cambiado y tenemos caché, devolverlo
+  if (token === lastToken && cachedUserInfo) {
+    return cachedUserInfo;
   }
   
   const decoded = decodeJWT(token);
   
   if (!decoded) {
+    // Limpiar caché si el token es inválido
+    cachedUserInfo = null;
+    lastToken = null;
     return null;
   }
   
@@ -62,6 +77,10 @@ export function getUserInfo() {
     familyName: decoded.family_name || '',
     emailVerified: decoded.email_verified || false
   };
+  
+  // Actualizar caché
+  lastToken = token;
+  cachedUserInfo = userInfo;
   
   return userInfo;
 }
@@ -162,6 +181,16 @@ export function isTokenValid() {
   return isValid;
 }
 
+// Función más robusta para verificar autenticación completa
+export function isFullyAuthenticated() {
+  const token = localStorage.getItem('access_token');
+  const userInfo = getUserInfo();
+  const tokenValid = isTokenValid();
+  
+  // Debe tener token, información de usuario válida y token no expirado
+  return !!(token && userInfo && tokenValid);
+}
+
 export async function loginKeycloak(username, password) {
   try {
     const response = await fetch(AUTH_URL, {
@@ -204,11 +233,25 @@ export async function refreshTokenKeycloak(refreshToken) {
       localStorage.setItem('access_token', data.access_token);
       localStorage.setItem('refresh_token', data.refresh_token);
       localStorage.setItem('token_expires', Date.now() + data.expires_in * 1000);
+      // Limpiar caché para forzar re-decodificación con el nuevo token
+      clearUserCache();
       return { success: true, data };
     } else {
+      // Si el refresh falla, limpiar tokens automáticamente
+      console.log('🔑 Refresh token inválido, limpiando localStorage');
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('token_expires');
+      clearInstitutionData();
       return { success: false, error: data.error_description || 'No se pudo refrescar el token' };
     }
   } catch (error) {
+    // En caso de error de red, también limpiar tokens
+    console.error('❌ Error de red en refresh, limpiando tokens');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('token_expires');
+    clearInstitutionData();
     return { success: false, error: 'Error de red o servidor' };
   }
 }
@@ -317,11 +360,19 @@ export function getDirectorInstitution() {
   return getUserInstitution();
 }
 
+// Función para limpiar la caché de usuario
+export function clearUserCache() {
+  cachedUserInfo = null;
+  lastToken = null;
+}
+
 // Función para limpiar datos de institución al hacer logout
 export function clearInstitutionData() {
   localStorage.removeItem('institution');
   // Mantener compatibilidad con el sistema anterior
   localStorage.removeItem('director_institution');
+  // Limpiar también la caché de usuario
+  clearUserCache();
 }
 
 // Función legacy para mantener compatibilidad

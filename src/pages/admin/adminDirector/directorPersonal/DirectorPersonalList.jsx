@@ -1,9 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { Table, Button, Input, Select, Space, Dropdown, Tag } from 'antd';
+import { 
+  SearchOutlined, 
+  PlusOutlined, 
+  EditOutlined, 
+  EyeOutlined, 
+  CloseOutlined, 
+  DeleteOutlined, 
+  PlayCircleOutlined, 
+  UndoOutlined,
+  FilePdfOutlined,
+  FileExcelOutlined,
+  UserOutlined,
+  CheckCircleOutlined,
+  PrinterOutlined
+} from '@ant-design/icons';
+import { MoreHorizontal } from 'react-feather';
 import directorUserService from '../../../../services/adminDirectorService/directorUserService';
 import StaffReportExporter from '../../../../utils/directorPersonal/staffReportExporter';
 import Header from '../../../../components/Header';
 import Sidebar from '../../../../components/Sidebar';
+import AlertModal from '../../../../components/AlertModal';
+import useAlert from '../../../../hooks/useAlert';
 import { 
   UserStatus, 
   UserStatusLabels, 
@@ -12,114 +31,154 @@ import {
   getUserStatusColor 
 } from '../../../../types/users/user.types';
 
+const { Option } = Select;
+
 const DirectorPersonalList = () => {
+  const navigate = useNavigate();
+  const { showAlert, showSuccess, showError } = useAlert();
+  
   const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [sortBy, setSortBy] = useState('username');
-  const [sortOrder, setSortOrder] = useState('asc');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [filteredUsers, setFilteredUsers] = useState([]);
 
   // Cargar usuarios al montar el componente
   useEffect(() => {
     loadUsers();
   }, []);
 
+  // Aplicar filtros cuando cambien los datos, búsqueda o filtros
+  useEffect(() => {
+    applyFilters();
+  }, [users, searchTerm, statusFilter]);
+
   /**
    * Cargar todos los usuarios director personal
    */
   const loadUsers = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      setError(null);
       const response = await directorUserService.getAllStaff();
       if (response.success) {
         setUsers(Array.isArray(response.data) ? response.data : []);
       } else {
-        throw new Error(response.error || 'Error al cargar usuarios');
+        showError(response.error || 'Error al cargar usuarios');
+        setUsers([]);
       }
     } catch (err) {
-      setError(err.message);
-      alert('Error al cargar usuarios: ' + err.message);
-    } finally {
-      setLoading(false);
+      showError('Error al cargar usuarios: ' + err.message);
+      setUsers([]);
     }
+    setLoading(false);
   };
 
   /**
-   * Activar un usuario
+   * Aplica filtros de búsqueda y estado
    */
-  const handleActivateUser = async (keycloakId) => {
-    if (!window.confirm('¿Está seguro que desea activar este usuario?')) {
-      return;
+  const applyFilters = () => {
+    let filtered = [...users];
+
+    // Filtro por texto de búsqueda
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      filtered = filtered.filter(user => 
+        user.username?.toLowerCase().includes(search) ||
+        user.email?.toLowerCase().includes(search) ||
+        formatUserFullName(user).toLowerCase().includes(search) ||
+        user.documentNumber?.includes(search)
+      );
     }
 
-    try {
-      const response = await directorUserService.activateStaffUser(keycloakId);
-      if (response.success) {
-        alert(response.message);
-        loadUsers(); // Recargar la lista
-      } else {
-        throw new Error(response.error || 'Error al activar usuario');
-      }
-    } catch (err) {
-      alert('Error al activar usuario: ' + err.message);
+    // Filtro por estado
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(user => user.status === statusFilter);
     }
+
+    setFilteredUsers(filtered);
   };
 
   /**
-   * Desactivar un usuario
+   * Activar usuario
    */
-  const handleDeactivateUser = async (keycloakId) => {
-    if (!window.confirm('¿Está seguro que desea desactivar este usuario?')) {
-      return;
-    }
-
-    try {
-      const response = await directorUserService.deactivateStaffUser(keycloakId);
-      if (response.success) {
-        alert(response.message);
-        loadUsers(); // Recargar la lista
-      } else {
-        throw new Error(response.error || 'Error al desactivar usuario');
+  const handleActivate = async (keycloakId, username) => {
+    showAlert({
+      title: '¿Está seguro de activar este usuario?',
+      message: `Se activará el usuario "${username}"`,
+      type: 'warning',
+      onConfirm: async () => {
+        try {
+          const response = await directorUserService.activateStaffUser(keycloakId);
+          if (response.success) {
+            showSuccess('Usuario activado correctamente');
+            loadUsers();
+          } else {
+            showError(response.error || 'Error al activar usuario');
+          }
+        } catch (err) {
+          showError('Error al activar usuario: ' + err.message);
+        }
       }
-    } catch (err) {
-      alert('Error al desactivar usuario: ' + err.message);
-    }
+    });
   };
 
   /**
-   * Eliminar un usuario
+   * Desactivar usuario
    */
-  const handleDeleteUser = async (keycloakId, username) => {
-    if (!window.confirm(`¿Está seguro que desea eliminar al usuario "${username}"? Esta acción no se puede deshacer.`)) {
-      return;
-    }
-
-    try {
-      const response = await directorUserService.deleteStaffUser(keycloakId);
-      if (response.success) {
-        alert(response.message);
-        loadUsers(); // Recargar la lista
-      } else {
-        throw new Error(response.error || 'Error al eliminar usuario');
+  const handleDeactivate = async (keycloakId, username) => {
+    showAlert({
+      title: '¿Está seguro de desactivar este usuario?',
+      message: `Se desactivará el usuario "${username}"`,
+      type: 'warning',
+      onConfirm: async () => {
+        try {
+          const response = await directorUserService.deactivateStaffUser(keycloakId);
+          if (response.success) {
+            showSuccess('Usuario desactivado correctamente');
+            loadUsers();
+          } else {
+            showError(response.error || 'Error al desactivar usuario');
+          }
+        } catch (err) {
+          showError('Error al desactivar usuario: ' + err.message);
+        }
       }
-    } catch (err) {
-      alert('Error al eliminar usuario: ' + err.message);
-    }
+    });
+  };
+
+  /**
+   * Eliminar usuario
+   */
+  const handleDelete = async (keycloakId, username) => {
+    showAlert({
+      title: '¿Está seguro de eliminar este usuario?',
+      message: `Se eliminará el usuario "${username}". Esta acción no se puede deshacer.`,
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          const response = await directorUserService.deleteStaffUser(keycloakId);
+          if (response.success) {
+            showSuccess('Usuario eliminado correctamente');
+            loadUsers();
+          } else {
+            showError(response.error || 'Error al eliminar usuario');
+          }
+        } catch (err) {
+          showError('Error al eliminar usuario: ' + err.message);
+        }
+      }
+    });
   };
 
   /**
    * Exportar nómina completa a PDF
    */
   const handleExportPDF = () => {
-    const filteredData = getFilteredAndSortedUsers();
-    const result = StaffReportExporter.exportStaffToPDF(filteredData);
+    const result = StaffReportExporter.exportStaffToPDF(filteredUsers);
     if (result.success) {
-      alert(result.message);
+      showSuccess(result.message);
     } else {
-      alert('Error: ' + result.error);
+      showError(result.error || 'Error al exportar PDF');
     }
   };
 
@@ -127,12 +186,11 @@ const DirectorPersonalList = () => {
    * Exportar nómina completa a CSV
    */
   const handleExportCSV = () => {
-    const filteredData = getFilteredAndSortedUsers();
-    const result = StaffReportExporter.exportStaffToCSV(filteredData);
+    const result = StaffReportExporter.exportStaffToCSV(filteredUsers);
     if (result.success) {
-      alert(result.message);
+      showSuccess(result.message);
     } else {
-      alert('Error: ' + result.error);
+      showError(result.error || 'Error al exportar CSV');
     }
   };
 
@@ -142,9 +200,9 @@ const DirectorPersonalList = () => {
   const handleExportTeachers = () => {
     const result = StaffReportExporter.exportByRole(users, 'TEACHER');
     if (result.success) {
-      alert(result.message);
+      showSuccess(result.message);
     } else {
-      alert('Error: ' + result.error);
+      showError(result.error || 'Error al exportar profesores');
     }
   };
 
@@ -154,444 +212,344 @@ const DirectorPersonalList = () => {
   const handleExportActive = () => {
     const result = StaffReportExporter.exportActiveStaff(users);
     if (result.success) {
-      alert(result.message);
+      showSuccess(result.message);
     } else {
-      alert('Error: ' + result.error);
+      showError(result.error || 'Error al exportar personal activo');
     }
   };
 
-  /**
-   * Filtrar y ordenar usuarios
-   */
-  const getFilteredAndSortedUsers = () => {
-    let filteredUsers = users.filter(user => {
-      const matchesSearch = (
-        user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        formatUserFullName(user).toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.documentNumber?.includes(searchTerm)
-      );
-      
-      const matchesStatus = !statusFilter || user.status === statusFilter;
-      
-      return matchesSearch && matchesStatus;
-    });
-
-    // Ordenar usuarios
-    filteredUsers.sort((a, b) => {
-      let aValue = a[sortBy] || '';
-      let bValue = b[sortBy] || '';
-
-      if (sortBy === 'fullName') {
-        aValue = formatUserFullName(a);
-        bValue = formatUserFullName(b);
-      }
-
-      if (typeof aValue === 'string') {
-        aValue = aValue.toLowerCase();
-        bValue = bValue.toLowerCase();
-      }
-
-      if (sortOrder === 'asc') {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
-      }
-    });
-
-    return filteredUsers;
-  };
-
-  /**
-   * Cambiar ordenamiento
-   */
-  const handleSort = (field) => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(field);
-      setSortOrder('asc');
-    }
-  };
-
-  const filteredUsers = getFilteredAndSortedUsers();
-
-  if (loading) {
-    return (
-      <>
-        <Header />
-        <Sidebar activeClassName="director-personal-list" />
-        
-        <div className="page-wrapper">
-          <div className="content">
-            <div className="d-flex justify-content-center align-items-center" style={{ height: '400px' }}>
-              <div className="spinner-border text-primary" role="status">
-                <span className="sr-only">Cargando...</span>
-              </div>
-            </div>
-          </div>
+  // Configuración de columnas para la tabla
+  const columns = [
+    {
+      title: 'Usuario',
+      dataIndex: 'username',
+      key: 'username',
+      sorter: (a, b) => (a.username || '').localeCompare(b.username || ''),
+      render: (text) => <strong>{text}</strong>,
+    },
+    {
+      title: 'Nombre Completo',
+      dataIndex: 'fullName',
+      key: 'fullName',
+      sorter: (a, b) => {
+        const nameA = formatUserFullName(a);
+        const nameB = formatUserFullName(b);
+        return nameA.localeCompare(nameB);
+      },
+      render: (_, record) => formatUserFullName(record),
+    },
+    {
+      title: 'Email',
+      dataIndex: 'email',
+      key: 'email',
+      sorter: (a, b) => (a.email || '').localeCompare(b.email || ''),
+    },
+    {
+      title: 'Documento',
+      dataIndex: 'documentNumber',
+      key: 'documentNumber',
+      render: (text, record) => (
+        <div>
+          <small style={{ color: '#999' }}>
+            {DocumentTypeLabels[record.documentType]}
+          </small>
+          <br />
+          {text || '-'}
         </div>
-      </>
-    );
-  }
+      ),
+    },
+    {
+      title: 'Teléfono',
+      dataIndex: 'phone',
+      key: 'phone',
+      render: (text) => text || '-',
+    },
+    {
+      title: 'Estado',
+      dataIndex: 'status',
+      key: 'status',
+      sorter: (a, b) => (a.status || '').localeCompare(b.status || ''),
+      render: (status) => {
+        const color = getUserStatusColor(status);
+        const colorMap = {
+          'success': '#52c41a',
+          'warning': '#faad14',
+          'danger': '#ff4d4f',
+          'secondary': '#d9d9d9'
+        };
+        return (
+          <Tag color={colorMap[color] || 'default'}>
+            {UserStatusLabels[status] || status}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: 'Fecha Creación',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      sorter: (a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0),
+      render: (date) => date ? new Date(date).toLocaleDateString('es-ES') : '-',
+    },
+    {
+      title: 'Acciones',
+      key: 'actions',
+      align: 'center',
+      render: (_, record) => {
+        const menuItems = [
+          {
+            key: 'view',
+            icon: <EyeOutlined />,
+            label: 'Ver Detalles',
+            onClick: () => navigate(`/admin/admin-director/director-personal/${record.keycloakId}/view`),
+          },
+        ];
+
+        if (record.status !== UserStatus.I) {
+          menuItems.push({
+            key: 'edit',
+            icon: <EditOutlined />,
+            label: 'Editar',
+            onClick: () => navigate(`/admin/admin-director/director-personal/${record.keycloakId}/edit`),
+          });
+        }
+
+        menuItems.push({ type: 'divider' });
+
+        if (record.status === UserStatus.A) {
+          menuItems.push({
+            key: 'deactivate',
+            icon: <CloseOutlined />,
+            label: 'Desactivar',
+            onClick: () => handleDeactivate(record.keycloakId, record.username),
+          });
+        } else if (record.status === UserStatus.I) {
+          menuItems.push({
+            key: 'restore',
+            icon: <UndoOutlined />,
+            label: 'Restaurar',
+            onClick: () => handleActivate(record.keycloakId, record.username),
+          });
+        } else {
+          menuItems.push({
+            key: 'activate',
+            icon: <PlayCircleOutlined />,
+            label: 'Activar',
+            onClick: () => handleActivate(record.keycloakId, record.username),
+          });
+        }
+
+        if (record.status !== UserStatus.I) {
+          menuItems.push({ type: 'divider' });
+          menuItems.push({
+            key: 'delete',
+            icon: <DeleteOutlined />,
+            label: 'Eliminar',
+            danger: true,
+            onClick: () => handleDelete(record.keycloakId, record.username),
+          });
+        }
+
+        return (
+          <Dropdown
+            menu={{ items: menuItems }}
+            trigger={['click']}
+            placement="bottomRight"
+          >
+            <Button type="text" icon={<MoreHorizontal size={18} />} />
+          </Dropdown>
+        );
+      },
+    },
+  ];
 
   return (
-    <>
+    <div>
       <Header />
-      <Sidebar activeClassName="director-personal-list" />
+      <Sidebar id="menu-item10" id1="menu-items10" activeClassName="director-personal" />
       
       <div className="page-wrapper">
-        <div className="content">
-          {/* Header */}
+        <div className="content container-fluid">
+          {/* Page Header */}
           <div className="page-header">
-            <div className="row">
-              <div className="col-sm-12">
-                <h3 className="page-title">Gestión de Personal Director</h3>
+            <div className="row align-items-center">
+              <div className="col">
+                <h3 className="page-title">Gestión de Personal</h3>
                 <ul className="breadcrumb">
                   <li className="breadcrumb-item">
-                    <Link to="/">Dashboard</Link>
+                    <Link to="/admin/director/dashboard">Inicio</Link>
                   </li>
-                  <li className="breadcrumb-item active">Personal Director</li>
+                  <li className="breadcrumb-item active">Personal</li>
                 </ul>
               </div>
-            </div>
-          </div>
-
-          {/* Filtros y controles */}
-          <div className="row">
-            <div className="col-sm-12">
-              <div className="card">
-                <div className="card-body">
-                  <div className="row">
-                    <div className="col-md-6">
-                      <div className="form-group">
-                        <label>Buscar personal</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          placeholder="Buscar por nombre, email, usuario o documento..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <div className="col-md-3">
-                      <div className="form-group">
-                        <label>Filtrar por estado</label>
-                        <select
-                          className="form-control"
-                          value={statusFilter}
-                          onChange={(e) => setStatusFilter(e.target.value)}
-                        >
-                          <option value="">Todos los estados</option>
-                          {Object.entries(UserStatus).map(([key, value]) => (
-                            <option key={key} value={value}>
-                              {UserStatusLabels[value]}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="col-md-3">
-                      <div className="form-group">
-                        <label>&nbsp;</label>
-                        <div className="d-block">
-                          <Link to="/admin/admin-director/director-personal/create" className="btn btn-primary">
-                            <i className="fa fa-plus"></i> Nuevo Personal
-                          </Link>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              <div className="col-auto text-end">
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={() => navigate('/admin/admin-director/director-personal/create')}
+                  size="large"
+                >
+                  Nuevo Personal
+                </Button>
               </div>
             </div>
           </div>
 
-          {/* Sección de Reportes */}
-          <div className="row">
-            <div className="col-sm-12">
-              <div className="card">
-                <div className="card-header bg-light">
-                  <h5 className="card-title mb-0">
-                    <i className="fa fa-file-text"></i> Reportes de Nómina
-                  </h5>
-                </div>
-                <div className="card-body">
-                  <div className="row">
-                    <div className="col-md-12">
-                      <p className="text-muted mb-3">
-                        Genere reportes de la nómina de personal en diferentes formatos
-                      </p>
-                      <div className="btn-toolbar" role="toolbar">
-                        <div className="btn-group mr-2 mb-2" role="group">
-                          <button
-                            type="button"
-                            className="btn btn-danger"
-                            onClick={handleExportPDF}
-                            disabled={filteredUsers.length === 0}
-                            title="Exportar nómina completa a PDF"
-                          >
-                            <i className="fa fa-file-pdf-o"></i> PDF Completo
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-success"
-                            onClick={handleExportCSV}
-                            disabled={filteredUsers.length === 0}
-                            title="Exportar nómina completa a CSV"
-                          >
-                            <i className="fa fa-file-excel-o"></i> CSV Completo
-                          </button>
-                        </div>
-                        
-                        <div className="btn-group mr-2 mb-2" role="group">
-                          <button
-                            type="button"
-                            className="btn btn-info"
-                            onClick={handleExportTeachers}
-                            disabled={users.filter(u => u.roles?.includes('TEACHER')).length === 0}
-                            title="Exportar solo profesores a PDF"
-                          >
-                            <i className="fa fa-graduation-cap"></i> Solo Profesores
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-warning"
-                            onClick={handleExportActive}
-                            disabled={users.filter(u => u.status === 'A').length === 0}
-                            title="Exportar solo personal activo a PDF"
-                          >
-                            <i className="fa fa-check-circle"></i> Solo Activos
-                          </button>
-                        </div>
-
-                        <div className="btn-group mb-2" role="group">
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            onClick={() => window.print()}
-                            disabled={filteredUsers.length === 0}
-                            title="Imprimir vista actual"
-                          >
-                            <i className="fa fa-print"></i> Imprimir Vista
-                          </button>
-                        </div>
-                      </div>
-                      <small className="text-muted d-block mt-2">
-                        <i className="fa fa-info-circle"></i> Los reportes se generan con los datos filtrados actuales.
-                        Total: <strong>{filteredUsers.length}</strong> registro(s)
-                      </small>
-                    </div>
-                  </div>
-                </div>
+          {/* Reportes de Personal */}
+          <div className="card mb-4" style={{ 
+            borderRadius: '8px', 
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+            border: '1px solid #f0f0f0'
+          }}>
+            <div className="card-header" style={{ 
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              borderRadius: '8px 8px 0 0',
+              padding: '16px 24px'
+            }}>
+              <h5 className="mb-0" style={{ color: 'white', fontWeight: 600 }}>
+                <PrinterOutlined style={{ marginRight: '8px' }} />
+                Reportes de Personal
+              </h5>
+            </div>
+            <div className="card-body" style={{ padding: '24px' }}>
+              <Space size="middle" wrap style={{ width: '100%', justifyContent: 'center' }}>
+                <Button
+                  type="primary"
+                  danger
+                  icon={<FilePdfOutlined />}
+                  onClick={handleExportPDF}
+                  size="large"
+                  disabled={filteredUsers.length === 0}
+                  style={{ minWidth: '200px' }}
+                >
+                  PDF Completo
+                </Button>
+                <Button
+                  type="primary"
+                  style={{ backgroundColor: '#52c41a', borderColor: '#52c41a', minWidth: '200px' }}
+                  icon={<FileExcelOutlined />}
+                  onClick={handleExportCSV}
+                  size="large"
+                  disabled={filteredUsers.length === 0}
+                >
+                  Exportar CSV
+                </Button>
+                <Button
+                  type="primary"
+                  style={{ backgroundColor: '#1890ff', borderColor: '#1890ff', minWidth: '200px' }}
+                  icon={<UserOutlined />}
+                  onClick={handleExportTeachers}
+                  size="large"
+                  disabled={users.filter(u => u.role?.includes('TEACHER')).length === 0}
+                >
+                  PDF Profesores
+                </Button>
+                <Button
+                  type="primary"
+                  style={{ backgroundColor: '#faad14', borderColor: '#faad14', minWidth: '200px' }}
+                  icon={<CheckCircleOutlined />}
+                  onClick={handleExportActive}
+                  size="large"
+                  disabled={users.filter(u => u.status === UserStatus.A).length === 0}
+                >
+                  PDF Activos
+                </Button>
+                <Button
+                  type="default"
+                  icon={<PrinterOutlined />}
+                  onClick={() => window.print()}
+                  size="large"
+                  disabled={filteredUsers.length === 0}
+                  style={{ minWidth: '200px' }}
+                >
+                  Imprimir Vista
+                </Button>
+              </Space>
+              <div style={{ marginTop: '16px', textAlign: 'center', color: '#999' }}>
+                <small>
+                  Los reportes se generan con los datos filtrados actuales. Total: <strong>{filteredUsers.length}</strong> registro(s)
+                </small>
               </div>
             </div>
           </div>
 
-          {/* Mensaje de error */}
-          {error && (
-            <div className="row">
-              <div className="col-12">
-                <div className="alert alert-danger" role="alert">
-                  <i className="fa fa-exclamation-triangle"></i> {error}
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-outline-danger ml-2"
-                    onClick={loadUsers}
-                  >
-                    Reintentar
-                  </button>
-                </div>
-              </div>
+          {/* Filtros */}
+          <div className="card mb-4" style={{ 
+            borderRadius: '8px', 
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)' 
+          }}>
+            <div className="card-body">
+              <Space size="middle" style={{ width: '100%' }}>
+                <Input
+                  placeholder="Buscar por nombre, usuario, email o DNI"
+                  prefix={<SearchOutlined />}
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  style={{ width: 400 }}
+                  size="large"
+                  allowClear
+                />
+                <Select
+                  placeholder="Filtrar por Estado"
+                  value={statusFilter === 'all' ? undefined : statusFilter}
+                  onChange={(value) => setStatusFilter(value || 'all')}
+                  style={{ width: 200 }}
+                  size="large"
+                  allowClear
+                >
+                  {Object.entries(UserStatus).map(([key, value]) => (
+                    <Option key={key} value={value}>
+                      {UserStatusLabels[value]}
+                    </Option>
+                  ))}
+                </Select>
+                <Button
+                  type="default"
+                  icon={<UndoOutlined />}
+                  onClick={() => {
+                    setSearchTerm('');
+                    setStatusFilter('all');
+                  }}
+                  size="large"
+                >
+                  Limpiar Filtros
+                </Button>
+              </Space>
             </div>
-          )}
+          </div>
 
-          {/* Tabla de usuarios */}
-          <div className="row">
-            <div className="col-sm-12">
-              <div className="card">
-                <div className="card-body">
-                  <div className="table-responsive">
-                    <table className="table table-hover table-center mb-0">
-                      <thead>
-                        <tr>
-                          <th 
-                            className="cursor-pointer"
-                            onClick={() => handleSort('username')}
-                          >
-                            Usuario
-                            {sortBy === 'username' && (
-                              <i className={`fa fa-sort-${sortOrder === 'asc' ? 'up' : 'down'} ml-1`}></i>
-                            )}
-                          </th>
-                          <th 
-                            className="cursor-pointer"
-                            onClick={() => handleSort('fullName')}
-                          >
-                            Nombre Completo
-                            {sortBy === 'fullName' && (
-                              <i className={`fa fa-sort-${sortOrder === 'asc' ? 'up' : 'down'} ml-1`}></i>
-                            )}
-                          </th>
-                          <th 
-                            className="cursor-pointer"
-                            onClick={() => handleSort('email')}
-                          >
-                            Email
-                            {sortBy === 'email' && (
-                              <i className={`fa fa-sort-${sortOrder === 'asc' ? 'up' : 'down'} ml-1`}></i>
-                            )}
-                          </th>
-                          <th>Documento</th>
-                          <th>Teléfono</th>
-                          <th 
-                            className="cursor-pointer"
-                            onClick={() => handleSort('status')}
-                          >
-                            Estado
-                            {sortBy === 'status' && (
-                              <i className={`fa fa-sort-${sortOrder === 'asc' ? 'up' : 'down'} ml-1`}></i>
-                            )}
-                          </th>
-                          <th 
-                            className="cursor-pointer"
-                            onClick={() => handleSort('createdAt')}
-                          >
-                            Fecha Creación
-                            {sortBy === 'createdAt' && (
-                              <i className={`fa fa-sort-${sortOrder === 'asc' ? 'up' : 'down'} ml-1`}></i>
-                            )}
-                          </th>
-                          <th>Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredUsers.length === 0 ? (
-                          <tr>
-                            <td colSpan="8" className="text-center">
-                              {users.length === 0 ? 'No hay personal registrado' : 'No se encontraron usuarios con los filtros aplicados'}
-                            </td>
-                          </tr>
-                        ) : (
-                          filteredUsers.map((user) => (
-                            <tr key={user.keycloakId || user.id}>
-                              <td>
-                                <strong>{user.username}</strong>
-                              </td>
-                              <td>{formatUserFullName(user)}</td>
-                              <td>{user.email}</td>
-                              <td>
-                                <div>
-                                  <small className="text-muted">
-                                    {DocumentTypeLabels[user.documentType]}
-                                  </small>
-                                  <br />
-                                  {user.documentNumber}
-                                </div>
-                              </td>
-                              <td>{user.phone || '-'}</td>
-                              <td>
-                                <span className={`badge badge-${getUserStatusColor(user.status)}`}>
-                                  {UserStatusLabels[user.status]}
-                                </span>
-                              </td>
-                              <td>
-                                {user.createdAt && (
-                                  <small>
-                                    {new Date(user.createdAt).toLocaleDateString('es-ES')}
-                                  </small>
-                                )}
-                              </td>
-                              <td>
-                                <div className="actions">
-                                  {/* Ver detalles - Siempre visible */}
-                                  <Link
-                                    to={`/admin/admin-director/director-personal/${user.keycloakId}/view`}
-                                    className="btn btn-sm btn-outline-info mr-1"
-                                    title="Ver detalles"
-                                  >
-                                    <i className="fa fa-eye"></i>
-                                  </Link>
-
-                                  {/* Editar - Solo si el usuario NO está eliminado lógicamente */}
-                                  {user.status !== UserStatus.I && (
-                                    <Link
-                                      to={`/admin/admin-director/director-personal/${user.keycloakId}/edit`}
-                                      className="btn btn-sm btn-outline-primary mr-1"
-                                      title="Editar"
-                                    >
-                                      <i className="fa fa-edit"></i>
-                                    </Link>
-                                  )}
-
-                                  {/* Activar/Desactivar/Restaurar */}
-                                  {user.status === UserStatus.A ? (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-warning mr-1"
-                                      title="Desactivar"
-                                      onClick={() => handleDeactivateUser(user.keycloakId)}
-                                    >
-                                      <i className="fa fa-pause"></i>
-                                    </button>
-                                  ) : user.status === UserStatus.I ? (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-success mr-1"
-                                      title="Restaurar"
-                                      onClick={() => handleActivateUser(user.keycloakId)}
-                                    >
-                                      <i className="fa fa-undo"></i>
-                                    </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-success mr-1"
-                                      title="Activar"
-                                      onClick={() => handleActivateUser(user.keycloakId)}
-                                    >
-                                      <i className="fa fa-play"></i>
-                                    </button>
-                                  )}
-
-                                  {/* Eliminar - Solo si el usuario NO está eliminado lógicamente */}
-                                  {user.status !== UserStatus.I && (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-danger"
-                                      title="Eliminar"
-                                      onClick={() => handleDeleteUser(user.keycloakId, user.username)}
-                                    >
-                                      <i className="fa fa-trash"></i>
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Información de resultados */}
-                  {filteredUsers.length > 0 && (
-                    <div className="row mt-3">
-                      <div className="col-12">
-                        <p className="text-muted">
-                          Mostrando {filteredUsers.length} de {users.length} usuarios
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+          {/* Tabla de Personal */}
+          <div className="card" style={{ 
+            borderRadius: '8px', 
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)' 
+          }}>
+            <div className="card-body">
+              <Table
+                columns={columns}
+                dataSource={filteredUsers}
+                loading={loading}
+                rowKey={(record) => record.keycloakId || record.id}
+                pagination={{
+                  total: filteredUsers.length,
+                  pageSize: 10,
+                  showSizeChanger: true,
+                  showTotal: (total) => `Total ${total} usuarios`,
+                  pageSizeOptions: ['10', '20', '50', '100'],
+                }}
+                locale={{
+                  emptyText: users.length === 0 
+                    ? 'No hay personal registrado' 
+                    : 'No se encontraron usuarios con los filtros aplicados',
+                }}
+                scroll={{ x: 'max-content' }}
+              />
             </div>
           </div>
         </div>
       </div>
-    </>
+
+      <AlertModal />
+    </div>
   );
 };
 

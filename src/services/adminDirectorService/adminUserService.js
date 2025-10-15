@@ -265,6 +265,56 @@ class AdminUserService {
   }
 
   /**
+   * Obtener un usuario admin/director por su keycloakId
+   * Busca en ambos endpoints (admins y directores) y retorna el usuario encontrado
+   * @param {string} keycloakId - ID del usuario en Keycloak
+   * @returns {Promise<Object>} Datos del usuario
+   */
+  async getAdminUserByKeycloakId(keycloakId) {
+    try {
+      if (!keycloakId) {
+        throw new Error('ID de usuario requerido');
+      }
+
+      console.log('👤 Buscando usuario por keycloakId:', keycloakId);
+      
+      // Obtener todos los usuarios (admins y directores)
+      const response = await this.getAllUsersComplete();
+      
+      if (!response.success) {
+        throw new Error(response.error || 'Error al obtener usuarios');
+      }
+      
+      // Buscar el usuario específico por keycloakId
+      const userData = response.data.find(user => user.keycloakId === keycloakId);
+      
+      if (!userData) {
+        console.error('❌ Usuario no encontrado con keycloakId:', keycloakId);
+        return {
+          success: false,
+          error: 'Usuario no encontrado',
+          data: null
+        };
+      }
+      
+      console.log('✅ Usuario encontrado:', userData.username);
+      
+      return {
+        success: true,
+        data: userData,
+        message: 'Usuario obtenido exitosamente'
+      };
+    } catch (error) {
+      console.error('❌ Error al obtener usuario:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener usuario',
+        data: null
+      };
+    }
+  }
+
+  /**
    * Obtener directores de una institución específica
    * GET /admin/directors/{institution_id}
    * @param {string} institutionId - ID de la institución
@@ -516,7 +566,8 @@ class AdminUserService {
 
   /**
    * Obtener información completa de usuarios (combinando admins y directores)
-   * @returns {Promise<Object>} Objeto con admins y directores separados
+   * Elimina duplicados por keycloakId
+   * @returns {Promise<Object>} Objeto con todos los usuarios combinados sin duplicados
    */
   async getAllUsersComplete() {
     try {
@@ -527,19 +578,59 @@ class AdminUserService {
         this.getAllDirectors()
       ]);
       
+      // Combinar los datos de ambas respuestas en un solo array
+      const adminsData = Array.isArray(adminsResponse?.data) ? adminsResponse.data : [];
+      const directorsData = Array.isArray(directorsResponse?.data) ? directorsResponse.data : [];
+      
+      // Usar un Map para eliminar duplicados por keycloakId
+      const usersMap = new Map();
+      
+      // Agregar admins al mapa
+      adminsData.forEach(user => {
+        if (user.keycloakId) {
+          usersMap.set(user.keycloakId, user);
+        }
+      });
+      
+      // Agregar directores al mapa (si ya existe, se sobrescribe con la info más completa)
+      directorsData.forEach(user => {
+        if (user.keycloakId) {
+          // Si el usuario ya existe, combinar roles
+          if (usersMap.has(user.keycloakId)) {
+            const existingUser = usersMap.get(user.keycloakId);
+            const combinedRoles = [...new Set([...(existingUser.roles || []), ...(user.roles || [])])];
+            usersMap.set(user.keycloakId, { ...existingUser, ...user, roles: combinedRoles });
+          } else {
+            usersMap.set(user.keycloakId, user);
+          }
+        }
+      });
+      
+      // Convertir el Map a array
+      const allUsers = Array.from(usersMap.values());
+      
+      console.log('✅ Usuarios sin duplicados:', {
+        totalAdmins: adminsData.length,
+        totalDirectors: directorsData.length,
+        totalUnique: allUsers.length
+      });
+      
       return {
         success: true,
-        admins: adminsResponse,
-        directors: directorsResponse,
+        data: allUsers,
+        total_users: allUsers.length,
         totalAdmins: adminsResponse?.total_users || 0,
         totalDirectors: directorsResponse?.total_users || 0,
+        message: 'Usuarios obtenidos exitosamente',
         timestamp: new Date().toISOString()
       };
     } catch (error) {
       console.error('❌ Error al obtener información completa:', error);
       return {
         success: false,
-        error: error.message || 'Error al obtener información completa de usuarios'
+        error: error.message || 'Error al obtener información completa de usuarios',
+        data: [],
+        total_users: 0
       };
     }
   }
@@ -597,7 +688,8 @@ class AdminUserService {
       documentType: userData.documentType,
       documentNumber: userData.documentNumber?.trim(),
       phone: userData.phone?.trim() || null,
-      status: userData.status || 'A'
+      status: userData.status || 'A',
+      institutionId: userData.institutionId || null // Incluir institutionId (requerido para directores)
     };
 
     // No incluir password para que se genere automáticamente

@@ -4,6 +4,7 @@ import Header from '../../../components/Header';
 import Sidebar from '../../../components/Sidebar';
 import adminUserService from '../../../services/adminDirectorService/adminUserService';
 import reniecService from '../../../services/reniec/reniecService';
+import institutionAdminService from '../../../services/institutions/institutionAdminService';
 import { 
   UserStatus, 
   DocumentType, 
@@ -24,13 +25,35 @@ const AdminDirectorUserEdit = () => {
   const [errors, setErrors] = useState({});
   const [dniSearch, setDniSearch] = useState('');
   const [searchingDNI, setSearchingDNI] = useState(false);
+  const [institutions, setInstitutions] = useState([]);
+  const [loadingInstitutions, setLoadingInstitutions] = useState(false);
 
   // Cargar datos del usuario al montar el componente
   useEffect(() => {
     if (keycloakId) {
       loadUserData();
     }
+    loadInstitutions();
   }, [keycloakId]);
+
+  /**
+   * Cargar lista de instituciones
+   */
+  const loadInstitutions = async () => {
+    setLoadingInstitutions(true);
+    try {
+      const response = await institutionAdminService.getAllInstitutions();
+      if (response.success) {
+        setInstitutions(response.data);
+      } else {
+        console.error('Error al cargar instituciones:', response.error);
+      }
+    } catch (error) {
+      console.error('Error al cargar instituciones:', error);
+    } finally {
+      setLoadingInstitutions(false);
+    }
+  };
 
   /**
    * Cargar datos del usuario a editar
@@ -39,15 +62,14 @@ const AdminDirectorUserEdit = () => {
     try {
       setLoading(true);
       
-      // Obtener todos los usuarios admin y buscar el específico
-      const response = await adminUserService.getAllAdminUsers();
+      // Obtener el usuario específico por keycloakId
+      const response = await adminUserService.getAdminUserByKeycloakId(keycloakId);
       
       if (!response.success) {
-        throw new Error(response.error || 'Error al obtener usuarios');
+        throw new Error(response.error || 'Error al obtener usuario');
       }
       
-      // Buscar el usuario específico por keycloakId
-      const userData = response.data.find(user => user.keycloakId === keycloakId);
+      const userData = response.data;
       
       if (!userData) {
         throw new Error('Usuario no encontrado');
@@ -63,7 +85,8 @@ const AdminDirectorUserEdit = () => {
         documentType: userData.documentType || DocumentType.DNI,
         documentNumber: userData.documentNumber || '',
         phone: userData.phone || '',
-        status: userData.status || UserStatus.A
+        status: userData.status || UserStatus.A,
+        institutionId: userData.institutionId || null
       };
       
       setFormData(mappedData);
@@ -91,7 +114,9 @@ const AdminDirectorUserEdit = () => {
         
         setFormData(prev => ({
           ...prev,
-          roles: updatedRoles
+          roles: updatedRoles,
+          // Si se deselecciona Director, limpiar institutionId
+          institutionId: updatedRoles.includes(UserRoles.DIRECTOR) ? prev.institutionId : null
         }));
       } else {
         setFormData(prev => ({
@@ -177,6 +202,11 @@ const AdminDirectorUserEdit = () => {
     // Validar teléfono si se proporciona
     if (formData.phone && !userValidationRules.phone.pattern.test(formData.phone)) {
       newErrors.phone = userValidationRules.phone.message;
+    }
+
+    // Validar institutionId si el rol es Director
+    if (formData.roles.includes(UserRoles.DIRECTOR) && !formData.institutionId) {
+      newErrors.institutionId = 'Debe seleccionar una institución para el Director';
     }
 
     setErrors(newErrors);
@@ -503,6 +533,38 @@ const AdminDirectorUserEdit = () => {
                           </div>
                         </div>
                       </div>
+
+                      {/* Institución - Solo se muestra si es Director */}
+                      {formData.roles.includes(UserRoles.DIRECTOR) && (
+                        <div className="col-md-12">
+                          <div className="form-group">
+                            <label>Institución <span className="text-danger">*</span></label>
+                            <select
+                              name="institutionId"
+                              className={`form-control ${errors.institutionId ? 'is-invalid' : ''}`}
+                              value={formData.institutionId || ''}
+                              onChange={handleInputChange}
+                              disabled={loadingInstitutions}
+                            >
+                              <option value="">Seleccione una institución</option>
+                              {institutions.map((institution) => (
+                                <option key={institution.id} value={institution.id}>
+                                  {institution.name}
+                                </option>
+                              ))}
+                            </select>
+                            {errors.institutionId && (
+                              <div className="invalid-feedback">{errors.institutionId}</div>
+                            )}
+                            {loadingInstitutions && (
+                              <small className="form-text text-muted">
+                                <span className="spinner-border spinner-border-sm mr-1" role="status" aria-hidden="true"></span>
+                                Cargando instituciones...
+                              </small>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Botones */}

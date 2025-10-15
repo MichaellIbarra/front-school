@@ -6,7 +6,7 @@ import config from "config";
 import { Route, Redirect, BrowserRouter as Router, Routes } from "react-router-dom";
 // import Header from "./components/header";
 import Home from "./components/home";
-import Login from "./components/pages/login";
+import Login from "./pages/auth/login";
 
 
 const AppContainer = function (props) {
@@ -21,7 +21,6 @@ const AppContainer = function (props) {
           {/* <Route index element={<Login />} /> */}
           <Route  path="/" element={<Login />} />
           <Route path="/login" element={<Login />} />
-          <Route  path="/home" component={Home} />
         </Routes>
         <Route render={(props) => <Footer {...props} />} />
       </>

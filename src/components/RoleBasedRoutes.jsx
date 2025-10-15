@@ -1,6 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import ProtectedRoute from './ProtectedRoute';
+import PublicRoute from './PublicRoute';
 
 // Componente para rutas de Admin
 export const AdminRoute = ({ children }) => (
@@ -79,3 +80,6 @@ AuthenticatedRoute.propTypes = routePropTypes;
 ManagementRoute.propTypes = routePropTypes;
 AcademicRoute.propTypes = routePropTypes;
 AdministrativeRoute.propTypes = routePropTypes;
+
+// Export PublicRoute for convenience
+export { PublicRoute };

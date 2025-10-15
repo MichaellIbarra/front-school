@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import adminUserService from '../../../services/adminDirectorService/adminUserService';
 import reniecService from '../../../services/reniec/reniecService';
+import institutionAdminService from '../../../services/institutions/institutionAdminService';
 import Header from '../../../components/Header';
 import Sidebar from '../../../components/Sidebar';
 import { 
@@ -21,6 +22,32 @@ const AdminDirectorUserCreate = () => {
   const [errors, setErrors] = useState({});
   const [dniSearch, setDniSearch] = useState('');
   const [searchingDNI, setSearchingDNI] = useState(false);
+  const [institutions, setInstitutions] = useState([]);
+  const [loadingInstitutions, setLoadingInstitutions] = useState(false);
+
+  // Cargar instituciones al montar el componente
+  useEffect(() => {
+    loadInstitutions();
+  }, []);
+
+  /**
+   * Cargar lista de instituciones
+   */
+  const loadInstitutions = async () => {
+    setLoadingInstitutions(true);
+    try {
+      const response = await institutionAdminService.getAllInstitutions();
+      if (response.success) {
+        setInstitutions(response.data);
+      } else {
+        console.error('Error al cargar instituciones:', response.error);
+      }
+    } catch (error) {
+      console.error('Error al cargar instituciones:', error);
+    } finally {
+      setLoadingInstitutions(false);
+    }
+  };
 
   /**
    * Manejar cambios en los campos del formulario
@@ -37,7 +64,9 @@ const AdminDirectorUserCreate = () => {
         
         setFormData(prev => ({
           ...prev,
-          roles: updatedRoles
+          roles: updatedRoles,
+          // Si se deselecciona Director, limpiar institutionId
+          institutionId: updatedRoles.includes(UserRoles.DIRECTOR) ? prev.institutionId : null
         }));
       } else {
         setFormData(prev => ({
@@ -128,6 +157,11 @@ const AdminDirectorUserCreate = () => {
     // Validar roles
     if (!formData.roles || formData.roles.length === 0) {
       newErrors.roles = 'Debe seleccionar al menos un rol';
+    }
+
+    // Validar institutionId si el rol es Director
+    if (formData.roles.includes(UserRoles.DIRECTOR) && !formData.institutionId) {
+      newErrors.institutionId = 'Debe seleccionar una institución para el Director';
     }
 
     // Validación con el servicio
@@ -440,6 +474,38 @@ const AdminDirectorUserCreate = () => {
                           )}
                         </div>
                       </div>
+
+                      {/* Institución - Solo se muestra si es Director */}
+                      {formData.roles.includes(UserRoles.DIRECTOR) && (
+                        <div className="col-md-12">
+                          <div className="form-group">
+                            <label>Institución <span className="text-danger">*</span></label>
+                            <select
+                              name="institutionId"
+                              className={`form-control ${errors.institutionId ? 'is-invalid' : ''}`}
+                              value={formData.institutionId || ''}
+                              onChange={handleInputChange}
+                              disabled={loadingInstitutions}
+                            >
+                              <option value="">Seleccione una institución</option>
+                              {institutions.map((institution) => (
+                                <option key={institution.id} value={institution.id}>
+                                  {institution.name}
+                                </option>
+                              ))}
+                            </select>
+                            {errors.institutionId && (
+                              <div className="invalid-feedback">{errors.institutionId}</div>
+                            )}
+                            {loadingInstitutions && (
+                              <small className="form-text text-muted">
+                                <span className="spinner-border spinner-border-sm mr-1" role="status" aria-hidden="true"></span>
+                                Cargando instituciones...
+                              </small>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Botones */}

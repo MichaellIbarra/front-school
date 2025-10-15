@@ -31,8 +31,12 @@ const AdminDirectorUserView = () => {
   const loadUserData = async () => {
     try {
       setLoading(true);
-      const data = await adminUserService.getAdminUserByKeycloakId(keycloakId);
-      setUserData(data);
+      const response = await adminUserService.getAdminUserByKeycloakId(keycloakId);
+      if (response.success) {
+        setUserData(response.data);
+      } else {
+        alert('Error al cargar datos del usuario: ' + response.error);
+      }
     } catch (error) {
       alert('Error al cargar datos del usuario: ' + error.message);
     } finally {
@@ -50,9 +54,13 @@ const AdminDirectorUserView = () => {
 
     try {
       setActionLoading(true);
-      const updatedUser = await adminUserService.activateAdminUser(keycloakId);
-      setUserData(updatedUser);
-      alert('Usuario activado correctamente');
+      const response = await adminUserService.activateAdminUser(keycloakId);
+      if (response.success) {
+        setUserData(response.data);
+        alert('Usuario activado correctamente');
+      } else {
+        alert('Error al activar usuario: ' + response.error);
+      }
     } catch (error) {
       alert('Error al activar usuario: ' + error.message);
     } finally {
@@ -70,9 +78,13 @@ const AdminDirectorUserView = () => {
 
     try {
       setActionLoading(true);
-      const updatedUser = await adminUserService.deactivateAdminUser(keycloakId);
-      setUserData(updatedUser);
-      alert('Usuario desactivado correctamente');
+      const response = await adminUserService.deactivateAdminUser(keycloakId);
+      if (response.success) {
+        setUserData(response.data);
+        alert('Usuario desactivado correctamente');
+      } else {
+        alert('Error al desactivar usuario: ' + response.error);
+      }
     } catch (error) {
       alert('Error al desactivar usuario: ' + error.message);
     } finally {

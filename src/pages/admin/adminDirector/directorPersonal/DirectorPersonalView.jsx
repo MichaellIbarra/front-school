@@ -268,7 +268,7 @@ const DirectorPersonalView = () => {
                       <strong>Nombres:</strong>
                     </div>
                     <div className="col-sm-8">
-                      {user.firstName}
+                      {user.firstname || user.firstName || 'No especificado'}
                     </div>
                   </div>
 
@@ -277,7 +277,7 @@ const DirectorPersonalView = () => {
                       <strong>Apellidos:</strong>
                     </div>
                     <div className="col-sm-8">
-                      {user.lastName}
+                      {user.lastname || user.lastName || 'No especificado'}
                     </div>
                   </div>
 
@@ -306,27 +306,24 @@ const DirectorPersonalView = () => {
 
                   <div className="row mb-3">
                     <div className="col-sm-4">
-                      <strong>Dirección:</strong>
+                      <strong>Rol:</strong>
                     </div>
                     <div className="col-sm-8">
-                      {user.address || 'No especificada'}
-                    </div>
-                  </div>
-
-                  {user.roles && user.roles.length > 0 && (
-                    <div className="row mb-3">
-                      <div className="col-sm-4">
-                        <strong>Roles:</strong>
-                      </div>
-                      <div className="col-sm-8">
-                        {user.roles.map((role, index) => (
-                          <span key={index} className="badge badge-secondary mr-1">
+                      {user.role ? (
+                        <span className="badge badge-primary">
+                          {DirectorPersonalRoleLabels[user.role] || user.role}
+                        </span>
+                      ) : user.roles && user.roles.length > 0 ? (
+                        user.roles.map((role, index) => (
+                          <span key={index} className="badge badge-primary mr-1">
                             {DirectorPersonalRoleLabels[role] || role}
                           </span>
-                        ))}
-                      </div>
+                        ))
+                      ) : (
+                        <span className="text-muted">No asignado</span>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -381,16 +378,25 @@ const DirectorPersonalView = () => {
                     </div>
                   </div>
 
-                  <div className="row mb-3">
-                    <div className="col-sm-4">
-                      <strong>Estado de Contraseña:</strong>
+                  {user.passwordStatus && (
+                    <div className="row mb-3">
+                      <div className="col-sm-4">
+                        <strong>Estado de Contraseña:</strong>
+                      </div>
+                      <div className="col-sm-8">
+                        <span className={`badge badge-${
+                          user.passwordStatus === PasswordStatus.VALID || 
+                          user.passwordStatus === PasswordStatus.PERMANENT 
+                            ? 'success' 
+                            : user.passwordStatus === PasswordStatus.EXPIRED 
+                              ? 'danger' 
+                              : 'warning'
+                        }`}>
+                          {PasswordStatusLabels[user.passwordStatus] || user.passwordStatus}
+                        </span>
+                      </div>
                     </div>
-                    <div className="col-sm-8">
-                      <span className={`badge badge-${user.passwordStatus === PasswordStatus.VALID ? 'success' : 'warning'}`}>
-                        {PasswordStatusLabels[user.passwordStatus] || 'Desconocido'}
-                      </span>
-                    </div>
-                  </div>
+                  )}
 
                   <div className="row mb-3">
                     <div className="col-sm-4">
@@ -471,7 +477,7 @@ const DirectorPersonalView = () => {
           </div>
 
           {/* Información adicional si existe */}
-          {(user.attributes || user.groups || user.roles) && (
+          {(user.attributes || user.groups) && (
             <div className="row">
               <div className="col-12">
                 <div className="card">
@@ -491,21 +497,6 @@ const DirectorPersonalView = () => {
                           {user.groups.map((group, index) => (
                             <span key={index} className="badge badge-info mr-1">
                               {group}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {user.roles && user.roles.length > 0 && (
-                      <div className="row mb-3">
-                        <div className="col-sm-2">
-                          <strong>Roles:</strong>
-                        </div>
-                        <div className="col-sm-10">
-                          {user.roles.map((role, index) => (
-                            <span key={index} className="badge badge-primary mr-1">
-                              {DirectorPersonalRoleLabels[role] || role}
                             </span>
                           ))}
                         </div>

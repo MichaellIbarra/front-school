@@ -27,7 +27,8 @@ const EnrollmentList = () => {
   
   // Estados para filtros y búsqueda
   const [searchText, setSearchText] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [activeTab, setActiveTab] = useState(EnrollmentStatus.ACTIVE);
+  const [classroomFilter, setClassroomFilter] = useState('all');
   const [filteredEnrollments, setFilteredEnrollments] = useState([]);
   const [statistics, setStatistics] = useState(null);
   
@@ -41,29 +42,25 @@ const EnrollmentList = () => {
   // Cargar matrículas al montar el componente
   useEffect(() => {
     loadEnrollments();
+    loadStatistics();
   }, []);
 
   // Aplicar filtros cuando cambien los datos, búsqueda o filtros
   useEffect(() => {
     applyFilters();
-  }, [enrollments, searchText, statusFilter]);
-
-  // Cargar estadísticas cuando cambien las matrículas
-  useEffect(() => {
-    if (enrollments.length > 0) {
-      loadStatistics();
-    }
-  }, [enrollments]);
+  }, [enrollments, searchText, activeTab, classroomFilter]);
 
   /**
-   * Carga todas las matrículas desde el servicio
+   * Carga todas las matrículas desde el servicio y enriquece con datos reales de estudiantes
    */
   const loadEnrollments = async () => {
     setLoading(true);
     try {
       const response = await enrollmentService.getAllEnrollments();
       if (response.success) {
-        setEnrollments(response.data);
+        // Enriquecer con datos reales de estudiantes
+        const enrichedEnrollments = await enrichWithRealStudentData(response.data);
+        setEnrollments(enrichedEnrollments);
         if (response.message) {
           showSuccess(response.message);
         }
@@ -79,7 +76,76 @@ const EnrollmentList = () => {
   };
 
   /**
-   * Aplica filtros de búsqueda y estado
+   * Enriquece las matrículas con datos reales de estudiantes de forma eficiente
+   */
+  const enrichWithRealStudentData = async (enrollments) => {
+    try {
+      // Obtener IDs únicos de estudiantes
+      const studentIds = [...new Set(enrollments.map(e => e.studentId).filter(Boolean))];
+      
+      if (studentIds.length === 0) {
+        console.log('⚠️ No hay IDs de estudiantes para cargar');
+        return enrollments;
+      }
+
+      console.log(`🔄 Iniciando carga de ${studentIds.length} estudiantes únicos...`);
+      
+      // Cargar estudiantes
+      const studentsResponse = await studentService.getStudentsByIds(studentIds);
+      
+      // Crear mapa de estudiantes por ID
+      const studentsMap = new Map();
+      
+      if (studentsResponse.success && studentsResponse.data) {
+        studentsResponse.data.forEach(student => {
+          if (student && student.id) {
+            studentsMap.set(student.id, student);
+          }
+        });
+        console.log(`✅ ${studentsMap.size} estudiantes mapeados correctamente`);
+      } else {
+        console.error('❌ Error en respuesta de estudiantes:', studentsResponse.error);
+      }
+      
+      // Enriquecer matrículas con datos de estudiantes
+      const enrichedEnrollments = enrollments.map(enrollment => {
+        const student = studentsMap.get(enrollment.studentId);
+        return {
+          ...enrollment,
+          student: student || null
+        };
+      });
+      
+      // Mostrar estadísticas
+      const withStudentData = enrichedEnrollments.filter(e => e.student).length;
+      const withoutStudentData = enrichedEnrollments.length - withStudentData;
+      
+      console.log(`📊 Estadísticas: ${withStudentData} con datos, ${withoutStudentData} sin datos`);
+      
+      return enrichedEnrollments;
+      
+    } catch (error) {
+      console.error('💥 Error al enriquecer con datos de estudiantes:', error);
+      return enrollments; // Devolver datos originales si falla
+    }
+  };
+
+  /**
+   * Carga estadísticas de matrículas
+   */
+  const loadStatistics = async () => {
+    try {
+      const response = await enrollmentService.getEnrollmentDistribution();
+      if (response.success) {
+        setStatistics(response.data);
+      }
+    } catch (error) {
+      console.error('Error al cargar estadísticas:', error);
+    }
+  };
+
+  /**
+   * Aplica filtros de búsqueda, estado y aula
    */
   const applyFilters = () => {
     let filtered = [...enrollments];
@@ -87,16 +153,31 @@ const EnrollmentList = () => {
     // Filtro por texto de búsqueda
     if (searchText) {
       const search = searchText.toLowerCase();
-      filtered = filtered.filter(enrollment => 
-        enrollment.enrollmentNumber?.toLowerCase().includes(search) ||
-        enrollment.classroomId?.toLowerCase().includes(search) ||
-        enrollment.studentId?.toLowerCase().includes(search)
-      );
+      filtered = filtered.filter(enrollment => {
+        // Buscar en campos básicos
+        const basicMatch = enrollment.enrollmentNumber?.toLowerCase().includes(search) ||
+                          enrollment.classroomId?.toLowerCase().includes(search) ||
+                          enrollment.studentId?.toLowerCase().includes(search);
+        
+        // Buscar en datos reales del estudiante si están disponibles
+        let studentMatch = false;
+        if (enrollment.student) {
+          studentMatch = enrollment.student.firstName?.toLowerCase().includes(search) ||
+                        enrollment.student.lastName?.toLowerCase().includes(search) ||
+                        enrollment.student.documentNumber?.toLowerCase().includes(search) ||
+                        enrollment.student.email?.toLowerCase().includes(search);
+        }
+        
+        return basicMatch || studentMatch;
+      });
     }
 
-    // Filtro por estado
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(enrollment => enrollment.status === statusFilter);
+    // Filtro por estado (siempre filtra por el tab activo)
+    filtered = filtered.filter(enrollment => enrollment.status === activeTab);
+
+    // Filtro por aula
+    if (classroomFilter !== 'all') {
+      filtered = filtered.filter(enrollment => enrollment.classroomId === classroomFilter);
     }
 
     setFilteredEnrollments(filtered);
@@ -132,33 +213,6 @@ const EnrollmentList = () => {
   };
 
   /**
-   * Carga estadísticas de matrículas
-   */
-  const loadStatistics = async () => {
-    try {
-      // Calcular estadísticas básicas desde los datos locales
-      const stats = enrollments.reduce((acc, enrollment) => {
-        const classroom = enrollment.classroomId || 'Sin aula';
-        acc[classroom] = (acc[classroom] || 0) + 1;
-        return acc;
-      }, {});
-      
-      setStatistics(stats);
-    } catch (error) {
-      console.error('Error al cargar estadísticas:', error);
-      setStatistics(null);
-    }
-  };
-
-  /**
-   * Cierra el modal de detalles
-   */
-  const handleCloseDetailsModal = () => {
-    setShowDetailsModal(false);
-    setSelectedEnrollment(null);
-  };
-
-  /**
    * Navega al formulario de editar matrícula
    */
   const handleEdit = (enrollment) => {
@@ -171,22 +225,16 @@ const EnrollmentList = () => {
    * Muestra detalles de la matrícula
    */
   const handleView = (enrollment) => {
-    const details = `
-Número de Matrícula: ${enrollment.enrollmentNumber}
-ID del Estudiante: ${enrollment.studentId}
-ID del Aula: ${enrollment.classroomId}
-Fecha de Matrícula: ${formatEnrollmentDate(enrollment.enrollmentDate)}
-Estado: ${getEnrollmentStatusText(enrollment.status)}
-Creado: ${formatDateTime(enrollment.createdAt)}
-    `.trim();
+    setSelectedEnrollment(enrollment);
+    setShowDetailsModal(true);
+  };
 
-    showAlert({
-      title: `Detalles de Matrícula ${enrollment.enrollmentNumber}`,
-      message: details,
-      type: 'info',
-      showCancel: false,
-      confirmText: 'Cerrar'
-    });
+  /**
+   * Cierra el modal de detalles
+   */
+  const handleCloseDetailsModal = () => {
+    setShowDetailsModal(false);
+    setSelectedEnrollment(null);
   };
 
   /**
@@ -378,13 +426,50 @@ Creado: ${formatDateTime(enrollment.createdAt)}
     },
     {
       title: 'Estudiante',
-      dataIndex: 'studentId',
-      key: 'studentId',
-      render: (studentId) => (
-        <div>
-          <small className="text-muted">ID: {studentId}</small>
-        </div>
-      ),
+      dataIndex: 'student',
+      key: 'student',
+      render: (student, record) => {
+        // Si tenemos datos reales del estudiante
+        if (student) {
+          return (
+            <div>
+              <div className="fw-bold text-primary">
+                {student.firstName} {student.lastName}
+              </div>
+              <small className="text-muted">
+                {student.documentType}: {student.documentNumber}
+              </small>
+            </div>
+          );
+        }
+        
+        // Fallback si no se pudieron cargar los datos reales
+        return (
+          <div>
+            <div className="text-danger fw-bold">
+              ⚠️ Estudiante no encontrado
+            </div>
+            <small className="text-muted">
+              ID: {record.studentId?.slice(0, 8)}...{record.studentId?.slice(-4)}
+            </small>
+            <br/>
+            <small className="text-warning">
+              <i className="fas fa-unlink me-1"></i>
+              Referencia rota
+            </small>
+          </div>
+        );
+      },
+      sorter: (a, b) => {
+        const getStudentName = (record) => {
+          if (record.student) {
+            return `${record.student.firstName} ${record.student.lastName}`;
+          }
+          return record.studentId || '';
+        };
+        
+        return getStudentName(a).localeCompare(getStudentName(b));
+      },
     },
     {
       title: 'Aula',
@@ -539,7 +624,7 @@ Creado: ${formatDateTime(enrollment.createdAt)}
                     <div className="col-lg-4 col-md-6 col-sm-12 mb-2">
                       <div className="top-nav-search">
                         <Input
-                          placeholder="Buscar por número, estudiante, aula..."
+                          placeholder="Buscar por número, nombre del estudiante, documento, aula..."
                           prefix={<SearchOutlined />}
                           value={searchText}
                           onChange={(e) => setSearchText(e.target.value)}
@@ -549,16 +634,15 @@ Creado: ${formatDateTime(enrollment.createdAt)}
                     </div>
                     <div className="col-lg-2 col-md-3 col-sm-6 mb-2">
                       <Select
-                        placeholder="Filtrar por estado"
-                        value={statusFilter}
-                        onChange={setStatusFilter}
+                        placeholder="Aula"
+                        value={classroomFilter}
+                        onChange={setClassroomFilter}
                         className="w-100"
                       >
-                        <Option value="all">Todos los estados</Option>
-                        <Option value={EnrollmentStatus.ACTIVE}>Activa</Option>
-                        <Option value={EnrollmentStatus.INACTIVE}>Inactiva</Option>
-                        <Option value={EnrollmentStatus.COMPLETED}>Completada</Option>
-                        <Option value={EnrollmentStatus.CANCELLED}>Cancelada</Option>
+                        <Option value="all">Todas las aulas</Option>
+                        {getUniqueClassrooms().map(classroom => (
+                          <Option key={classroom} value={classroom}>{classroom}</Option>
+                        ))}
                       </Select>
                     </div>
                     <div className="col-lg-6 col-md-12 col-sm-12 mb-2">
@@ -601,13 +685,6 @@ Creado: ${formatDateTime(enrollment.createdAt)}
                         >
                           Estudiantes
                         </Button>
-                        <Button
-                          icon={<FileTextOutlined />}
-                          onClick={() => navigate('/secretary/enrollments/bulk')}
-                          className="btn-sm"
-                        >
-                          Carga Masiva
-                        </Button>
                         {selectedRowKeys.length > 0 && (
                           <Button
                             danger
@@ -620,6 +697,90 @@ Creado: ${formatDateTime(enrollment.createdAt)}
                         )}
                       </div>
                     </div>
+                  </div>
+
+                  {/* Pestañas por estado */}
+                  <div className="mb-3">
+                    <ul className="nav nav-tabs nav-tabs-solid">
+                      <li className="nav-item">
+                        <button 
+                          className={`nav-link ${activeTab === EnrollmentStatus.ACTIVE ? 'active' : ''}`}
+                          onClick={() => setActiveTab(EnrollmentStatus.ACTIVE)}
+                          type="button"
+                        >
+                          <CheckOutlined style={{ color: '#52c41a', marginRight: '8px' }} />
+                          Activas
+                          <Tag color="success" style={{ marginLeft: '8px' }}>
+                            {enrollments.filter(e => e.status === EnrollmentStatus.ACTIVE).length}
+                          </Tag>
+                        </button>
+                      </li>
+                      <li className="nav-item">
+                        <button 
+                          className={`nav-link ${activeTab === EnrollmentStatus.INACTIVE ? 'active' : ''}`}
+                          onClick={() => setActiveTab(EnrollmentStatus.INACTIVE)}
+                          type="button"
+                        >
+                          <CloseOutlined style={{ color: '#ff4d4f', marginRight: '8px' }} />
+                          Inactivas
+                          <Tag color="error" style={{ marginLeft: '8px' }}>
+                            {enrollments.filter(e => e.status === EnrollmentStatus.INACTIVE).length}
+                          </Tag>
+                        </button>
+                      </li>
+                      <li className="nav-item">
+                        <button 
+                          className={`nav-link ${activeTab === EnrollmentStatus.COMPLETED ? 'active' : ''}`}
+                          onClick={() => setActiveTab(EnrollmentStatus.COMPLETED)}
+                          type="button"
+                        >
+                          <span style={{ marginRight: '8px' }}>✅</span>
+                          Completadas
+                          <Tag color="blue" style={{ marginLeft: '8px' }}>
+                            {enrollments.filter(e => e.status === EnrollmentStatus.COMPLETED).length}
+                          </Tag>
+                        </button>
+                      </li>
+                      <li className="nav-item">
+                        <button 
+                          className={`nav-link ${activeTab === EnrollmentStatus.TRANSFERRED ? 'active' : ''}`}
+                          onClick={() => setActiveTab(EnrollmentStatus.TRANSFERRED)}
+                          type="button"
+                        >
+                          <UndoOutlined style={{ color: '#722ed1', marginRight: '8px' }} />
+                          Transferidas
+                          <Tag color="purple" style={{ marginLeft: '8px' }}>
+                            {enrollments.filter(e => e.status === EnrollmentStatus.TRANSFERRED).length}
+                          </Tag>
+                        </button>
+                      </li>
+                      <li className="nav-item">
+                        <button 
+                          className={`nav-link ${activeTab === EnrollmentStatus.WITHDRAWN ? 'active' : ''}`}
+                          onClick={() => setActiveTab(EnrollmentStatus.WITHDRAWN)}
+                          type="button"
+                        >
+                          <span style={{ marginRight: '8px' }}>📤</span>
+                          Retiradas
+                          <Tag color="orange" style={{ marginLeft: '8px' }}>
+                            {enrollments.filter(e => e.status === EnrollmentStatus.WITHDRAWN).length}
+                          </Tag>
+                        </button>
+                      </li>
+                      <li className="nav-item">
+                        <button 
+                          className={`nav-link ${activeTab === EnrollmentStatus.SUSPENDED ? 'active' : ''}`}
+                          onClick={() => setActiveTab(EnrollmentStatus.SUSPENDED)}
+                          type="button"
+                        >
+                          <span style={{ marginRight: '8px' }}>⏸️</span>
+                          Suspendidas
+                          <Tag color="volcano" style={{ marginLeft: '8px' }}>
+                            {enrollments.filter(e => e.status === EnrollmentStatus.SUSPENDED).length}
+                          </Tag>
+                        </button>
+                      </li>
+                    </ul>
                   </div>
 
                   {/* Tabla de matrículas */}
