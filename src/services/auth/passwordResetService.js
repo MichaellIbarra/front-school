@@ -3,47 +3,72 @@
  * Consume los endpoints del microservicio vg-ms-user
  */
 
-const RESET_URL = `${process.env.REACT_APP_DOMAIN}/api/v1/reset`;
-
 class PasswordResetService {
+  constructor() {
+    this.baseURL = `${process.env.REACT_APP_DOMAIN}/api/v1/reset`;
+  }
+
   /**
-   * Validar y resetear contraseña usando el token
-   * POST /api/v1/reset/reset-password
-   * @param {string} token - Token de reseteo recibido por email
-   * @param {string} newPassword - Nueva contraseña
-   * @returns {Promise<Object>} Resultado de la operación
+   * Obtiene los headers básicos para las peticiones
    */
-  async resetPassword(token, newPassword) {
+  getHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+  }
+
+  /**
+   * Maneja las respuestas de la API
+   */
+  async handleResponse(response) {
+    const contentType = response.headers.get('content-type');
+    
     try {
-      const response = await fetch(`${RESET_URL}/reset-password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          token: token,
-          newPassword: newPassword
-        }),
-      });
-
-      const data = await response.text(); // El backend devuelve String
-
-      if (response.ok) {
+      // Si la respuesta contiene JSON, parsearlo
+      if (contentType && contentType.includes('application/json')) {
+        const data = await response.json();
+        
+        if (!response.ok) {
+          return {
+            success: false,
+            error: data.message || data.error || `Error ${response.status}: ${response.statusText}`
+          };
+        }
+        
         return {
           success: true,
-          message: data || 'Contraseña actualizada exitosamente'
+          data: data
         };
       } else {
+        // Si la respuesta es texto plano
+        const text = await response.text();
+        
+        if (!response.ok) {
+          return {
+            success: false,
+            error: text || `Error ${response.status}: ${response.statusText}`
+          };
+        }
+        
         return {
-          success: false,
-          error: data || 'Error al resetear la contraseña'
+          success: true,
+          message: text
         };
       }
     } catch (error) {
-      console.error('Error en resetPassword:', error);
+      console.error('Error parsing response:', error);
+      
+      if (!response.ok) {
+        return {
+          success: false,
+          error: `Error ${response.status}: ${response.statusText}`
+        };
+      }
+      
       return {
-        success: false,
-        error: 'Error de conexión con el servidor'
+        success: true,
+        message: 'Operación completada exitosamente'
       };
     }
   }
@@ -56,31 +81,84 @@ class PasswordResetService {
    */
   async requestPasswordReset(emailOrUsername) {
     try {
-      const response = await fetch(`${RESET_URL}/request-password-reset`, {
+      console.log('🔄 Enviando solicitud de reset de contraseña para:', emailOrUsername);
+      
+      const response = await fetch(`${this.baseURL}/request-password-reset`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: this.getHeaders(),
         body: JSON.stringify({
           emailOrUsername: emailOrUsername
-        }),
+        })
       });
 
-      const data = await response.text();
-
-      if (response.ok) {
+      const result = await this.handleResponse(response);
+      
+      if (result.success) {
+        console.log('✅ Solicitud de reset enviada exitosamente');
         return {
           success: true,
-          message: data || 'Si el usuario existe, recibirás un enlace por email'
+          message: result.message || result.data || 'Si el usuario existe, recibirás un enlace por email'
         };
       } else {
+        console.error('❌ Error en solicitud de reset:', result.error);
         return {
           success: false,
-          error: data || 'Error al solicitar reset de contraseña'
+          error: result.error || 'Error al solicitar reset de contraseña'
         };
       }
     } catch (error) {
-      console.error('Error en requestPasswordReset:', error);
+      console.error('💥 Error de conexión en requestPasswordReset:', error);
+      return {
+        success: false,
+        error: 'Error de conexión con el servidor'
+      };
+    }
+  }
+
+  /**
+   * Validar y resetear contraseña usando el token
+   * POST /api/v1/reset/reset-password
+   * @param {string} token - Token de reseteo recibido por email
+   * @param {string} newPassword - Nueva contraseña
+   * @returns {Promise<Object>} Resultado de la operación
+   */
+  async resetPassword(token, newPassword) {
+    try {
+      console.log('🔄 Reseteando contraseña con token:', token);
+      console.log('📤 URL:', `${this.baseURL}/reset-password`);
+      console.log('📤 Body:', JSON.stringify({ token, newPassword: '***' }));
+      
+      const response = await fetch(`${this.baseURL}/reset-password`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({
+          token: token,
+          newPassword: newPassword
+        })
+      });
+
+      console.log('📥 Response Status:', response.status, response.statusText);
+      console.log('📥 Response Headers:', Array.from(response.headers.entries()));
+
+      const result = await this.handleResponse(response);
+      
+      console.log('📥 Result procesado:', result);
+      
+      if (result.success) {
+        console.log('✅ Contraseña reseteada exitosamente');
+        return {
+          success: true,
+          message: result.message || result.data || 'Contraseña actualizada exitosamente'
+        };
+      } else {
+        console.error('❌ Error al resetear contraseña:', result.error);
+        return {
+          success: false,
+          error: result.error || 'Error al resetear la contraseña'
+        };
+      }
+    } catch (error) {
+      console.error('💥 Error de conexión en resetPassword:', error);
       return {
         success: false,
         error: 'Error de conexión con el servidor'
@@ -96,28 +174,30 @@ class PasswordResetService {
    */
   async generateResetToken(keycloakId) {
     try {
-      const response = await fetch(`${RESET_URL}/generate-reset-token/${keycloakId}`, {
+      console.log('🔄 Generando token de reset para usuario:', keycloakId);
+      
+      const response = await fetch(`${this.baseURL}/generate-reset-token/${keycloakId}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        }
+        headers: this.getHeaders()
       });
 
-      const data = await response.text();
-
-      if (response.ok) {
+      const result = await this.handleResponse(response);
+      
+      if (result.success) {
+        console.log('✅ Token generado exitosamente');
         return {
           success: true,
-          message: data || 'Token generado y enviado por email'
+          message: result.message || result.data || 'Token generado y enviado por email'
         };
       } else {
+        console.error('❌ Error al generar token:', result.error);
         return {
           success: false,
-          error: data || 'Error al generar token'
+          error: result.error || 'Error al generar token'
         };
       }
     } catch (error) {
-      console.error('Error en generateResetToken:', error);
+      console.error('💥 Error de conexión en generateResetToken:', error);
       return {
         success: false,
         error: 'Error de conexión con el servidor'
@@ -133,29 +213,31 @@ class PasswordResetService {
    */
   async getPasswordStatus(keycloakId) {
     try {
-      const response = await fetch(`${RESET_URL}/password-status/${keycloakId}`, {
+      console.log('🔄 Obteniendo estado de contraseña para usuario:', keycloakId);
+      
+      const response = await fetch(`${this.baseURL}/password-status/${keycloakId}`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
+        headers: this.getHeaders()
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
+      const result = await this.handleResponse(response);
+      
+      if (result.success) {
+        console.log('✅ Estado de contraseña obtenido exitosamente');
         return {
           success: true,
-          isTemporary: data.isTemporary,
-          message: data.message
+          isTemporary: result.data.isTemporary,
+          message: result.data.message
         };
       } else {
+        console.error('❌ Error al obtener estado de contraseña:', result.error);
         return {
           success: false,
-          error: data.message || 'Error al obtener estado de contraseña'
+          error: result.error || 'Error al obtener estado de contraseña'
         };
       }
     } catch (error) {
-      console.error('Error en getPasswordStatus:', error);
+      console.error('💥 Error de conexión en getPasswordStatus:', error);
       return {
         success: false,
         error: 'Error de conexión con el servidor'
@@ -173,33 +255,35 @@ class PasswordResetService {
    */
   async forcePasswordChange(keycloakId, currentPassword, newPassword) {
     try {
-      const response = await fetch(`${RESET_URL}/force-password-change`, {
+      console.log('🔄 Forzando cambio de contraseña para usuario:', keycloakId);
+      
+      const response = await fetch(`${this.baseURL}/force-password-change`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: this.getHeaders(),
         body: JSON.stringify({
           keycloakId: keycloakId,
           currentPassword: currentPassword,
           newPassword: newPassword
-        }),
+        })
       });
 
-      const data = await response.text();
-
-      if (response.ok) {
+      const result = await this.handleResponse(response);
+      
+      if (result.success) {
+        console.log('✅ Contraseña cambiada exitosamente');
         return {
           success: true,
-          message: data || 'Contraseña cambiada exitosamente'
+          message: result.message || result.data || 'Contraseña cambiada exitosamente'
         };
       } else {
+        console.error('❌ Error al cambiar contraseña:', result.error);
         return {
           success: false,
-          error: data || 'Error al cambiar la contraseña'
+          error: result.error || 'Error al cambiar la contraseña'
         };
       }
     } catch (error) {
-      console.error('Error en forcePasswordChange:', error);
+      console.error('💥 Error de conexión en forcePasswordChange:', error);
       return {
         success: false,
         error: 'Error de conexión con el servidor'
@@ -229,4 +313,6 @@ class PasswordResetService {
   }
 }
 
-export default new PasswordResetService();
+// Exportar instancia única del servicio
+const passwordResetService = new PasswordResetService();
+export default passwordResetService;

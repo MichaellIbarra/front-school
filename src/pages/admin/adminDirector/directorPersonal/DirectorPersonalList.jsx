@@ -35,7 +35,7 @@ const { Option } = Select;
 
 const DirectorPersonalList = () => {
   const navigate = useNavigate();
-  const { showAlert, showSuccess, showError } = useAlert();
+  const { alertState, showAlert, showSuccess, showError, handleConfirm, handleCancel } = useAlert();
   
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -126,13 +126,16 @@ const DirectorPersonalList = () => {
    * Desactivar usuario
    */
   const handleDeactivate = async (keycloakId, username) => {
+    console.log('🔴 handleDeactivate llamado:', { keycloakId, username });
     showAlert({
       title: '¿Está seguro de desactivar este usuario?',
       message: `Se desactivará el usuario "${username}"`,
       type: 'warning',
       onConfirm: async () => {
+        console.log('✅ Confirmación de desactivación aceptada');
         try {
           const response = await directorUserService.deactivateStaffUser(keycloakId);
+          console.log('📥 Respuesta de desactivación:', response);
           if (response.success) {
             showSuccess('Usuario desactivado correctamente');
             loadUsers();
@@ -140,6 +143,7 @@ const DirectorPersonalList = () => {
             showError(response.error || 'Error al desactivar usuario');
           }
         } catch (err) {
+          console.error('❌ Error capturado:', err);
           showError('Error al desactivar usuario: ' + err.message);
         }
       }
@@ -150,13 +154,16 @@ const DirectorPersonalList = () => {
    * Eliminar usuario
    */
   const handleDelete = async (keycloakId, username) => {
+    console.log('🗑️ handleDelete llamado:', { keycloakId, username });
     showAlert({
       title: '¿Está seguro de eliminar este usuario?',
       message: `Se eliminará el usuario "${username}". Esta acción no se puede deshacer.`,
       type: 'danger',
       onConfirm: async () => {
+        console.log('✅ Confirmación de eliminación aceptada');
         try {
           const response = await directorUserService.deleteStaffUser(keycloakId);
+          console.log('📥 Respuesta de eliminación:', response);
           if (response.success) {
             showSuccess('Usuario eliminado correctamente');
             loadUsers();
@@ -164,6 +171,7 @@ const DirectorPersonalList = () => {
             showError(response.error || 'Error al eliminar usuario');
           }
         } catch (err) {
+          console.error('❌ Error capturado:', err);
           showError('Error al eliminar usuario: ' + err.message);
         }
       }
@@ -296,12 +304,42 @@ const DirectorPersonalList = () => {
       key: 'actions',
       align: 'center',
       render: (_, record) => {
+        const handleMenuClick = ({ key }) => {
+          console.log('🎯 Menu click:', { key, keycloakId: record.keycloakId, username: record.username });
+          
+          switch (key) {
+            case 'view':
+              console.log('👁️ Navegando a view');
+              navigate(`/admin/admin-director/director-personal/${record.keycloakId}/view`);
+              break;
+            case 'edit':
+              console.log('✏️ Navegando a edit');
+              navigate(`/admin/admin-director/director-personal/${record.keycloakId}/edit`);
+              break;
+            case 'activate':
+            case 'restore':
+              console.log('🟢 Llamando handleActivate');
+              handleActivate(record.keycloakId, record.username);
+              break;
+            case 'deactivate':
+              console.log('🔴 Llamando handleDeactivate');
+              handleDeactivate(record.keycloakId, record.username);
+              break;
+            case 'delete':
+              console.log('🗑️ Llamando handleDelete');
+              handleDelete(record.keycloakId, record.username);
+              break;
+            default:
+              console.log('❓ Key no reconocida:', key);
+              break;
+          }
+        };
+
         const menuItems = [
           {
             key: 'view',
             icon: <EyeOutlined />,
             label: 'Ver Detalles',
-            onClick: () => navigate(`/admin/admin-director/director-personal/${record.keycloakId}/view`),
           },
         ];
 
@@ -310,7 +348,6 @@ const DirectorPersonalList = () => {
             key: 'edit',
             icon: <EditOutlined />,
             label: 'Editar',
-            onClick: () => navigate(`/admin/admin-director/director-personal/${record.keycloakId}/edit`),
           });
         }
 
@@ -321,21 +358,18 @@ const DirectorPersonalList = () => {
             key: 'deactivate',
             icon: <CloseOutlined />,
             label: 'Desactivar',
-            onClick: () => handleDeactivate(record.keycloakId, record.username),
           });
         } else if (record.status === UserStatus.I) {
           menuItems.push({
             key: 'restore',
             icon: <UndoOutlined />,
             label: 'Restaurar',
-            onClick: () => handleActivate(record.keycloakId, record.username),
           });
         } else {
           menuItems.push({
             key: 'activate',
             icon: <PlayCircleOutlined />,
             label: 'Activar',
-            onClick: () => handleActivate(record.keycloakId, record.username),
           });
         }
 
@@ -346,13 +380,15 @@ const DirectorPersonalList = () => {
             icon: <DeleteOutlined />,
             label: 'Eliminar',
             danger: true,
-            onClick: () => handleDelete(record.keycloakId, record.username),
           });
         }
 
         return (
           <Dropdown
-            menu={{ items: menuItems }}
+            menu={{ 
+              items: menuItems,
+              onClick: handleMenuClick
+            }}
             trigger={['click']}
             placement="bottomRight"
           >
@@ -377,7 +413,7 @@ const DirectorPersonalList = () => {
                 <h3 className="page-title">Gestión de Personal</h3>
                 <ul className="breadcrumb">
                   <li className="breadcrumb-item">
-                    <Link to="/admin/director/dashboard">Inicio</Link>
+                    <Link to="/dashboard">Inicio</Link>
                   </li>
                   <li className="breadcrumb-item active">Personal</li>
                 </ul>
@@ -548,7 +584,11 @@ const DirectorPersonalList = () => {
         </div>
       </div>
 
-      <AlertModal />
+      <AlertModal 
+        alert={alertState}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
     </div>
   );
 };
