@@ -82,6 +82,9 @@ import EditClassroom from "./pages/secretary/academicDirector/classroom/EditClas
 import TeacherAssignmentList from "./pages/secretary/academicDirector/teacherAssignment/TeacherAssignmentList";
 import AddTeacherAssignment from "./pages/secretary/academicDirector/teacherAssignment/AddTeacherAssignment";
 import EditTeacherAssignment from "./pages/secretary/academicDirector/teacherAssignment/EditTeacherAssignment";
+import DirectorInstitutionView from "./pages/director/institutions/directorInstitutionView";
+import DirectorHeadquarterList from "./pages/director/institutions/directorHeadquarter";
+import DirectorHeadquarterAdd from "./pages/director/institutions/directorHeadquarterAdd";
 
 //Accounts
 const Approuter = () => {
@@ -239,6 +242,43 @@ const Approuter = () => {
           />
 
           {/* ============= RUTAS DE DIRECTOR ============= */}
+
+          <Route
+            path="/director/institution"
+            element={
+              <DirectorRoute>
+                <DirectorInstitutionView />
+              </DirectorRoute>
+            }
+          />
+
+          <Route
+            path="/director/headquarters"
+            element={
+              <DirectorRoute>
+                <DirectorHeadquarterList />
+              </DirectorRoute>
+            }
+          />
+
+          <Route
+            path="/director/headquarters/add"
+            element={
+              <DirectorRoute>
+                <DirectorHeadquarterAdd />
+              </DirectorRoute>
+            }
+          />
+
+          <Route
+            path="/director/headquarters/edit/:id"
+            element={
+              <DirectorRoute>
+                <DirectorHeadquarterAdd />
+              </DirectorRoute>
+            }
+          />
+
           <Route
             path="/director/reports"
             element={

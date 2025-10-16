@@ -260,6 +260,17 @@ const Sidebar = (props) => {
                   </li>
                 )}
 
+               {/* Settings - Solo Admin */}
+                {isDirector() && (
+                  <li>
+                    <Link to="/director/institution">
+                      <span className="menu-side">
+                        <img src={blog} alt="" />
+                      </span>{" "}
+                      <span>Instituciones</span>
+                    </Link>
+                  </li>
+                )}
 
                 {/* Ejemplo - Solo isDirector */}
                 {isDirector() && (

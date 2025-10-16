@@ -1,9 +1,9 @@
 /**
- * Utilidades para exportar reportes de nómina de personal
- * Profesores, Auxiliares y Secretarios
+ * Utilidades para exportar reportes de instituciones y sedes
+ * Exportación de datos de sedes para directores
  */
 
-export class StaffReportExporter {
+export class InstitutionReportExporter {
   
   /**
    * Sanitiza texto para CSV
@@ -31,30 +31,6 @@ export class StaffReportExporter {
   }
 
   /**
-   * Obtiene el nombre completo del usuario
-   */
-  static getFullName(user) {
-    const firstname = user.firstname || '';
-    const lastname = user.lastname || '';
-    return `${firstname} ${lastname}`.trim() || user.username || 'Sin nombre';
-  }
-
-  /**
-   * Obtiene la etiqueta del rol en español
-   */
-  static getRoleLabel(roles) {
-    if (!roles || roles.length === 0) return 'Sin rol';
-    const roleLabels = {
-      'TEACHER': 'Profesor',
-      'AUXILIARY': 'Auxiliar',
-      'SECRETARY': 'Secretario',
-      'DIRECTOR': 'Director',
-      'ADMIN': 'Administrador'
-    };
-    return roles.map(role => roleLabels[role] || role).join(', ');
-  }
-
-  /**
    * Obtiene la etiqueta del estado
    */
   static getStatusLabel(status) {
@@ -62,47 +38,56 @@ export class StaffReportExporter {
   }
 
   /**
-   * Obtiene la etiqueta del tipo de documento
+   * Formatea códigos modulares para display
    */
-  static getDocumentTypeLabel(docType) {
-    const labels = {
-      'DNI': 'DNI',
-      'CE': 'Carné de Extranjería',
-      'PASSPORT': 'Pasaporte',
-      'RUC': 'RUC'
-    };
-    return labels[docType] || docType || 'N/A';
+  static formatModularCodes(modularCodes) {
+    if (!Array.isArray(modularCodes) || modularCodes.length === 0) {
+      return 'Sin códigos';
+    }
+    return modularCodes.join(', ');
   }
 
   /**
-   * Exporta la nómina completa de personal a CSV
+   * Formatea fecha para display
    */
-  static exportStaffToCSV(staffList) {
+  static formatDate(dateString) {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString('es-ES', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    } catch (error) {
+      return 'Fecha inválida';
+    }
+  }
+
+  /**
+   * Exporta la lista de sedes a CSV
+   */
+  static exportHeadquartersToCSV(headquartersList, institutionName = '') {
     try {
       const headers = [
         'N°',
-        'Nombre Completo',
-        'Usuario',
-        'Rol',
-        'Documento',
-        'N° Documento',
-        'Email',
+        'Nombre de Sede',
+        'Códigos Modulares',
+        'Dirección',
         'Teléfono',
-        'Estado'
+        'Estado',
+        'Fecha de Creación'
       ];
 
       const csvContent = [
         headers.join(','),
-        ...staffList.map((user, index) => [
+        ...headquartersList.map((headquarter, index) => [
           index + 1,
-          this.sanitizeCSV(this.getFullName(user)),
-          this.sanitizeCSV(user.username),
-          this.sanitizeCSV(this.getRoleLabel(user.roles)),
-          this.sanitizeCSV(this.getDocumentTypeLabel(user.documentType)),
-          this.sanitizeCSV(user.documentNumber),
-          this.sanitizeCSV(user.email),
-          this.sanitizeCSV(user.phone || 'N/A'),
-          this.sanitizeCSV(this.getStatusLabel(user.status))
+          this.sanitizeCSV(headquarter.name),
+          this.sanitizeCSV(this.formatModularCodes(headquarter.modularCode)),
+          this.sanitizeCSV(headquarter.address),
+          this.sanitizeCSV(headquarter.phone || 'N/A'),
+          this.sanitizeCSV(this.getStatusLabel(headquarter.status)),
+          this.sanitizeCSV(this.formatDate(headquarter.createdAt))
         ].join(','))
       ].join('\n');
 
@@ -110,7 +95,10 @@ export class StaffReportExporter {
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
-      link.setAttribute('download', `nomina_personal_${new Date().toISOString().split('T')[0]}.csv`);
+      const filename = institutionName 
+        ? `sedes_${institutionName.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`
+        : `sedes_${new Date().toISOString().split('T')[0]}.csv`;
+      link.setAttribute('download', filename);
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
@@ -124,9 +112,9 @@ export class StaffReportExporter {
   }
 
   /**
-   * Exporta la nómina de personal a PDF (para impresión)
+   * Exporta la lista de sedes a PDF (para impresión)
    */
-  static exportStaffToPDF(staffList) {
+  static exportHeadquartersToPDF(headquartersList, institutionName = '') {
     try {
       // Importar authService dinámicamente
       let institutionData = null;
@@ -139,25 +127,22 @@ export class StaffReportExporter {
       }
 
       // Extraer datos de la institución
-      const institutionName = institutionData?.name || localStorage.getItem('institution_name') || 'Institución Educativa';
+      const finalInstitutionName = institutionName || institutionData?.name || localStorage.getItem('institution_name') || 'Institución Educativa';
       const institutionLogo = institutionData?.logo || '';
       const institutionColor = institutionData?.uiSettings?.color || '#2c3e50';
       const currentUser = localStorage.getItem('user_fullname') || 'Director';
       
       // Calcular estadísticas
-      const totalStaff = staffList.length;
-      const activeStaff = staffList.filter(u => u.status === 'A').length;
-      const inactiveStaff = staffList.filter(u => u.status === 'I').length;
-      const teachers = staffList.filter(u => u.roles?.includes('TEACHER')).length;
-      const auxiliaries = staffList.filter(u => u.roles?.includes('AUXILIARY')).length;
-      const secretaries = staffList.filter(u => u.roles?.includes('SECRETARY')).length;
-
+      const totalHeadquarters = headquartersList.length;
+      const activeHeadquarters = headquartersList.filter(h => h.status === 'A').length;
+      const inactiveHeadquarters = headquartersList.filter(h => h.status === 'I').length;
+      
       const htmlContent = `
         <!DOCTYPE html>
         <html>
         <head>
           <meta charset="utf-8">
-          <title>Nómina de Personal</title>
+          <title>Reporte de Sedes</title>
           <style>
             * {
               margin: 0;
@@ -274,16 +259,17 @@ export class StaffReportExporter {
               color: #dc3545; 
               font-weight: bold; 
             }
-            .role-badge {
-              display: inline-block;
-              padding: 2px 6px;
-              border-radius: 3px;
+            .modular-codes {
               font-size: 8px;
-              font-weight: bold;
+              color: #666;
+              max-width: 120px;
+              word-break: break-all;
             }
-            .role-teacher { background: #e3f2fd; color: #1976d2; }
-            .role-auxiliary { background: #fff3e0; color: #f57c00; }
-            .role-secretary { background: #f3e5f5; color: #7b1fa2; }
+            .address-cell {
+              max-width: 150px;
+              word-break: break-word;
+              font-size: 8px;
+            }
             .footer {
               margin-top: 30px;
               padding-top: 15px;
@@ -324,8 +310,8 @@ export class StaffReportExporter {
                 <img src="${this.sanitizeHTML(institutionLogo)}" alt="Logo Institución" />
               </div>
             ` : ''}
-            <h1>${this.sanitizeHTML(institutionName)}</h1>
-            <h2>Nómina de Personal - ${new Date().getFullYear()}</h2>
+            <h1>${this.sanitizeHTML(finalInstitutionName)}</h1>
+            <h2>Reporte de Sedes - ${new Date().getFullYear()}</h2>
           </div>
 
           <div class="info-section">
@@ -340,34 +326,22 @@ export class StaffReportExporter {
             </div>
             <div class="info-box">
               <p><strong>Emitido por:</strong> ${this.sanitizeHTML(currentUser)}</p>
-              <p><strong>Total de Registros:</strong> ${totalStaff}</p>
+              <p><strong>Total de Registros:</strong> ${totalHeadquarters}</p>
             </div>
           </div>
 
           <div class="stats-section">
             <div class="stat-item">
-              <div class="number">${totalStaff}</div>
-              <div class="label">Total Personal</div>
+              <div class="number">${totalHeadquarters}</div>
+              <div class="label">Total Sedes</div>
             </div>
             <div class="stat-item">
-              <div class="number">${teachers}</div>
-              <div class="label">Profesores</div>
+              <div class="number">${activeHeadquarters}</div>
+              <div class="label">Sedes Activas</div>
             </div>
             <div class="stat-item">
-              <div class="number">${auxiliaries}</div>
-              <div class="label">Auxiliares</div>
-            </div>
-            <div class="stat-item">
-              <div class="number">${secretaries}</div>
-              <div class="label">Secretarios</div>
-            </div>
-            <div class="stat-item">
-              <div class="number">${activeStaff}</div>
-              <div class="label">Activos</div>
-            </div>
-            <div class="stat-item">
-              <div class="number">${inactiveStaff}</div>
-              <div class="label">Inactivos</div>
+              <div class="number">${inactiveHeadquarters}</div>
+              <div class="label">Sedes Inactivas</div>
             </div>
           </div>
 
@@ -375,40 +349,28 @@ export class StaffReportExporter {
             <thead>
               <tr>
                 <th style="width: 30px;">N°</th>
-                <th style="width: 150px;">Nombre Completo</th>
-                <th style="width: 80px;">Rol</th>
-                <th style="width: 80px;">Documento</th>
-                <th style="width: 130px;">Email</th>
+                <th style="width: 150px;">Nombre de Sede</th>
+                <th style="width: 120px;">Códigos Modulares</th>
+                <th style="width: 200px;">Dirección</th>
                 <th style="width: 80px;">Teléfono</th>
                 <th style="width: 60px;">Estado</th>
+                <th style="width: 80px;">Fecha Creación</th>
               </tr>
             </thead>
             <tbody>
-              ${staffList.map((user, index) => {
-                const roleClass = user.roles?.includes('TEACHER') ? 'role-teacher' : 
-                                 user.roles?.includes('AUXILIARY') ? 'role-auxiliary' : 
-                                 'role-secretary';
-                return `
-                  <tr>
-                    <td style="text-align: center;">${index + 1}</td>
-                    <td><strong>${this.sanitizeHTML(this.getFullName(user))}</strong></td>
-                    <td>
-                      <span class="role-badge ${roleClass}">
-                        ${this.sanitizeHTML(this.getRoleLabel(user.roles))}
-                      </span>
-                    </td>
-                    <td>
-                      ${this.sanitizeHTML(this.getDocumentTypeLabel(user.documentType))}:
-                      <strong>${this.sanitizeHTML(user.documentNumber)}</strong>
-                    </td>
-                    <td style="font-size: 8px;">${this.sanitizeHTML(user.email)}</td>
-                    <td>${this.sanitizeHTML(user.phone || 'N/A')}</td>
-                    <td class="${user.status === 'A' ? 'active' : 'inactive'}" style="text-align: center;">
-                      ${this.getStatusLabel(user.status)}
-                    </td>
-                  </tr>
-                `;
-              }).join('')}
+              ${headquartersList.map((headquarter, index) => `
+                <tr>
+                  <td style="text-align: center;">${index + 1}</td>
+                  <td><strong>${this.sanitizeHTML(headquarter.name)}</strong></td>
+                  <td class="modular-codes">${this.sanitizeHTML(this.formatModularCodes(headquarter.modularCode))}</td>
+                  <td class="address-cell">${this.sanitizeHTML(headquarter.address)}</td>
+                  <td>${this.sanitizeHTML(headquarter.phone || 'N/A')}</td>
+                  <td class="${headquarter.status === 'A' ? 'active' : 'inactive'}" style="text-align: center;">
+                    ${this.getStatusLabel(headquarter.status)}
+                  </td>
+                  <td>${this.formatDate(headquarter.createdAt)}</td>
+                </tr>
+              `).join('')}
             </tbody>
           </table>
 
@@ -421,14 +383,14 @@ export class StaffReportExporter {
             </div>
             <div class="signature-box">
               <div class="signature-line">
-                Recursos Humanos
+                Administración
               </div>
             </div>
           </div>
 
           <div class="footer">
             <div>
-              <strong>Documento Oficial</strong> - Nómina de Personal
+              <strong>Documento Oficial</strong> - Reporte de Sedes
             </div>
             <div>
               Página generada automáticamente
@@ -479,35 +441,34 @@ export class StaffReportExporter {
       };
     } catch (error) {
       console.error('PDF Export Error:', error);
-      return { success: false, error: 'Error al generar el PDF' };
+      return { success: false, error: 'Error al generar el reporte PDF' };
     }
   }
 
   /**
-   * Exporta nómina por rol específico
+   * Exporta solo sedes activas
    */
-  static exportByRole(staffList, role) {
-    const filteredStaff = staffList.filter(user => user.roles?.includes(role));
-    const roleName = this.getRoleLabel([role]);
+  static exportActiveHeadquarters(headquartersList, institutionName = '') {
+    const activeHeadquarters = headquartersList.filter(headquarter => headquarter.status === 'A');
     
-    if (filteredStaff.length === 0) {
-      return { success: false, error: `No hay personal con el rol de ${roleName}` };
+    if (activeHeadquarters.length === 0) {
+      return { success: false, error: 'No hay sedes activas para exportar' };
     }
 
-    return this.exportStaffToPDF(filteredStaff, { role: roleName });
+    return this.exportHeadquartersToPDF(activeHeadquarters, institutionName);
   }
 
   /**
-   * Exporta solo personal activo
+   * Exporta solo sedes inactivas
    */
-  static exportActiveStaff(staffList) {
-    const activeStaff = staffList.filter(user => user.status === 'A');
+  static exportInactiveHeadquarters(headquartersList, institutionName = '') {
+    const inactiveHeadquarters = headquartersList.filter(headquarter => headquarter.status === 'I');
     
-    if (activeStaff.length === 0) {
-      return { success: false, error: 'No hay personal activo' };
+    if (inactiveHeadquarters.length === 0) {
+      return { success: false, error: 'No hay sedes inactivas para exportar' };
     }
 
-    return this.exportStaffToPDF(activeStaff, { statusFilter: 'Activos' });
+    return this.exportHeadquartersToPDF(inactiveHeadquarters, institutionName);
   }
 
   /**
@@ -519,4 +480,4 @@ export class StaffReportExporter {
   }
 }
 
-export default StaffReportExporter;
+export default InstitutionReportExporter;

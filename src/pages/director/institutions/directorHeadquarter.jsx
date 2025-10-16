@@ -2,23 +2,22 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Table, Button, Input, Select, Space, Dropdown, Tag, Tooltip, Menu } from "antd";
-import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, UndoOutlined, CheckOutlined, CloseOutlined, EyeOutlined, ArrowLeftOutlined, DownloadOutlined } from "@ant-design/icons";
+import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, UndoOutlined, CheckOutlined, CloseOutlined, EyeOutlined, ArrowLeftOutlined, DownloadOutlined, FilePdfOutlined, FileExcelOutlined } from "@ant-design/icons";
 import FeatherIcon from "feather-icons-react";
 import { MoreHorizontal, Filter } from "react-feather";
 import Header from "../../../components/Header";
 import Sidebar from "../../../components/Sidebar";
 import AlertModal from "../../../components/AlertModal";
 import useAlert from "../../../hooks/useAlert";
-import headquarterAdminService from "../../../services/institutions/headquarterAdminService";
-import InstitutionAdminService from "../../../services/institutions/institutionAdminService";
+import headquarterDirectorService from "../../../services/institutions/headquarterDirectorService";
+import institutionDirectorService from "../../../services/institutions/institutionDirectorService";
 import { HeadquarterStatus } from "../../../types/institutions";
-import ExportUtils from '../../../utils/institutions/exportUtils';
+import InstitutionReportExporter from '../../../utils/institutions/institutionReportExporter';
 
 const { Option } = Select;
 
-const HeadquarterList = () => {
+const DirectorHeadquarterList = () => {
   const navigate = useNavigate();
-  const { institutionId } = useParams();
   const { alertState, showAlert, showSuccess, showError, showWarning, handleConfirm: alertConfirm, handleCancel: alertCancel } = useAlert();
   
   // Estados para manejo de datos
@@ -36,7 +35,7 @@ const HeadquarterList = () => {
   useEffect(() => {
     loadInstitution();
     loadHeadquarters();
-  }, [institutionId]);
+  }, []); // Sin dependencias porque el director solo tiene una institución
 
   // Aplicar filtros cuando cambien los datos, búsqueda o filtros
   useEffect(() => {
@@ -48,26 +47,26 @@ const HeadquarterList = () => {
    */
   const loadInstitution = async () => {
     try {
-      const response = await InstitutionAdminService.getInstitutionById(institutionId);
+      const response = await institutionDirectorService.getDirectorInstitution();
       if (response.success && response.data) {
         setInstitution(response.data);
       } else {
         showError('Error', 'No se pudo cargar la información de la institución');
-        navigate('/admin/institution');
+        navigate('/director');
       }
     } catch (error) {
       showError('Error', 'Error al cargar la institución');
-      navigate('/admin/institution');
+      navigate('/director');
     }
   };
 
   /**
-   * Carga todas las sedes de la institución desde el servicio
+   * Carga todas las sedes del director desde el servicio
    */
   const loadHeadquarters = async () => {
     setLoading(true);
     try {
-      const response = await headquarterAdminService.getHeadquartersByInstitution(institutionId);
+      const response = await headquarterDirectorService.getDirectorHeadquarters();
       
       if (response.success) {
         setHeadquarters(response.data || []);
@@ -113,14 +112,14 @@ const HeadquarterList = () => {
    * Navega al formulario de crear nueva sede
    */
   const handleCreate = () => {
-    navigate(`/admin/institution/${institutionId}/headquarters/add`);
+    navigate(`/director/headquarters/add`);
   };
 
   /**
    * Navega al formulario de editar sede
    */
   const handleEdit = (headquarter) => {
-    navigate(`/admin/institution/${institutionId}/headquarters/edit/${headquarter.id}`, {
+    navigate(`/director/headquarters/edit/${headquarter.id}`, {
       state: { headquarter }
     });
   };
@@ -169,9 +168,9 @@ const HeadquarterList = () => {
         try {
           let response;
           if (headquarter.status === 'A') {
-            response = await headquarterAdminService.deleteHeadquarter(headquarter.id);
+            response = await headquarterDirectorService.deleteHeadquarter(headquarter.id);
           } else {
-            response = await headquarterAdminService.restoreHeadquarter(headquarter.id);
+            response = await headquarterDirectorService.restoreHeadquarter(headquarter.id);
           }
           
           if (response.success) {
@@ -197,7 +196,7 @@ const HeadquarterList = () => {
       type: 'warning',
       onConfirm: async () => {
         try {
-          const response = await headquarterAdminService.restoreHeadquarter(headquarter.id);
+          const response = await headquarterDirectorService.restoreHeadquarter(headquarter.id);
           
           if (response.success) {
             showSuccess('Sede restaurada', response.message);
@@ -232,7 +231,7 @@ const HeadquarterList = () => {
 
           for (const id of selectedRowKeys) {
             try {
-              const response = await headquarterAdminService.deleteHeadquarter(id);
+              const response = await headquarterDirectorService.deleteHeadquarter(id);
               if (response.success) {
                 successCount++;
               } else {
@@ -261,10 +260,74 @@ const HeadquarterList = () => {
   };
 
   /**
-   * Regresa al listado de instituciones
+   * Regresa al dashboard del director
    */
   const handleBack = () => {
-    navigate('/admin/institution');
+    navigate('/director');
+  };
+
+  /**
+   * Exportar reporte completo de sedes a PDF
+   */
+  const handleExportPDF = () => {
+    try {
+      const result = InstitutionReportExporter.exportHeadquartersToPDF(filteredHeadquarters, institution?.name);
+      if (result.success) {
+        showSuccess('Exportación exitosa', result.message);
+      } else {
+        showError('Error al exportar', result.error);
+      }
+    } catch (error) {
+      showError('Error al exportar', 'No se pudo generar el reporte PDF');
+    }
+  };
+
+  /**
+   * Exportar reporte completo de sedes a CSV
+   */
+  const handleExportCSV = () => {
+    try {
+      const result = InstitutionReportExporter.exportHeadquartersToCSV(filteredHeadquarters, institution?.name);
+      if (result.success) {
+        showSuccess('Exportación exitosa', result.message);
+      } else {
+        showError('Error al exportar', result.error);
+      }
+    } catch (error) {
+      showError('Error al exportar', 'No se pudo generar el archivo CSV');
+    }
+  };
+
+  /**
+   * Exportar solo sedes activas
+   */
+  const handleExportActiveHeadquarters = () => {
+    try {
+      const result = InstitutionReportExporter.exportActiveHeadquarters(filteredHeadquarters, institution?.name);
+      if (result.success) {
+        showSuccess('Exportación exitosa', result.message);
+      } else {
+        showError('Error al exportar', result.error);
+      }
+    } catch (error) {
+      showError('Error al exportar', 'No se pudo generar el reporte de sedes activas');
+    }
+  };
+
+  /**
+   * Exportar solo sedes inactivas
+   */
+  const handleExportInactiveHeadquarters = () => {
+    try {
+      const result = InstitutionReportExporter.exportInactiveHeadquarters(filteredHeadquarters, institution?.name);
+      if (result.success) {
+        showSuccess('Exportación exitosa', result.message);
+      } else {
+        showError('Error al exportar', result.error);
+      }
+    } catch (error) {
+      showError('Error al exportar', 'No se pudo generar el reporte de sedes inactivas');
+    }
   };
 
   // Configuración de selección de filas
@@ -415,16 +478,16 @@ const HeadquarterList = () => {
               <div className="col-sm-12">
                 <div className="page-sub-header">
                   <h3 className="page-title">
-                    Sedes {institution ? `- ${institution.name}` : ''}
+                    Mis Sedes {institution ? `- ${institution.name}` : ''}
                   </h3>
                   <ul className="breadcrumb">
                     <li className="breadcrumb-item">
                       <Link to="/dashboard">Dashboard</Link>
                     </li>
                     <li className="breadcrumb-item">
-                      <Link to="/admin/institution">Instituciones</Link>
+                      <Link to="/director/institution">Mi Institución</Link>
                     </li>
-                    <li className="breadcrumb-item active">Sedes</li>
+                    <li className="breadcrumb-item active">Mis Sedes</li>
                   </ul>
                 </div>
               </div>
@@ -441,7 +504,7 @@ const HeadquarterList = () => {
                     <div className="row align-items-center">
                       <div className="col">
                         <div className="doctor-table-blk">
-                          <h3>Lista de Sedes</h3>
+                          <h3>Gestión de Sedes</h3>
                           <div className="doctor-search-blk">
                             <div className="add-group">
                         
@@ -453,38 +516,6 @@ const HeadquarterList = () => {
                               >
                                 Agregar Sede
                               </Button>
-                              <Dropdown
-                                overlay={
-                                  <Menu>
-                                    <Menu.Item 
-                                      key="csv" 
-                                      icon={<i className="fas fa-file-csv"></i>}
-                                      onClick={() => ExportUtils.exportHeadquartersToCSV(filteredHeadquarters, institution?.name)}
-                                    >
-                                      Exportar CSV
-                                    </Menu.Item>
-                                    <Menu.Item 
-                                      key="pdf" 
-                                      icon={<i className="fas fa-file-pdf"></i>}
-                                      onClick={() => ExportUtils.exportHeadquartersToPDF(filteredHeadquarters, institution?.name)}
-                                    >
-                                      Exportar PDF
-                                    </Menu.Item>
-                                    <Menu.Item 
-                                      key="excel" 
-                                      icon={<i className="fas fa-file-excel"></i>}
-                                      onClick={() => ExportUtils.exportHeadquartersToExcel(filteredHeadquarters, institution?.name)}
-                                    >
-                                      Exportar Excel
-                                    </Menu.Item>
-                                  </Menu>
-                                }
-                                trigger={['click']}
-                              >
-                                <Button icon={<DownloadOutlined />} className="me-2">
-                                  Exportar
-                                </Button>
-                              </Dropdown>
                               {selectedRowKeys.length > 0 && (
                                 <Button
                                   danger
@@ -555,6 +586,62 @@ const HeadquarterList = () => {
               </div>
             </div>
           </div>
+
+          {/* Sección de Exportación y Reportes */}
+          <div className="row">
+            <div className="col-sm-12">
+              <div className="card">
+                <div className="card-header">
+                  <h5 className="card-title">📊 Reportes y Exportación de Sedes</h5>
+                </div>
+                <div className="card-body" style={{ padding: '24px' }}>
+                  <Space size="middle" wrap style={{ width: '100%', justifyContent: 'center' }}>
+                    <Button
+                      type="primary"
+                      danger
+                      icon={<FilePdfOutlined />}
+                      onClick={handleExportPDF}
+                      size="large"
+                      disabled={filteredHeadquarters.length === 0}
+                      style={{ minWidth: '200px' }}
+                    >
+                      PDF Completo
+                    </Button>
+                    <Button
+                      type="primary"
+                      style={{ backgroundColor: '#52c41a', borderColor: '#52c41a', minWidth: '200px' }}
+                      icon={<FileExcelOutlined />}
+                      onClick={handleExportCSV}
+                      size="large"
+                      disabled={filteredHeadquarters.length === 0}
+                    >
+                      Exportar CSV
+                    </Button>
+                    <Button
+                      type="primary"
+                      style={{ backgroundColor: '#722ed1', borderColor: '#722ed1', minWidth: '200px' }}
+                      icon={<FilePdfOutlined />}
+                      onClick={handleExportActiveHeadquarters}
+                      size="large"
+                      disabled={filteredHeadquarters.filter(h => h.status === 'A').length === 0}
+                    >
+                      Solo Activas
+                    </Button>
+                    <Button
+                      type="primary"
+                      style={{ backgroundColor: '#fa8c16', borderColor: '#fa8c16', minWidth: '200px' }}
+                      icon={<FilePdfOutlined />}
+                      onClick={handleExportInactiveHeadquarters}
+                      size="large"
+                      disabled={filteredHeadquarters.filter(h => h.status === 'I').length === 0}
+                    >
+                      Solo Inactivas
+                    </Button>
+                  </Space>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -572,4 +659,4 @@ const HeadquarterList = () => {
   );
 };
 
-export default HeadquarterList;
+export default DirectorHeadquarterList;
