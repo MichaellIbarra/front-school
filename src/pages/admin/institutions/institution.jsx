@@ -103,13 +103,20 @@ const InstitutionList = () => {
    * Muestra detalles de la institución
    */
   const handleView = (institution) => {
+    const scheduleInfo = institution.scheduleSettings ? `
+
+HORARIOS:
+• Mañana: ${institution.scheduleSettings.morningStartTime || '08:00'} - ${institution.scheduleSettings.morningEndTime || '12:00'} (Tolerancia: ${institution.scheduleSettings.morningToleranceMinutes || 15} min)
+• Tarde: ${institution.scheduleSettings.afternoonStartTime || '14:00'} - ${institution.scheduleSettings.afternoonEndTime || '18:00'} (Tolerancia: ${institution.scheduleSettings.afternoonToleranceMinutes || 10} min)
+• Noche: ${institution.scheduleSettings.nightStartTime || '19:00'} - ${institution.scheduleSettings.nightEndTime || '22:00'} (Tolerancia: ${institution.scheduleSettings.nightToleranceMinutes || 20} min)` : '';
+    
     const details = `
 Código: ${institution.codeInstitution}
 Dirección: ${institution.address}
 Email: ${institution.contactEmail}
 Teléfono: ${institution.contactPhone}
 Estado: ${institution.status === 'A' ? 'Activo' : 'Inactivo'}
-Creado: ${new Date(institution.createdAt).toLocaleDateString()}
+Creado: ${new Date(institution.createdAt).toLocaleDateString()}${scheduleInfo}
     `.trim();
 
     showAlert({

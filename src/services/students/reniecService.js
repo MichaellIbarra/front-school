@@ -1,13 +1,8 @@
 /**
  * Servicio para consultar datos de RENIEC
  * API: https://reniec.matichain.dev
- * Usando proxy CORS para evitar problemas de CORS
  */
 
-import axios from 'axios';
-
-// Proxy CORS para evitar bloqueos
-const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 const RENIEC_API_BASE_URL = 'https://reniec.matichain.dev';
 
 class ReniecService {
@@ -26,18 +21,23 @@ class ReniecService {
         };
       }
 
-      // Construir la URL con el proxy CORS
-      const apiUrl = `${RENIEC_API_BASE_URL}/personas/dni?dni=${dni}`;
-      const proxiedUrl = `${CORS_PROXY}${encodeURIComponent(apiUrl)}`;
+      // Construir la URL directa a la API de RENIEC
+      const apiUrl = `${RENIEC_API_BASE_URL}/dni?dni=${dni}`;
 
-      const response = await axios.get(proxiedUrl, {
-        timeout: 15000, // 15 segundos de timeout
+      const response = await fetch(apiUrl, {
+        method: 'GET',
         headers: {
           'Accept': 'application/json',
-        }
+          'Content-Type': 'application/json'
+        },
+        signal: AbortSignal.timeout(15000) // 15 segundos de timeout
       });
 
-      const data = response.data;
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
 
       // Verificar si hay datos
       if (!data.datos) {
@@ -59,14 +59,18 @@ class ReniecService {
     } catch (error) {
       let errorMessage = 'Error al conectar con el servicio de RENIEC';
       
-      if (error.response) {
-        // El servidor respondió con un código de error
-        errorMessage = `Error ${error.response.status}: ${error.response.data?.message || 'No se pudo consultar RENIEC'}`;
-      } else if (error.request) {
-        // La petición se hizo pero no hubo respuesta
-        errorMessage = 'No se pudo conectar con RENIEC. Intenta nuevamente.';
-      } else if (error.code === 'ECONNABORTED') {
+      if (error.name === 'AbortError') {
+        // Timeout del AbortSignal
         errorMessage = 'La consulta a RENIEC tomó demasiado tiempo. Intenta nuevamente.';
+      } else if (error.message && error.message.includes('HTTP error!')) {
+        // Error HTTP de fetch
+        errorMessage = `${error.message}: No se pudo consultar RENIEC`;
+      } else if (error.message && error.message.includes('Failed to fetch')) {
+        // Error de conectividad
+        errorMessage = 'No se pudo conectar con RENIEC. Intenta nuevamente.';
+      } else if (error instanceof TypeError) {
+        // Error de red o CORS
+        errorMessage = 'Error de conexión con RENIEC. Verifica tu conexión a internet.';
       }
       
       return {

@@ -17,7 +17,7 @@ import {
   PrinterOutlined
 } from '@ant-design/icons';
 import { MoreHorizontal } from 'react-feather';
-import directorUserService from '../../../../services/adminDirectorService/directorUserService';
+import directorUserService from '../../../../services/users/directorUserService';
 import StaffReportExporter from '../../../../utils/directorPersonal/staffReportExporter';
 import Header from '../../../../components/Header';
 import Sidebar from '../../../../components/Sidebar';

@@ -14,13 +14,13 @@
 
 /**
  * @typedef {Object} CourseRequest
- * @property {string} institutionId - ID de la institución
  * @property {string} courseCode - Código del curso
  * @property {string} courseName - Nombre del curso
  * @property {string} level - Nivel educativo
  * @property {string} description - Descripción del curso
  * @property {number} hoursPerWeek - Horas por semana
  * @property {string} status - Estado (A: Activo, I: Inactivo)
+ * @note institutionId se envía en headers HTTP (X-Institution-Id), no en el body
  */
 
 /**
@@ -83,7 +83,8 @@ export class Course {
  */
 export class CourseRequest {
     constructor(data) {
-        this.institutionId = data.institutionId;
+        // institutionId se envía en headers, NO en el body
+        // Removido según CourseRequestDto.java del backend
         this.courseCode = data.courseCode;
         this.courseName = data.courseName;
         this.level = data.level;
@@ -98,10 +99,6 @@ export class CourseRequest {
      */
     validate() {
         const errors = [];
-
-        if (!this.institutionId?.trim()) {
-            errors.push('El ID de la institución es obligatorio');
-        }
 
         if (!this.courseCode?.trim()) {
             errors.push('El código del curso es obligatorio');
@@ -154,12 +151,10 @@ export const CourseValidationMessages = {
 
 /**
  * Función utilitaria para crear un curso vacío con valores por defecto
- * @param {string} institutionId - ID de la institución
  * @returns {CourseRequest} Curso con valores por defecto
  */
-export const createEmptyCourse = (institutionId = '') => {
+export const createEmptyCourse = () => {
     return new CourseRequest({
-        institutionId,
         courseCode: '',
         courseName: '',
         level: '',

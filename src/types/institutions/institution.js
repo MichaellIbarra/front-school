@@ -24,10 +24,13 @@ export const Institution = {
   scheduleSettings: {
     morningStartTime: '08:00:00',
     morningEndTime: '12:00:00',
+    morningToleranceMinutes: 15,
     afternoonStartTime: '14:00:00',
     afternoonEndTime: '18:00:00',
+    afternoonToleranceMinutes: 10,
     nightStartTime: '19:00:00',
-    nightEndTime: '22:00:00'
+    nightEndTime: '22:00:00',
+    nightToleranceMinutes: 20
   },
   createdAt: null,
   updatedAt: null
@@ -108,6 +111,29 @@ export const validateInstitution = (institution) => {
   // Validación del estado
   if (!institution.status || !/^[AI]$/.test(institution.status)) {
     errors.status = 'El estado debe ser \'A\' (activo) o \'I\' (inactivo)';
+  }
+  
+  // Validación de los minutos de tolerancia (si están presentes)
+  if (institution.scheduleSettings) {
+    const { morningToleranceMinutes, afternoonToleranceMinutes, nightToleranceMinutes } = institution.scheduleSettings;
+    
+    if (morningToleranceMinutes !== undefined && morningToleranceMinutes !== null) {
+      if (!Number.isInteger(Number(morningToleranceMinutes)) || Number(morningToleranceMinutes) < 0 || Number(morningToleranceMinutes) > 60) {
+        errors.morningToleranceMinutes = 'Los minutos de tolerancia matutina deben ser un número entre 0 y 60';
+      }
+    }
+    
+    if (afternoonToleranceMinutes !== undefined && afternoonToleranceMinutes !== null) {
+      if (!Number.isInteger(Number(afternoonToleranceMinutes)) || Number(afternoonToleranceMinutes) < 0 || Number(afternoonToleranceMinutes) > 60) {
+        errors.afternoonToleranceMinutes = 'Los minutos de tolerancia vespertina deben ser un número entre 0 y 60';
+      }
+    }
+    
+    if (nightToleranceMinutes !== undefined && nightToleranceMinutes !== null) {
+      if (!Number.isInteger(Number(nightToleranceMinutes)) || Number(nightToleranceMinutes) < 0 || Number(nightToleranceMinutes) > 60) {
+        errors.nightToleranceMinutes = 'Los minutos de tolerancia nocturna deben ser un número entre 0 y 60';
+      }
+    }
   }
   
   return {

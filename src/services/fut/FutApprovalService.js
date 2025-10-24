@@ -1,5 +1,5 @@
 import { FutApproval, validateFutApproval } from '../../types/fut/futApproval.model';
-import { refreshTokenKeycloak } from '../../auth/authService';
+import { refreshTokenKeycloak } from '../auth/authService';
 
 class FutApprovalService {
   constructor() {

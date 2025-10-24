@@ -9,26 +9,26 @@ export const DocumentType = {
 
 export const Gender = {
   MALE: 'MALE',
-  FEMALE: 'FEMALE'
-};
-
-export const StudentStatus = {
-  ACTIVE: 'ACTIVE',
-  INACTIVE: 'INACTIVE',
-  TRANSFERRED: 'TRANSFERRED',
-  GRADUATED: 'GRADUATED',
-  DECEASED: 'DECEASED'
-};
-
-export const GuardianRelationship = {
-  FATHER: 'FATHER',
-  MOTHER: 'MOTHER',
-  GUARDIAN: 'GUARDIAN',
-  GRANDPARENT: 'GRANDPARENT',
+  FEMALE: 'FEMALE',
   OTHER: 'OTHER'
 };
 
-// Estructura base de un estudiante
+export const StudentStatus = {
+  ACTIVE: 'A',
+  INACTIVE: 'I',
+  TRANSFER: 'T',
+  GRADUATED: 'G'
+};
+
+export const GuardianRelationship = {
+  FATHER: "FATHER",
+  MOTHER: "MOTHER",
+  GUARDIAN: "GUARDIAN",
+  GRANDPARENT: "GRANDPARENT",
+  OTHER: "OTHER",
+};
+
+// Estructura base de un estudiante (nueva estructura simplificada)
 export const Student = {
   id: '',
   firstName: '',
@@ -38,18 +38,10 @@ export const Student = {
   birthDate: '',
   gender: Gender.MALE,
   address: '',
-  district: '',
-  province: '',
-  department: '',
   phone: '',
-  email: '',
-  guardianName: '',
-  guardianLastName: '',
-  guardianDocumentType: DocumentType.DNI,
-  guardianDocumentNumber: '',
-  guardianPhone: '',
-  guardianEmail: '',
-  guardianRelationship: GuardianRelationship.FATHER,
+  parentName: '',
+  parentPhone: '',
+  parentEmail: '',
   status: StudentStatus.ACTIVE,
   createdAt: null,
   updatedAt: null
@@ -94,47 +86,13 @@ export const validateStudent = (student) => {
     errors.push('La dirección es requerida');
   }
 
-  if (!student.district?.trim()) {
-    errors.push('El distrito es requerido');
-  }
-
-  if (!student.province?.trim()) {
-    errors.push('La provincia es requerida');
-  }
-
-  if (!student.department?.trim()) {
-    errors.push('El departamento es requerido');
-  }
-
   // Validaciones del apoderado
-  if (!student.guardianName?.trim()) {
+  if (!student.parentName?.trim()) {
     errors.push('El nombre del apoderado es requerido');
   }
 
-  if (!student.guardianLastName?.trim()) {
-    errors.push('El apellido del apoderado es requerido');
-  }
-
-  if (!student.guardianDocumentType) {
-    errors.push('El tipo de documento del apoderado es requerido');
-  }
-
-  if (!student.guardianDocumentNumber?.trim()) {
-    errors.push('El número de documento del apoderado es requerido');
-  } else if (student.guardianDocumentType === DocumentType.DNI && !/^\d{8}$/.test(student.guardianDocumentNumber)) {
-    errors.push('El DNI del apoderado debe tener 8 dígitos');
-  }
-
-  if (!student.guardianRelationship) {
-    errors.push('La relación con el apoderado es requerida');
-  }
-
   // Validaciones de formato
-  if (student.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(student.email)) {
-    errors.push('El formato del email es inválido');
-  }
-
-  if (student.guardianEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(student.guardianEmail)) {
+  if (student.parentEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(student.parentEmail)) {
     errors.push('El formato del email del apoderado es inválido');
   }
 
@@ -142,7 +100,7 @@ export const validateStudent = (student) => {
     errors.push('El teléfono debe tener 9 dígitos');
   }
 
-  if (student.guardianPhone && !/^\d{9}$/.test(student.guardianPhone)) {
+  if (student.parentPhone && !/^\d{9}$/.test(student.parentPhone)) {
     errors.push('El teléfono del apoderado debe tener 9 dígitos');
   }
 
@@ -255,9 +213,8 @@ export const getStatusText = (status) => {
   const statusTexts = {
     [StudentStatus.ACTIVE]: 'Activo',
     [StudentStatus.INACTIVE]: 'Inactivo',
-    [StudentStatus.TRANSFERRED]: 'Transferido',
-    [StudentStatus.GRADUATED]: 'Graduado',
-    [StudentStatus.DECEASED]: 'Retirado'
+    [StudentStatus.TRANSFER]: 'Transferido',
+    [StudentStatus.GRADUATED]: 'Graduado'
   };
   
   return statusTexts[status] || status;
@@ -272,9 +229,8 @@ export const getStatusColor = (status) => {
   const statusColors = {
     [StudentStatus.ACTIVE]: 'green',
     [StudentStatus.INACTIVE]: 'red',
-    [StudentStatus.TRANSFERRED]: 'orange',
-    [StudentStatus.GRADUATED]: 'blue',
-    [StudentStatus.DECEASED]: 'gray'
+    [StudentStatus.TRANSFER]: 'purple',
+    [StudentStatus.GRADUATED]: 'blue'
   };
   
   return statusColors[status] || 'default';
@@ -285,8 +241,8 @@ export const getStudentFullName = (student) => {
   return `${student.firstName} ${student.lastName}`.trim();
 };
 
-export const getGuardianFullName = (student) => {
-  return `${student.guardianName} ${student.guardianLastName}`.trim();
+export const getParentFullName = (student) => {
+  return student.parentName?.trim() || '';
 };
 
 export const getStudentAge = (student) => {
@@ -298,17 +254,14 @@ export const formatStudentStatus = (status) => {
 };
 
 export const formatGender = (gender) => {
-  return gender === Gender.MALE ? 'Masculino' : 'Femenino';
-};
-
-export const formatGuardianRelationship = (relationship) => {
-  const relationships = {
-    [GuardianRelationship.FATHER]: 'Padre',
-    [GuardianRelationship.MOTHER]: 'Madre',
-    [GuardianRelationship.GUARDIAN]: 'Apoderado',
-    [GuardianRelationship.GRANDPARENT]: 'Abuelo/a',
-    [GuardianRelationship.OTHER]: 'Otro'
-  };
-  
-  return relationships[relationship] || relationship;
+  switch (gender) {
+    case Gender.MALE:
+      return 'Masculino';
+    case Gender.FEMALE:
+      return 'Femenino';
+    case Gender.OTHER:
+      return 'Otro';
+    default:
+      return gender;
+  }
 };

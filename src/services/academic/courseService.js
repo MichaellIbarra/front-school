@@ -1,594 +1,367 @@
-import axios from 'axios';
-import { Course, CourseRequest } from '../../types/academic/course.types';
-import { refreshTokenKeycloak } from '../../auth/authService';
+import { refreshTokenKeycloak } from '../auth/authService';
 
-// Configuración del cliente API para el microservicio académico
-const academicApiClient = axios.create({
-  baseURL: `${process.env.REACT_APP_DOMAIN}/api/v1`, // URL del gateway
-  headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
+class CourseService {
+  constructor() {
+    this.baseURL = `${process.env.REACT_APP_DOMAIN}/api/v1/academics/courses`;
   }
-});
 
-// Interceptor para manejar errores globalmente y refresh token
-academicApiClient.interceptors.response.use(
-    response => response,
-    async error => {
-        const originalRequest = error.config;
-        
-        if (error.response?.status === 401 && !originalRequest._retry) {
-            originalRequest._retry = true;
-            
-            try {
-                const refreshToken = localStorage.getItem('refresh_token');
-                if (refreshToken) {
-                    const refreshResult = await refreshTokenKeycloak(refreshToken);
-                    if (refreshResult.success) {
-                        originalRequest.headers.Authorization = `Bearer ${refreshResult.data.access_token}`;
-                        return academicApiClient(originalRequest);
-                    }
-                }
-            } catch (refreshError) {
-                console.error('Error al refrescar token:', refreshError);
-                // Opcional: redirigir al login
-                localStorage.clear();
-                window.location.href = '/login';
-                return Promise.reject(refreshError);
-            }
-        }
-        
-        console.error('Error en CourseService:', error.response?.data || error.message);
-        return Promise.reject(error);
+  /**
+   * Obtiene el token de acceso del localStorage
+   */
+  getAuthToken() {
+    return localStorage.getItem('access_token');
+  }
+
+  /**
+   * Obtiene los headers de autorización para las peticiones
+   * Incluye los headers requeridos por CourseRest.java (Headers HTTP v5.0)
+   */
+  getAuthHeaders() {
+    const token = this.getAuthToken();
+    const userId = localStorage.getItem('user_id');
+    const userRoles = localStorage.getItem('user_roles');
+    
+    // Obtener institutionId del objeto institution guardado en localStorage
+    let institutionId = null;
+    const institutionData = localStorage.getItem('institution');
+    if (institutionData) {
+      try {
+        const institution = JSON.parse(institutionData);
+        institutionId = institution?.id || institution?.institutionId;
+      } catch (parseError) {
+        console.error('Error al parsear datos de institución:', parseError);
+      }
     }
-);
 
-// Interceptor para agregar token de autenticación si existe
-academicApiClient.interceptors.request.use(
-    config => {
-        const token = localStorage.getItem('access_token');
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
-        }
-        return config;
-    },
-    error => Promise.reject(error)
-);
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
 
-const courseService = {
-    /**
-     * Crear un nuevo curso
-     * POST /api/v1/courses
-     * @param {CourseRequest} courseData - Datos del curso a crear
-     * @returns {Promise<{success: boolean, message: string, data?: Course}>}
-     */
-    async createCourse(courseData) {
-        try {
-            const courseRequest = new CourseRequest(courseData);
-            const validation = courseRequest.validate();
-            
-            if (!validation.isValid) {
-                return {
-                    success: false,
-                    message: validation.errors.join(', ')
-                };
-            }
+    // Headers requeridos según CourseRest.java (SECRETARY endpoints)
+    if (userId) {
+      headers['X-User-Id'] = userId;
+    }
+    if (userRoles) {
+      headers['X-User-Roles'] = userRoles;
+    }
+    // Para endpoints SECRETARY, X-Institution-Id es OBLIGATORIO
+    if (institutionId) {
+      headers['X-Institution-Id'] = institutionId;
+    }
 
-            const response = await academicApiClient.post('/courses', courseRequest);
-            
-            if (response.data.success && response.data.data) {
-                const course = new Course(response.data.data);
-                return {
-                    success: true,
-                    message: response.data.message || 'Curso creado exitosamente',
-                    data: course
-                };
-            }
-            
-            return {
-                success: false,
-                message: response.data.message || 'Error al crear el curso'
-            };
-        } catch (error) {
-            console.error('Error al crear curso:', error);
-            return this.handleError(error, 'Error al crear el curso');
-        }
-    },
+    return headers;
+  }
 
-    /**
-     * Obtener todos los cursos
-     * GET /api/v1/courses
-     * @returns {Promise<{success: boolean, message: string, data?: Course[], total?: number}>}
-     */
-    async getAllCourses() {
-        try {
-            const response = await academicApiClient.get('/courses');
-            
-            if (response.data.success && Array.isArray(response.data.data)) {
-                const courses = response.data.data.map(courseData => new Course(courseData));
-                return {
-                    success: true,
-                    message: response.data.message || 'Cursos obtenidos exitosamente',
-                    data: courses,
-                    total: courses.length
-                };
-            }
-            
-            return {
-                success: false,
-                message: response.data.message || 'No se pudieron obtener los cursos',
-                data: [],
-                total: 0
-            };
-        } catch (error) {
-            console.error('Error al obtener cursos:', error);
-            const errorResult = this.handleError(error, 'Error al obtener cursos');
-            return {
-                success: false,
-                message: errorResult.message,
-                data: [],
-                total: 0
-            };
-        }
-    },
-
-    /**
-     * Obtener curso por ID
-     * GET /api/v1/courses/{id}
-     * @param {string} id - ID del curso
-     * @returns {Promise<{success: boolean, message: string, data?: Course}>}
-     */
-    async getCourseById(id) {
-        try {
-            if (!id?.trim()) {
-                return {
-                    success: false,
-                    message: 'ID del curso es requerido'
-                };
-            }
-
-            const response = await academicApiClient.get(`/courses/${id}`);
-            
-            if (response.data.success && response.data.data) {
-                const course = new Course(response.data.data);
-                return {
-                    success: true,
-                    message: response.data.message || 'Curso encontrado',
-                    data: course
-                };
-            }
-            
-            return {
-                success: false,
-                message: response.data.message || 'Curso no encontrado'
-            };
-        } catch (error) {
-            console.error(`Error al obtener curso ${id}:`, error);
-            
-            if (error.response?.status === 404) {
-                return {
-                    success: false,
-                    message: 'Curso no encontrado'
-                };
-            }
-            
-            return {
-                success: false,
-                message: 'Error de conexión al servidor'
-            };
-        }
-    },
-
-    /**
-     * Obtener cursos por institución
-     * GET /api/v1/courses/by-institution/{institutionId}
-     * @param {string} institutionId - ID de la institución
-     * @returns {Promise<{success: boolean, message: string, data?: Course[], total?: number}>}
-     */
-    async getCoursesByInstitution(institutionId) {
-        try {
-            if (!institutionId?.trim()) {
-                return {
-                    success: false,
-                    message: 'ID de institución es requerido',
-                    data: [],
-                    total: 0
-                };
-            }
-
-            const response = await academicApiClient.get(`/courses/by-institution/${institutionId}`);
-            
-            if (response.data.success && Array.isArray(response.data.data)) {
-                const courses = response.data.data.map(courseData => new Course(courseData));
-                return {
-                    success: true,
-                    message: response.data.message || 'Cursos obtenidos exitosamente',
-                    data: courses,
-                    total: courses.length
-                };
-            }
-            
-            return {
-                success: false,
-                message: response.data.message || 'No se encontraron cursos para esta institución',
-                data: [],
-                total: 0
-            };
-        } catch (error) {
-            console.error(`Error al obtener cursos de institución ${institutionId}:`, error);
-            return {
-                success: false,
-                message: 'Error de conexión al servidor',
-                data: [],
-                total: 0
-            };
-        }
-    },
-
-    /**
-     * Obtener cursos por institución y nivel
-     * GET /api/v1/courses/by-institution/{institutionId}/level/{level}
-     * @param {string} institutionId - ID de la institución
-     * @param {string} level - Nivel educativo
-     * @returns {Promise<{success: boolean, message: string, data?: Course[], total?: number}>}
-     */
-    async getCoursesByInstitutionAndLevel(institutionId, level) {
-        try {
-            if (!institutionId?.trim() || !level?.trim()) {
-                return {
-                    success: false,
-                    message: 'ID de institución y nivel son requeridos',
-                    data: [],
-                    total: 0
-                };
-            }
-
-            const response = await academicApiClient.get(`/courses/by-institution/${institutionId}/level/${level}`);
-            
-            if (response.data.success && Array.isArray(response.data.data)) {
-                const courses = response.data.data.map(courseData => new Course(courseData));
-                return {
-                    success: true,
-                    message: response.data.message || 'Cursos obtenidos exitosamente',
-                    data: courses,
-                    total: courses.length
-                };
-            }
-            
-            return {
-                success: false,
-                message: response.data.message || 'No se encontraron cursos para esta institución y nivel',
-                data: [],
-                total: 0
-            };
-        } catch (error) {
-            console.error(`Error al obtener cursos de institución ${institutionId} y nivel ${level}:`, error);
-            return {
-                success: false,
-                message: 'Error de conexión al servidor',
-                data: [],
-                total: 0
-            };
-        }
-    },
-
-    /**
-     * Obtener cursos por estado
-     * GET /api/v1/courses/status/{status}
-     * @param {string} status - Estado del curso (A/I)
-     * @returns {Promise<{success: boolean, message: string, data?: Course[], total?: number}>}
-     */
-    async getCoursesByStatus(status) {
-        try {
-            if (!status?.trim()) {
-                return {
-                    success: false,
-                    message: 'Estado es requerido',
-                    data: [],
-                    total: 0
-                };
-            }
-
-            const response = await academicApiClient.get(`/courses/status/${status}`);
-            
-            if (response.data.success && Array.isArray(response.data.data)) {
-                const courses = response.data.data.map(courseData => new Course(courseData));
-                return {
-                    success: true,
-                    message: response.data.message || 'Cursos obtenidos exitosamente',
-                    data: courses,
-                    total: courses.length
-                };
-            }
-            
-            return {
-                success: false,
-                message: response.data.message || 'No se encontraron cursos con este estado',
-                data: [],
-                total: 0
-            };
-        } catch (error) {
-            console.error(`Error al obtener cursos por estado ${status}:`, error);
-            return {
-                success: false,
-                message: error.response?.data?.message || 'Error de conexión al servidor',
-                data: [],
-                total: 0
-            };
-        }
-    },
-
-    /**
-     * Actualizar un curso
-     * PUT /api/v1/courses/{id}
-     * @param {string} id - ID del curso
-     * @param {CourseRequest} courseData - Datos actualizados del curso
-     * @returns {Promise<{success: boolean, message: string, data?: Course}>}
-     */
-    async updateCourse(id, courseData) {
-        try {
-            if (!id?.trim()) {
-                return {
-                    success: false,
-                    message: 'ID del curso es requerido'
-                };
-            }
-
-            const courseRequest = new CourseRequest(courseData);
-            const validation = courseRequest.validate();
-            
-            if (!validation.isValid) {
-                return {
-                    success: false,
-                    message: validation.errors.join(', ')
-                };
-            }
-
-            const response = await academicApiClient.put(`/courses/${id}`, courseRequest);
-            
-            if (response.data.success && response.data.data) {
-                const course = new Course(response.data.data);
-                return {
-                    success: true,
-                    message: response.data.message || 'Curso actualizado exitosamente',
-                    data: course
-                };
-            }
-            
-            return {
-                success: false,
-                message: response.data.message || 'Error al actualizar el curso'
-            };
-        } catch (error) {
-            console.error(`Error al actualizar curso ${id}:`, error);
-            
-            if (error.response?.status === 404) {
-                return {
-                    success: false,
-                    message: 'Curso no encontrado'
-                };
-            }
-            
-            if (error.response?.data?.message) {
-                return {
-                    success: false,
-                    message: error.response.data.message
-                };
-            }
-            
-            return {
-                success: false,
-                message: 'Error de conexión al servidor'
-            };
-        }
-    },
-
-    /**
-     * Eliminado lógico - cambiar estado a 'I'
-     * PATCH /api/v1/courses/{id}/delete
-     * @param {string} id - ID del curso
-     * @returns {Promise<{success: boolean, message: string}>}
-     */
-    async logicalDelete(id) {
-        try {
-            if (!id?.trim()) {
-                return {
-                    success: false,
-                    message: 'ID del curso es requerido'
-                };
-            }
-
-            const response = await academicApiClient.patch(`/courses/${id}/delete`);
-            
-            return {
-                success: response.data.success || false,
-                message: response.data.message || 'Operación completada'
-            };
-        } catch (error) {
-            console.error(`Error al eliminar curso ${id}:`, error);
-            
-            if (error.response?.status === 404) {
-                return {
-                    success: false,
-                    message: 'Curso no encontrado'
-                };
-            }
-            
-            return {
-                success: false,
-                message: 'Error de conexión al servidor'
-            };
-        }
-    },
-
-    /**
-     * Restaurar curso - cambiar estado a 'A'
-     * PATCH /api/v1/courses/{id}/restore
-     * @param {string} id - ID del curso
-     * @returns {Promise<{success: boolean, message: string}>}
-     */
-    async restoreCourse(id) {
-        try {
-            if (!id?.trim()) {
-                return {
-                    success: false,
-                    message: 'ID del curso es requerido'
-                };
-            }
-
-            const response = await academicApiClient.patch(`/courses/${id}/restore`);
-            
-            return {
-                success: response.data.success || false,
-                message: response.data.message || 'Operación completada'
-            };
-        } catch (error) {
-            console.error(`Error al restaurar curso ${id}:`, error);
-            
-            if (error.response?.status === 404) {
-                return {
-                    success: false,
-                    message: 'Curso no encontrado'
-                };
-            }
-            
-            return {
-                success: false,
-                message: 'Error de conexión al servidor'
-            };
-        }
-    },
-
-    /**
-     * Verificar si existe un curso con el código especificado
-     * GET /api/v1/courses/exists/{courseCode}
-     * @param {string} courseCode - Código del curso
-     * @returns {Promise<{success: boolean, exists: boolean, message: string}>}
-     */
-    async existsByCourseCode(courseCode) {
-        try {
-            if (!courseCode?.trim()) {
-                return {
-                    success: false,
-                    exists: false,
-                    message: 'Código del curso es requerido'
-                };
-            }
-
-            const response = await academicApiClient.get(`/courses/exists/${courseCode}`);
-            
-            return {
-                success: response.data.success || false,
-                exists: response.data.exists || false,
-                message: response.data.message || 'Consulta completada'
-            };
-        } catch (error) {
-            console.error(`Error al verificar existencia del curso ${courseCode}:`, error);
-            return {
-                success: false,
-                exists: false,
-                message: 'Error de conexión al servidor'
-            };
-        }
-    },
-
-    // Métodos utilitarios adicionales para el frontend
-
-    /**
-     * Obtener cursos activos de una institución
-     * @param {string} institutionId - ID de la institución
-     * @returns {Promise<{success: boolean, message: string, data?: Course[], total?: number}>}
-     */
-    async getActiveCoursesByInstitution(institutionId) {
-        const result = await this.getCoursesByInstitution(institutionId);
-        if (result.success && result.data) {
-            const activeCourses = result.data.filter(course => course.isActive);
-            return {
-                ...result,
-                data: activeCourses,
-                total: activeCourses.length
-            };
-        }
-        return result;
-    },
-
-    /**
-     * Buscar cursos por nombre o código
-     * @param {string} searchTerm - Término de búsqueda
-     * @param {string} institutionId - ID de la institución (opcional)
-     * @returns {Promise<{success: boolean, message: string, data?: Course[], total?: number}>}
-     */
-    async searchCourses(searchTerm, institutionId = null) {
-        try {
-            let result;
-            if (institutionId) {
-                result = await this.getCoursesByInstitution(institutionId);
-            } else {
-                result = await this.getAllCourses();
-            }
-
-            if (!result.success || !result.data) {
-                return result;
-            }
-
-            const searchTermLower = searchTerm.toLowerCase().trim();
-            const filteredCourses = result.data.filter(course => 
-                course.courseName.toLowerCase().includes(searchTermLower) ||
-                course.courseCode.toLowerCase().includes(searchTermLower) ||
-                course.description?.toLowerCase().includes(searchTermLower)
-            );
-
-            return {
-                success: true,
-                message: `Se encontraron ${filteredCourses.length} curso(s) que coinciden con la búsqueda`,
-                data: filteredCourses,
-                total: filteredCourses.length
-            };
-        } catch (error) {
-            console.error('Error al buscar cursos:', error);
-            return {
-                success: false,
-                message: 'Error en la búsqueda',
-                data: [],
-                total: 0
-            };
-        }
-    },
-
-    /**
-     * Manejo centralizado de errores
-     * @param {Error} error - Error capturado
-     * @param {string} defaultMessage - Mensaje por defecto
-     * @returns {Object} Error procesado con success: false y message
-     */
-    handleError(error, defaultMessage) {
-        if (error.response) {
-            // Error del servidor
-            const { status, data } = error.response;
-            const message = data?.message || data || defaultMessage;
-            
-            switch (status) {
-                case 400:
-                    return { success: false, message: `Solicitud incorrecta: ${message}` };
-                case 401:
-                    return { success: false, message: 'No autorizado. Por favor, inicie sesión nuevamente.' };
-                case 403:
-                    return { success: false, message: 'No tiene permisos para realizar esta acción.' };
-                case 404:
-                    return { success: false, message: 'Recurso no encontrado.' };
-                case 409:
-                    return { success: false, message: `Conflicto: ${message}` };
-                case 500:
-                    return { success: false, message: 'Error interno del servidor. Intente más tarde.' };
-                default:
-                    return { success: false, message: `Error ${status}: ${message}` };
-            }
-        } else if (error.request) {
-            return { success: false, message: 'Error de conexión. Verifique su conexión a internet.' };
+  /**
+   * Maneja las respuestas de la API con refresh automático de token
+   */
+  async handleResponse(response) {
+    // Si es 401 (No autorizado), intentar refresh del token
+    if (response.status === 401) {
+      console.log('🔄 Token expirado (401), intentando refresh automático...');
+      const refreshToken = localStorage.getItem('refresh_token');
+      
+      if (refreshToken) {
+        const refreshResult = await refreshTokenKeycloak(refreshToken);
+        if (refreshResult.success) {
+          console.log('✅ Token refrescado correctamente, reintentando petición...');
+          throw new Error('TOKEN_REFRESHED'); // Señal especial para reintentar
         } else {
-            return { success: false, message: error.message || defaultMessage };
+          console.log('❌ Error al refrescar token:', refreshResult.error);
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('token_expires');
+          console.log('🚪 Redirigiendo al login...');
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 1000);
+          throw new Error('Sesión expirada. Redirigiendo al login...');
         }
+      } else {
+        console.log('❌ No hay refresh token disponible');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1000);
+        throw new Error('Sesión expirada. Redirigiendo al login...');
+      }
     }
-};
 
+    // Verificar si la respuesta tiene contenido antes de parsear JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return {}; // Respuesta vacía pero exitosa
+    }
+
+    try {
+      const data = await response.json();
+      
+      if (!response.ok) {
+        const errorMessage = data.error || data.message || `HTTP error! status: ${response.status}`;
+        console.error('🚨 Error del backend:', {
+          status: response.status,
+          message: errorMessage,
+          data: data
+        });
+        throw new Error(errorMessage);
+      }
+      
+      return data;
+    } catch (error) {
+      if (error.message === 'TOKEN_REFRESHED') {
+        throw error;
+      }
+      
+      if (!response.ok) {
+        const statusMessage = `Error del servidor (${response.status}): ${error.message || 'Respuesta no válida'}`;
+        console.error('🚨 Error de respuesta:', statusMessage);
+        throw new Error(statusMessage);
+      }
+      
+      console.error('Error parsing JSON response:', error);
+      return {};
+    }
+  }
+
+  /**
+   * Ejecuta una petición con retry automático en caso de refresh de token
+   */
+  async executeWithRetry(requestFunction, maxRetries = 1) {
+    let retries = 0;
+    
+    while (retries <= maxRetries) {
+      try {
+        return await requestFunction();
+      } catch (error) {
+        if (error.message === 'TOKEN_REFRESHED' && retries < maxRetries) {
+          console.log('🔄 Reintentando petición con nuevo token...');
+          retries++;
+          continue;
+        }
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Crear un nuevo curso
+   * POST /create
+   */
+  async createCourse(courseData) {
+    try {
+      return await this.executeWithRetry(async () => {
+        console.log('🚀 Creando curso:', courseData);
+        
+        const fullURL = `${this.baseURL}/create`;
+        
+        const response = await fetch(fullURL, {
+          method: 'POST',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify(courseData)
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.data || result,
+          message: result.message || 'Curso creado exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('❌ Error al crear curso:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al crear curso'
+      };
+    }
+  }
+
+  /**
+   * Obtener todos los cursos de la institución
+   * GET /secretary/courses
+   */
+  async getAllCourses() {
+    try {
+      return await this.executeWithRetry(async () => {
+        console.log('📋 Obteniendo todos los cursos');
+        const fullURL = `${this.baseURL}/secretary/courses`;
+        
+        const response = await fetch(fullURL, {
+          method: 'GET',
+          headers: this.getAuthHeaders()
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.data || [],
+          total: result.total || 0,
+          message: result.message || 'Cursos obtenidos exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('❌ Error al obtener cursos:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener cursos',
+        data: [],
+        total: 0
+      };
+    }
+  }
+
+  /**
+   * Obtener cursos por nivel
+   * GET /secretary/courses/level/{level}
+   */
+  async getCoursesByLevel(level) {
+    try {
+      if (!level) {
+        throw new Error('Nivel requerido');
+      }
+
+      return await this.executeWithRetry(async () => {
+        console.log('📋 Obteniendo cursos por nivel:', level);
+        const fullURL = `${this.baseURL}/secretary/courses/level/${level}`;
+        
+        const response = await fetch(fullURL, {
+          method: 'GET',
+          headers: this.getAuthHeaders()
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.data || [],
+          total: result.total || 0,
+          message: result.message || 'Cursos obtenidos exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('❌ Error al obtener cursos por nivel:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener cursos por nivel',
+        data: [],
+        total: 0
+      };
+    }
+  }
+
+  /**
+   * Actualizar un curso
+   * PUT /{id}
+   */
+  async updateCourse(id, courseData) {
+    try {
+      if (!id) {
+        throw new Error('ID de curso requerido');
+      }
+
+      return await this.executeWithRetry(async () => {
+        console.log('🔄 Actualizando curso:', { id, courseData });
+        
+        const fullURL = `${this.baseURL}/${id}`;
+        
+        const response = await fetch(fullURL, {
+          method: 'PUT',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify(courseData)
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.data || result,
+          message: result.message || 'Curso actualizado exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('❌ Error al actualizar curso:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al actualizar curso'
+      };
+    }
+  }
+
+  /**
+   * Eliminar (desactivar) un curso
+   * DELETE /{id}
+   */
+  async deleteCourse(id) {
+    try {
+      if (!id) {
+        throw new Error('ID de curso requerido');
+      }
+
+      return await this.executeWithRetry(async () => {
+        console.log('🗑️ Eliminando curso:', id);
+        const fullURL = `${this.baseURL}/${id}`;
+        
+        const response = await fetch(fullURL, {
+          method: 'DELETE',
+          headers: this.getAuthHeaders()
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          message: result.message || 'Curso eliminado exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('❌ Error al eliminar curso:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al eliminar curso'
+      };
+    }
+  }
+
+  /**
+   * Validar disponibilidad de código de curso
+   * GET /validate-code/{courseCode}
+   */
+  async validateCourseCode(courseCode) {
+    try {
+      return await this.executeWithRetry(async () => {
+        console.log('🔍 Validando código de curso:', courseCode);
+        const fullURL = `${this.baseURL}/validate-code/${courseCode}`;
+        
+        const response = await fetch(fullURL, {
+          method: 'GET',
+          headers: this.getAuthHeaders()
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          available: result.available,
+          message: result.message
+        };
+      });
+    } catch (error) {
+      console.error('❌ Error al validar código de curso:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al validar código de curso'
+      };
+    }
+  }
+}
+
+// Exportar instancia única del servicio
+const courseService = new CourseService();
+export default courseService;
 export { courseService };

@@ -1,5 +1,5 @@
 import { Grade, validateGrade } from '../../types/grades/grade';
-import { refreshTokenKeycloak } from '../../auth/authService';
+import { refreshTokenKeycloak } from '../auth/authService';
 
 class GradeService {
   constructor() {

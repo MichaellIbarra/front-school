@@ -1,5 +1,5 @@
 import { FutRequest, validateFutRequest } from '../../types/fut/fut-request.model';
-import { refreshTokenKeycloak } from '../../auth/authService';
+import { refreshTokenKeycloak } from '../auth/authService';
 
 class FutRequestService {
   constructor() {

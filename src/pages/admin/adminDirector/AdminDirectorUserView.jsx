@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import adminUserService from '../../../services/adminDirectorService/adminUserService';
+import adminUserService from '../../../services/users/adminUserService';
 import Header from '../../../components/Header';
 import Sidebar from '../../../components/Sidebar';
 import { 

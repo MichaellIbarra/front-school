@@ -31,6 +31,27 @@ export {
   formatHeadquarterDate
 } from './headquarter';
 
+// Modelos de Assignments
+export {
+  Assignment,
+  User,
+  AssignmentPostPayload,
+  AssignmentCreateResponse,
+  AssignmentListResponse,
+  UserListResponse,
+  validateAssignmentPost,
+  parseHeadquarterCode,
+  mapApiAssignmentToModel,
+  mapApiUserToModel,
+  mapModelToPostPayload,
+  formatAssignmentDate,
+  getUserFullName,
+  isUserActive,
+  getUserStatusText,
+  formatUserRoles,
+  formatUserDate
+} from './assignments';
+
 
 // Tipos comunes para administración
 export const AdminModuleConstants = {
@@ -84,10 +105,13 @@ export const DefaultConfigs = {
     scheduleSettings: {
       morningStartTime: '08:00:00',
       morningEndTime: '12:00:00',
+      morningToleranceMinutes: 15,
       afternoonStartTime: '14:00:00',
       afternoonEndTime: '18:00:00',
+      afternoonToleranceMinutes: 10,
       nightStartTime: '19:00:00',
-      nightEndTime: '22:00:00'
+      nightEndTime: '22:00:00',
+      nightToleranceMinutes: 20
     }
   }
 };

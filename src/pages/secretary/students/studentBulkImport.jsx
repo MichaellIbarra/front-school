@@ -32,67 +32,76 @@ const StudentBulkImport = () => {
    */
   const studentTemplate = [
     {
-      firstName: "Luis Alberto",
-      lastName: "Ramírez Torres",
+      firstName: "Ronal",
+      lastName: "Ccenco Ramos", 
       documentType: "DNI",
-      documentNumber: "65432109",
-      birthDate: "2011-01-10",
+      documentNumber: "45242414",
+      birthDate: "2010-01-01",
       gender: "MALE",
-      address: "Calle Los Cedros 456",
+      address: "Av. Siempre Viva 123",
       district: "San Juan",
-      province: "Lima",
+      province: "Lima", 
       department: "Lima",
-      phone: "912458963",
-      email: "luis.ramirez@email.com",
-      guardianName: "María",
-      guardianLastName: "Torres",
+      phone: "909012345",
+      email: "ronal.ccenco@email.com",
+      guardianName: "PADRE",
+      guardianLastName: "ccebcho",
       guardianDocumentType: "DNI",
-      guardianDocumentNumber: "22223333",
-      guardianPhone: "921456987",
-      guardianEmail: "maria.torres@email.com",
-      guardianRelationship: "MOTHER"
+      guardianDocumentNumber: "12345678",
+      guardianPhone: "987827222",
+      guardianEmail: "padreccencho@gmail.com",
+      guardianRelationship: "FATHER",
+      parentName: "PADRE ccebcho",
+      parentPhone: "987827222",
+      parentEmail: "padreccencho@gmail.com"
     },
     {
-      firstName: "Sofía Isabel",
-      lastName: "Martínez Ruiz",
-      documentType: "DNI",
-      documentNumber: "34567890",
-      birthDate: "2011-04-20",
+      firstName: "Michaell",
+      lastName: "ibarra",
+      documentType: "DNI", 
+      documentNumber: "90203020",
+      birthDate: "2010-02-02",
       gender: "FEMALE",
-      address: "Av. El Sol 789",
-      district: "Miraflores",
-      province: "Lima",
-      department: "Lima",
-      phone: "913456789",
-      email: "sofia.martinez@email.com",
-      guardianName: "José",
-      guardianLastName: "Martínez",
-      guardianDocumentType: "DNI",
-      guardianDocumentNumber: "44445555",
-      guardianPhone: "922345678",
-      guardianEmail: "jose.martinez@email.com",
-      guardianRelationship: "FATHER"
-    },
-    {
-      firstName: "Diego Andrés",
-      lastName: "Castillo Ramos",
-      documentType: "DNI",
-      documentNumber: "23456789",
-      birthDate: "2009-11-05",
-      gender: "MALE",
-      address: "Jr. Las Flores 222",
+      address: "lima norte",
       district: "Comas",
       province: "Lima",
-      department: "Lima",
-      phone: "914567890",
-      email: "diego.castillo@email.com",
-      guardianName: "Lucía",
-      guardianLastName: "Ramos",
+      department: "Lima", 
+      phone: "900200230",
+      email: "michaell.ibarra@email.com",
+      guardianName: "Padre de una",
+      guardianLastName: "estudiante",
       guardianDocumentType: "DNI",
-      guardianDocumentNumber: "55556666",
-      guardianPhone: "933456789",
-      guardianEmail: "lucia.ramos@email.com",
-      guardianRelationship: "MOTHER"
+      guardianDocumentNumber: "87654321", 
+      guardianPhone: "900123200",
+      guardianEmail: "padredeccencho@padre.com",
+      guardianRelationship: "FATHER",
+      parentName: "Padre de una estudiante",
+      parentPhone: "900123200", 
+      parentEmail: "padredeccencho@padre.com"
+    },
+    {
+      firstName: "Ana María",
+      lastName: "García López",
+      documentType: "DNI",
+      documentNumber: "11223344",
+      birthDate: "2010-03-15",
+      gender: "FEMALE", 
+      address: "Jr. Los Olivos 456",
+      district: "San Martín",
+      province: "Lima",
+      department: "Lima",
+      phone: "955444333",
+      email: "ana.garcia@email.com",
+      guardianName: "Carlos",
+      guardianLastName: "García", 
+      guardianDocumentType: "DNI",
+      guardianDocumentNumber: "44556677",
+      guardianPhone: "988776655",
+      guardianEmail: "carlos.garcia@email.com",
+      guardianRelationship: "FATHER",
+      parentName: "Carlos García",
+      parentPhone: "988776655",
+      parentEmail: "carlos.garcia@email.com"
     }
   ];
 
@@ -224,6 +233,21 @@ const StudentBulkImport = () => {
       headers.forEach((header, index) => {
         student[header] = values[index] || '';
       });
+      
+      // Mapear campos del guardian al formato esperado por la validación
+      if (student.guardianName || student.guardianLastName) {
+        const guardianFullName = `${student.guardianName || ''} ${student.guardianLastName || ''}`.trim();
+        if (guardianFullName) {
+          student.parentName = guardianFullName;
+        }
+      }
+      if (student.guardianPhone) {
+        student.parentPhone = student.guardianPhone;
+      }
+      if (student.guardianEmail) {
+        student.parentEmail = student.guardianEmail;
+      }
+      
       data.push(student);
     }
     
@@ -362,7 +386,9 @@ const StudentBulkImport = () => {
 
     setLoading(true);
     try {
+      console.log('Enviando datos para importación:', parsedData); // Debug
       const response = await studentService.bulkCreateStudents(parsedData);
+      console.log('Respuesta del servidor:', response); // Debug
       
       if (response.success) {
         setImportResults({
@@ -374,6 +400,7 @@ const StudentBulkImport = () => {
         setCurrentStep(2);
         showSuccess(`${parsedData.length} estudiantes importados exitosamente`);
       } else {
+        console.error('Error en importación:', response.error); // Debug
         setImportResults({
           success: false,
           total: parsedData.length,
@@ -385,6 +412,7 @@ const StudentBulkImport = () => {
         showError(response.error || 'Error en la importación');
       }
     } catch (error) {
+      console.error('Excepción durante importación:', error); // Debug
       setImportResults({
         success: false,
         total: parsedData.length,
@@ -393,7 +421,7 @@ const StudentBulkImport = () => {
         errorMessage: error.message
       });
       setCurrentStep(2);
-      showError('Error en la importación');
+      showError('Error en la importación: ' + error.message);
     }
     setLoading(false);
   };
@@ -491,9 +519,9 @@ const StudentBulkImport = () => {
                   >
                     {loading ? (
                       <>
-                        <p className="ant-upload-drag-icon">
+                        <div className="ant-upload-drag-icon">
                           <Progress type="circle" percent={50} showInfo={false} />
-                        </p>
+                        </div>
                         <p className="ant-upload-text">
                           Procesando archivo CSV...
                         </p>
@@ -503,9 +531,9 @@ const StudentBulkImport = () => {
                       </>
                     ) : (
                       <>
-                        <p className="ant-upload-drag-icon">
+                        <div className="ant-upload-drag-icon">
                           <UploadOutlined />
-                        </p>
+                        </div>
                         <p className="ant-upload-text">
                           Haz clic o arrastra un archivo CSV aquí
                         </p>
@@ -575,7 +603,7 @@ const StudentBulkImport = () => {
                   <Table
                     columns={previewColumns}
                     dataSource={parsedData}
-                    rowKey={(record, index) => index}
+                    rowKey={(record) => record.documentNumber || record.firstName + record.lastName}
                     pagination={{ pageSize: 5 }}
                     scroll={{ x: 800 }}
                     size="small"

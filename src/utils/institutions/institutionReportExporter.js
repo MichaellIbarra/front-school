@@ -120,7 +120,7 @@ export class InstitutionReportExporter {
       let institutionData = null;
       try {
         // Intentar obtener la institución desde authService
-        const authServiceModule = require('../../auth/authService');
+        const authServiceModule = require('../../services/auth/authService');
         institutionData = authServiceModule.getUserInstitution();
       } catch (error) {
         console.log('No se pudo cargar authService, usando datos de localStorage');

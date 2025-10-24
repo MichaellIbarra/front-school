@@ -1,9 +1,4 @@
-import { 
-  Student, 
-  Justification,
-  validateJustification 
-} from '../../types/attendance';
-import { refreshTokenKeycloak } from '../../auth/authService';
+import { refreshTokenKeycloak } from '../auth/authService';
 
 class AttendanceService {
   constructor() {
@@ -1008,13 +1003,11 @@ class AttendanceService {
    */
   async createJustification(justificationData) {
     try {
-      // Validar los datos antes de enviar
-      const validation = validateJustification(justificationData);
-      if (!validation.isValid) {
+      // Validar datos básicos
+      if (!justificationData.attendanceId || !justificationData.justificationType || !justificationData.justificationReason) {
         return {
           success: false,
-          error: 'Datos de justificación inválidos',
-          validationErrors: validation.errors
+          error: 'Datos de justificación inválidos: faltan campos requeridos'
         };
       }
 
@@ -1172,13 +1165,11 @@ class AttendanceService {
         throw new Error('ID de justificación requerido');
       }
 
-      // Validar los datos antes de enviar
-      const validation = validateJustification(justificationData);
-      if (!validation.isValid) {
+      // Validar datos básicos
+      if (!justificationData.attendanceId || !justificationData.justificationType || !justificationData.justificationReason) {
         return {
           success: false,
-          error: 'Datos de justificación inválidos',
-          validationErrors: validation.errors
+          error: 'Datos de justificación inválidos: faltan campos requeridos'
         };
       }
 
@@ -1730,9 +1721,14 @@ class AttendanceService {
    */
   createNewJustification(attendanceId = '') {
     return {
-      ...Justification,
       attendanceId,
+      justificationType: '',
+      justificationReason: '',
       submissionDate: new Date().toISOString(),
+      submittedBy: '',
+      approvalStatus: 'PENDING',
+      approvalComments: '',
+      supportingDocuments: [],
       createdAt: new Date().toISOString()
     };
   }
@@ -1742,7 +1738,15 @@ class AttendanceService {
    */
   createNewStudent() {
     return {
-      ...Student,
+      id: '',
+      name: '',
+      enrollmentId: '',
+      dni: '',
+      email: '',
+      phone: '',
+      grade: '',
+      section: '',
+      course: '',
       entryDate: new Date().toISOString().split('T')[0]
     };
   }
@@ -1794,6 +1798,155 @@ class AttendanceService {
         error: error.message || 'Error al marcar ausencias',
         data: null
       };
+    }
+  }
+
+  // ==========================================
+  // MÉTODOS PARA REGISTRO QR DE ASISTENCIAS
+  // ==========================================
+
+  /**
+   * Registra asistencia mediante escaneo de código QR
+   * POST /api/v1/attendances/auxiliary/qr-register
+   * @param {Object} qrData - Datos del QR escaneado
+   * @param {string} qrData.studentId - UUID del estudiante
+   * @param {string} qrData.classroomId - UUID del aula
+   * @param {string} attendanceDate - Fecha de registro (YYYY-MM-DD)
+   * @param {string} observations - Observaciones opcionales
+   * @returns {Promise<Object>} - Respuesta del registro
+   */
+  async registerAttendanceByQR(qrData, attendanceDate, observations = 'Registro via QR scan') {
+    try {
+      if (!qrData || !qrData.student_id || !qrData.classroom_id) {
+        throw new Error('Datos del QR inválidos. Debe contener student_id y classroom_id');
+      }
+
+      if (!attendanceDate) {
+        throw new Error('La fecha de asistencia es requerida');
+      }
+
+      const payload = {
+        studentId: qrData.student_id,
+        classroomId: qrData.classroom_id,
+        attendanceDate: attendanceDate,
+        status: 'P', // Presente por defecto
+        observations: observations
+      };
+
+      return await this.executeWithRetry(async () => {
+        const response = await fetch(`${this.baseURL}/attendances/auxiliary/qr-register`, {
+          method: 'POST',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify(payload)
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.data || result,
+          metadata: result.metadata,
+          message: result.metadata?.message || 'Asistencia registrada exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('Error al registrar asistencia por QR:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al registrar la asistencia'
+      };
+    }
+  }
+
+  /**
+   * Obtiene las asistencias de un aula específica por fecha
+   * GET /api/v1/attendances/auxiliary/by-classroom/{classroomId}?date={date}
+   * @param {string} classroomId - UUID del aula
+   * @param {string} date - Fecha en formato YYYY-MM-DD
+   * @returns {Promise<Object>} - Lista de asistencias del aula
+   */
+  async getAttendancesByClassroom(classroomId, date) {
+    try {
+      if (!classroomId) {
+        throw new Error('El ID del aula es requerido');
+      }
+
+      if (!date) {
+        throw new Error('La fecha es requerida');
+      }
+
+      return await this.executeWithRetry(async () => {
+        const response = await fetch(
+          `${this.baseURL}/attendances/auxiliary/by-classroom/${classroomId}?date=${date}`,
+          {
+            method: 'GET',
+            headers: this.getAuthHeaders()
+          }
+        );
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: Array.isArray(result) ? result : (result.data || []),
+          metadata: result.metadata || { total: result.length || 0 },
+          message: 'Asistencias del aula obtenidas exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('Error al obtener asistencias del aula:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al cargar las asistencias del aula',
+        data: []
+      };
+    }
+  }
+
+  /**
+   * Valida los datos del código QR
+   * @param {string} qrCode - Código QR escaneado en formato JSON string
+   * @returns {Object|null} - Datos parseados o null si son inválidos
+   */
+  /**
+   * Valida los datos del código QR (versión simplificada y optimizada)
+   * @param {string} qrCode - Código QR escaneado en formato JSON string
+   * @returns {Object|null} - Datos parseados o null si son inválidos
+   */
+  validateQRCode(qrCode) {
+    // Verificación básica de entrada
+    if (!qrCode || typeof qrCode !== 'string' || qrCode.trim() === '') {
+      return null;
+    }
+
+    try {
+      // Parsear JSON
+      const data = JSON.parse(qrCode.trim());
+      
+      // Verificar estructura básica
+      if (!data || typeof data !== 'object') {
+        return null;
+      }
+
+      // Verificar campos requeridos
+      if (!data.student_id || !data.classroom_id) {
+        return null;
+      }
+
+      // Validar que sean strings válidos
+      if (typeof data.student_id !== 'string' || typeof data.classroom_id !== 'string') {
+        return null;
+      }
+
+      // Retornar datos limpios
+      return {
+        student_id: data.student_id.trim(),
+        classroom_id: data.classroom_id.trim(),
+        timestamp: data.timestamp || new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('Error validando QR:', error.message);
+      return null;
     }
   }
 }

@@ -10,29 +10,19 @@ export class EnrollmentExportUtils {
    */
   static exportEnrollmentsToCSV(enrollments, filename = 'matriculas') {
     const headers = [
-      'Número de Matrícula',
-      'Estudiante',
-      'Documento Estudiante',
-      'Grado',
-      'Sección',
-      'Aula',
-      'Año Escolar',
+      'ID de Estudiante',
+      'ID de Aula',
       'Fecha de Matrícula',
-      'Estado',
-      'Observaciones'
+      'Tipo de Matrícula',
+      'Estado'
     ];
 
     const mapFunction = (enrollment) => [
-      `"${enrollment.enrollmentNumber || ''}"`,
-      `"${enrollment.studentName || enrollment.student?.firstName || ''} ${enrollment.studentLastName || enrollment.student?.lastName || ''}"`,
-      `"${enrollment.studentDocumentType || enrollment.student?.documentType || ''}: ${enrollment.studentDocumentNumber || enrollment.student?.documentNumber || ''}"`,
-      `"${enrollment.gradeName || enrollment.grade?.name || ''}"`,
-      `"${enrollment.sectionName || enrollment.section?.name || ''}"`,
-      `"${enrollment.classroomName || enrollment.classroom?.name || ''}"`,
-      `"${enrollment.schoolYear || ''}"`,
+      `"${enrollment.studentId || ''}"`,
+      `"${enrollment.classroomId || ''}"`,
       `"${this.formatDateTime(enrollment.enrollmentDate) || ''}"`,
-      `"${this.getStatusText(enrollment.status)}"`,
-      `"${enrollment.observations || ''}"`
+      `"${enrollment.enrollmentType || ''}"`,
+      `"${this.getStatusText(enrollment.status)}"`
     ];
 
     this.exportToCSV(enrollments, headers, mapFunction, filename);
@@ -43,14 +33,14 @@ export class EnrollmentExportUtils {
    * @param {string} title - Título del reporte
    */
   static exportEnrollmentsToPDF(enrollments, title = 'Reporte de Matrículas') {
-    const headers = ['Matrícula', 'Estudiante', 'Grado/Sección', 'Año Escolar', 'Estado'];
+    const headers = ['ID de Estudiante', 'ID de Aula', 'Fecha de Matrícula', 'Tipo', 'Estado'];
     
     const mapFunction = (enrollment) => `
       <tr>
-        <td>${enrollment.enrollmentNumber}</td>
-        <td>${enrollment.studentName || enrollment.student?.firstName || ''} ${enrollment.studentLastName || enrollment.student?.lastName || ''}</td>
-        <td>${enrollment.gradeName || enrollment.grade?.name || ''} - ${enrollment.sectionName || enrollment.section?.name || ''}</td>
-        <td>${enrollment.schoolYear}</td>
+        <td>${enrollment.studentId}</td>
+        <td>${enrollment.classroomId}</td>
+        <td>${this.formatDateTime(enrollment.enrollmentDate)}</td>
+        <td>${enrollment.enrollmentType}</td>
         <td>${this.getStatusText(enrollment.status)}</td>
       </tr>
     `;
@@ -65,15 +55,10 @@ export class EnrollmentExportUtils {
   static downloadEnrollmentTemplate() {
     const templateData = [
       {
-        enrollmentNumber: "MAT-2024-001",
-        studentId: 1,
-        gradeId: 1,
-        sectionId: 1,
-        classroomId: 1,
-        schoolYear: "2024",
-        enrollmentDate: "2024-03-01",
-        status: "ACTIVE",
-        observations: "Matrícula regular"
+        studentId: "c4becc23-96b7-46c2-ad52-271b71bf6ae2",
+        classroomId: "classroom-uuid-001",
+        enrollmentDate: "2025-03-01",
+        enrollmentType: "REGULAR"
       }
     ];
 

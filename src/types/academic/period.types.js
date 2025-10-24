@@ -15,7 +15,6 @@
 
 /**
  * @typedef {Object} PeriodRequest
- * @property {string} institutionId - ID de la institución
  * @property {string} level - Nivel educativo
  * @property {string} period - Período
  * @property {string} academicYear - Año académico
@@ -23,6 +22,7 @@
  * @property {string} startDate - Fecha de inicio
  * @property {string} endDate - Fecha de fin
  * @property {string} status - Estado (A: Activo, I: Inactivo)
+ * @note institutionId se envía en headers HTTP (X-Institution-Id), no en el body
  */
 
 /**
@@ -100,7 +100,8 @@ export class Period {
  */
 export class PeriodRequest {
     constructor(data) {
-        this.institutionId = data.institutionId;
+        // institutionId se envía en headers, NO en el body
+        // Removido según PeriodRequestDto.java del backend
         this.level = data.level;
         this.period = data.period;
         this.academicYear = data.academicYear;
@@ -116,10 +117,6 @@ export class PeriodRequest {
      */
     validate() {
         const errors = [];
-
-        if (!this.institutionId?.trim()) {
-            errors.push('El ID de la institución es obligatorio');
-        }
 
         if (!this.level?.trim()) {
             errors.push('El nivel educativo es obligatorio');
@@ -220,13 +217,11 @@ export const PeriodValidationMessages = {
 
 /**
  * Función utilitaria para crear un período vacío con valores por defecto
- * @param {string} institutionId - ID de la institución
  * @returns {PeriodRequest} Período con valores por defecto
  */
-export const createEmptyPeriod = (institutionId = '') => {
+export const createEmptyPeriod = () => {
     const currentYear = new Date().getFullYear();
     return new PeriodRequest({
-        institutionId,
         level: '',
         period: '',
         academicYear: currentYear.toString(),
@@ -307,19 +302,20 @@ export const sortPeriodsByStartDate = (periods) => {
 
 /**
  * Función utilitaria para obtener períodos disponibles según el nivel
+ * Backend espera: "1ro", "2do", "3ro", "4to", "5to", "6to"
  * @param {string} level - Nivel educativo
  * @returns {Array} Array de períodos disponibles
  */
 export const getPeriodsForLevel = (level) => {
     switch (level) {
         case 'INICIAL':
-            return ['1', '2'];
+            return ['1ro', '2do'];
         case 'PRIMARIA':
-            return ['1', '2', '3', '4', '5', '6'];
+            return ['1ro', '2do', '3ro', '4to', '5to', '6to'];
         case 'SECUNDARIA':
-            return ['1', '2', '3', '4', '5'];
+            return ['1ro', '2do', '3ro', '4to', '5to'];
         case 'SUPERIOR':
-            return ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
+            return ['1ro', '2do', '3ro', '4to', '5to', '6to'];
         default:
             return [];
     }

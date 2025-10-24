@@ -8,12 +8,17 @@
 export class Classroom {
     constructor(data = {}) {
         this.id = data.id || null;
-        this.code = data.code || '';
-        this.name = data.name || '';
-        this.description = data.description || '';
+        this.headquarterId = data.headquarterId || '';
+        this.periodId = data.periodId || '';
+        this.section = data.section || '';
+        this.grade = data.grade || null;
+        this.shift = data.shift || '';
         this.status = data.status || 'A';
         this.createdAt = data.createdAt || null;
         this.updatedAt = data.updatedAt || null;
+        // Campos populados del backend
+        this.headquarterName = data.headquarterName || '';
+        this.periodName = data.periodName || '';
     }
 }
 
@@ -22,9 +27,12 @@ export class Classroom {
  */
 export class ClassroomRequest {
     constructor(data = {}) {
-        this.code = data.code || '';
-        this.name = data.name || '';
-        this.description = data.description || null;
+        this.headquarterId = data.headquarterId || '';
+        this.periodId = data.periodId || '';
+        this.section = data.section || '';
+        this.grade = data.grade || null;
+        this.shift = data.shift || '';
+        this.status = data.status || 'A';
     }
 }
 
@@ -34,6 +42,31 @@ export class ClassroomRequest {
 export const StatusEnum = {
     ACTIVE: 'A',
     INACTIVE: 'I'
+};
+
+/**
+ * Turnos disponibles
+ */
+export const ShiftEnum = {
+    MORNING: 'M',
+    AFTERNOON: 'T',
+    NIGHT: 'N'
+};
+
+/**
+ * Obtiene el texto del turno
+ */
+export const getShiftText = (shift) => {
+    switch (shift) {
+        case ShiftEnum.MORNING:
+            return 'Mañana';
+        case ShiftEnum.AFTERNOON:
+            return 'Tarde';
+        case ShiftEnum.NIGHT:
+            return 'Noche';
+        default:
+            return 'Desconocido';
+    }
 };
 
 /**
@@ -68,24 +101,28 @@ export const getStatusText = (status) => {
  * Validación del modelo Classroom
  */
 export const validateClassroom = (classroom) => {
-    if (!classroom.code || classroom.code.trim() === '') {
-        return 'El código del aula es obligatorio';
+    if (!classroom.headquarterId || classroom.headquarterId.trim() === '') {
+        return 'El ID de la sede es obligatorio';
     }
 
-    if (classroom.code.length > 20) {
-        return 'El código no puede exceder 20 caracteres';
+    if (!classroom.periodId || classroom.periodId.trim() === '') {
+        return 'El ID del período es obligatorio';
     }
 
-    if (!classroom.name || classroom.name.trim() === '') {
-        return 'El nombre del aula es obligatorio';
+    if (!classroom.section || classroom.section.trim() === '') {
+        return 'La sección es obligatoria';
     }
 
-    if (classroom.name.length > 100) {
-        return 'El nombre no puede exceder 100 caracteres';
+    if (!/^[A-Z]$/.test(classroom.section)) {
+        return 'La sección debe ser una letra mayúscula (A, B, C, etc.)';
     }
 
-    if (classroom.description && classroom.description.length > 255) {
-        return 'La descripción no puede exceder 255 caracteres';
+    if (!classroom.grade || classroom.grade < 1 || classroom.grade > 6) {
+        return 'El grado debe estar entre 1 y 6';
+    }
+
+    if (!classroom.shift || !/^(M|T|N)$/.test(classroom.shift)) {
+        return 'El turno debe ser M (Mañana), T (Tarde) o N (Noche)';
     }
 
     return null;

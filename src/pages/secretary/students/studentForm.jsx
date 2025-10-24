@@ -2,14 +2,13 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useParams, useLocation } from "react-router-dom";
 import { Form, Input, Select, Button, Card, Row, Col, Divider, Spin } from "antd";
-import { SaveOutlined, ArrowLeftOutlined, SearchOutlined } from "@ant-design/icons";
+import { SaveOutlined, ArrowLeftOutlined } from "@ant-design/icons";
 import Header from "../../../components/Header";
 import Sidebar from "../../../components/Sidebar";
 import AlertModal from "../../../components/AlertModal";
 import useAlert from "../../../hooks/useAlert";
 import studentService from "../../../services/students/studentService";
-import reniecService from "../../../services/students/reniecService";
-import { Student, DocumentType, Gender, GuardianRelationship, validateStudent } from "../../../types/students/students";
+import { Student, DocumentType, Gender, validateStudent } from "../../../types/students/students";
 
 // Suprimir warning de compatibilidad de Ant Design con React 19
 const originalError = console.error;
@@ -35,7 +34,6 @@ const StudentForm = () => {
   const { alertState, showAlert, showSuccess, showError, handleConfirm: alertConfirm, handleCancel: alertCancel } = useAlert();
   
   const [loading, setLoading] = useState(false);
-  const [searchingReniec, setSearchingReniec] = useState(false);
   const [student, setStudent] = useState(Student);
   const isEdit = Boolean(id);
 
@@ -62,21 +60,9 @@ const StudentForm = () => {
    * Carga los datos del estudiante desde el servicio
    */
   const loadStudent = async () => {
-    setLoading(true);
-    try {
-      const response = await studentService.getStudentById(id);
-      if (response.success && response.data) {
-        setStudent(response.data);
-        populateForm(response.data);
-      } else {
-        showError(response.error || 'Estudiante no encontrado');
-        navigate('/secretary/students');
-      }
-    } catch (error) {
-      showError('Error al cargar el estudiante');
-      navigate('/secretary/students');
-    }
-    setLoading(false);
+    // En modo de edición, mostrar mensaje de que no se puede editar
+    showError('No se puede editar estudiantes existentes en este momento');
+    navigate('/secretary/students');
   };
 
   /**
@@ -96,59 +82,6 @@ const StudentForm = () => {
   };
 
   /**
-   * Busca datos del estudiante en RENIEC por DNI
-   */
-  const handleSearchReniec = async () => {
-    const dni = form.getFieldValue('documentNumber');
-    
-    if (!dni || dni.length !== 8) {
-      showError('Por favor ingrese un DNI válido de 8 dígitos');
-      return;
-    }
-
-    setSearchingReniec(true);
-    try {
-      const response = await reniecService.searchByDNI(dni);
-      
-      if (response.success && response.data) {
-        // Rellenar el formulario con los datos de RENIEC
-        const fieldsToSet = {
-          firstName: response.data.firstName,
-          lastName: response.data.lastName,
-          documentType: response.data.documentType,
-          birthDate: response.data.birthDate,
-          gender: response.data.gender,
-          address: response.data.address
-        };
-
-        // Agregar datos del apoderado si existen
-        if (response.data.guardianName) {
-          fieldsToSet.guardianName = response.data.guardianName;
-        }
-        if (response.data.guardianLastName) {
-          fieldsToSet.guardianLastName = response.data.guardianLastName;
-        }
-        if (response.data.guardianRelationship) {
-          fieldsToSet.guardianRelationship = response.data.guardianRelationship;
-        }
-        if (response.data.guardianDocumentType) {
-          fieldsToSet.guardianDocumentType = response.data.guardianDocumentType;
-        }
-
-        form.setFieldsValue(fieldsToSet);
-        
-        showSuccess('Datos encontrados en RENIEC y completados automáticamente');
-      } else {
-        showError(response.error || 'No se encontraron datos en RENIEC');
-      }
-    } catch (error) {
-      showError('Error al consultar RENIEC');
-    } finally {
-      setSearchingReniec(false);
-    }
-  };
-
-  /**
    * Maneja el envío del formulario
    */
   const handleSubmit = async (values) => {
@@ -164,15 +97,11 @@ const StudentForm = () => {
            values.birthDate) : null
       };
 
-      let response;
-      if (isEdit) {
-        response = await studentService.updateStudent(id, studentData);
-      } else {
-        response = await studentService.createStudent(studentData);
-      }
+      // Solo crear estudiantes, no editar
+      const response = await studentService.createStudent(studentData);
 
       if (response.success) {
-        showSuccess(response.message || `Estudiante ${isEdit ? 'actualizado' : 'creado'} exitosamente`);
+        showSuccess(response.message || 'Estudiante creado exitosamente');
         navigate('/secretary/students');
       } else {
         if (response.validationErrors) {
@@ -183,7 +112,7 @@ const StudentForm = () => {
         }
       }
     } catch (error) {
-      showError(`Error al ${isEdit ? 'actualizar' : 'crear'} el estudiante`);
+      showError('Error al crear el estudiante');
     }
     
     setLoading(false);
@@ -206,7 +135,7 @@ const StudentForm = () => {
               <div className="col-sm-12">
                 <div className="page-sub-header">
                   <h3 className="page-title">
-                    {isEdit ? 'Editar Estudiante' : 'Nuevo Estudiante'}
+                    Nuevo Estudiante
                   </h3>
                   <ul className="breadcrumb">
                     <li className="breadcrumb-item">
@@ -216,7 +145,7 @@ const StudentForm = () => {
                       <Link to="/secretary/students">Estudiantes</Link>
                     </li>
                     <li className="breadcrumb-item active">
-                      {isEdit ? 'Editar' : 'Nuevo'}
+                      Nuevo
                     </li>
                   </ul>
                 </div>
@@ -234,11 +163,16 @@ const StudentForm = () => {
                     layout="vertical"
                     onFinish={handleSubmit}
                     disabled={loading}
+                    initialValues={{
+                      documentType: DocumentType.DNI,
+                      gender: Gender.MALE,
+                      birthDate: new Date().toISOString().split('T')[0],
+                    }}
                   >
                     {/* Datos del Estudiante */}
                     <Card title="Datos del Estudiante" className="mb-4">
                       <Row gutter={16}>
-                        <Col xs={24} sm={12} md={8}>
+                        <Col xs={24} sm={12}>
                           <Form.Item
                             label="Nombres"
                             name="firstName"
@@ -250,7 +184,7 @@ const StudentForm = () => {
                             <Input placeholder="Ingrese los nombres" />
                           </Form.Item>
                         </Col>
-                        <Col xs={24} sm={12} md={8}>
+                        <Col xs={24} sm={12}>
                           <Form.Item
                             label="Apellidos"
                             name="lastName"
@@ -262,6 +196,9 @@ const StudentForm = () => {
                             <Input placeholder="Ingrese los apellidos" />
                           </Form.Item>
                         </Col>
+                      </Row>
+
+                      <Row gutter={16}>
                         <Col xs={24} sm={12} md={8}>
                           <Form.Item
                             label="Tipo de Documento"
@@ -270,14 +207,9 @@ const StudentForm = () => {
                           >
                             <Select placeholder="Seleccione">
                               <Option value={DocumentType.DNI}>DNI</Option>
-                              <Option value={DocumentType.PASSPORT}>Pasaporte</Option>
-                              <Option value={DocumentType.CE}>Carné de Extranjería</Option>
                             </Select>
                           </Form.Item>
                         </Col>
-                      </Row>
-
-                      <Row gutter={16}>
                         <Col xs={24} sm={12} md={8}>
                           <Form.Item
                             label="Número de Documento"
@@ -293,21 +225,6 @@ const StudentForm = () => {
                             />
                           </Form.Item>
                         </Col>
-                        {!isEdit && form.getFieldValue('documentType') === 'DNI' && (
-                          <Col xs={24} sm={12} md={4}>
-                            <Form.Item label=" " colon={false}>
-                              <Button
-                                type="primary"
-                                icon={<SearchOutlined />}
-                                onClick={handleSearchReniec}
-                                loading={searchingReniec}
-                                block
-                              >
-                                Buscar RENIEC
-                              </Button>
-                            </Form.Item>
-                          </Col>
-                        )}
                         <Col xs={24} sm={12} md={8}>
                           <Form.Item
                             label="Fecha de Nacimiento"
@@ -321,6 +238,9 @@ const StudentForm = () => {
                             />
                           </Form.Item>
                         </Col>
+                      </Row>
+
+                      <Row gutter={16}>
                         <Col xs={24} sm={12} md={8}>
                           <Form.Item
                             label="Género"
@@ -333,10 +253,16 @@ const StudentForm = () => {
                             </Select>
                           </Form.Item>
                         </Col>
-                      </Row>
-
-                      <Row gutter={16}>
-                        <Col xs={24} sm={12}>
+                        <Col xs={24} sm={12} md={8}>
+                          <Form.Item
+                            label="Dirección"
+                            name="address"
+                            rules={[{ required: true, message: 'La dirección es requerida' }]}
+                          >
+                            <Input placeholder="Ingrese la dirección completa" />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={12} md={8}>
                           <Form.Item
                             label="Teléfono"
                             name="phone"
@@ -347,62 +273,6 @@ const StudentForm = () => {
                             <Input placeholder="Ingrese el teléfono" maxLength={9} />
                           </Form.Item>
                         </Col>
-                        <Col xs={24} sm={12}>
-                          <Form.Item
-                            label="Email"
-                            name="email"
-                            rules={[
-                              { type: 'email', message: 'Ingrese un email válido' }
-                            ]}
-                          >
-                            <Input placeholder="Ingrese el email" />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-                    </Card>
-
-                    {/* Dirección */}
-                    <Card title="Dirección" className="mb-4">
-                      <Row gutter={16}>
-                        <Col xs={24}>
-                          <Form.Item
-                            label="Dirección"
-                            name="address"
-                            rules={[{ required: true, message: 'La dirección es requerida' }]}
-                          >
-                            <Input placeholder="Ingrese la dirección completa" />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-
-                      <Row gutter={16}>
-                        <Col xs={24} sm={8}>
-                          <Form.Item
-                            label="Distrito"
-                            name="district"
-                            rules={[{ required: true, message: 'El distrito es requerido' }]}
-                          >
-                            <Input placeholder="Ingrese el distrito" />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} sm={8}>
-                          <Form.Item
-                            label="Provincia"
-                            name="province"
-                            rules={[{ required: true, message: 'La provincia es requerida' }]}
-                          >
-                            <Input placeholder="Ingrese la provincia" />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} sm={8}>
-                          <Form.Item
-                            label="Departamento"
-                            name="department"
-                            rules={[{ required: true, message: 'El departamento es requerido' }]}
-                          >
-                            <Input placeholder="Ingrese el departamento" />
-                          </Form.Item>
-                        </Col>
                       </Row>
                     </Card>
 
@@ -411,72 +281,17 @@ const StudentForm = () => {
                       <Row gutter={16}>
                         <Col xs={24} sm={12}>
                           <Form.Item
-                            label="Nombres del Apoderado"
-                            name="guardianName"
-                            rules={[{ required: true, message: 'Los nombres del apoderado son requeridos' }]}
+                            label="Nombre del Apoderado"
+                            name="parentName"
+                            rules={[{ required: true, message: 'El nombre del apoderado es requerido' }]}
                           >
-                            <Input placeholder="Ingrese los nombres del apoderado" />
+                            <Input placeholder="Ingrese el nombre del apoderado" />
                           </Form.Item>
                         </Col>
-                        <Col xs={24} sm={12}>
-                          <Form.Item
-                            label="Apellidos del Apoderado"
-                            name="guardianLastName"
-                            rules={[{ required: true, message: 'Los apellidos del apoderado son requeridos' }]}
-                          >
-                            <Input placeholder="Ingrese los apellidos del apoderado" />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-
-                      <Row gutter={16}>
-                        <Col xs={24} sm={12} md={8}>
-                          <Form.Item
-                            label="Tipo de Documento"
-                            name="guardianDocumentType"
-                            rules={[{ required: true, message: 'Seleccione el tipo de documento' }]}
-                          >
-                            <Select placeholder="Seleccione">
-                              <Option value={DocumentType.DNI}>DNI</Option>
-                              <Option value={DocumentType.PASSPORT}>Pasaporte</Option>
-                              <Option value={DocumentType.CE}>Carné de Extranjería</Option>
-                            </Select>
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} sm={12} md={8}>
-                          <Form.Item
-                            label="Número de Documento"
-                            name="guardianDocumentNumber"
-                            rules={[
-                              { required: true, message: 'El número de documento es requerido' },
-                              { pattern: /^\d{8}$/, message: 'Debe tener 8 dígitos' }
-                            ]}
-                          >
-                            <Input placeholder="Número de documento" maxLength={8} />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} sm={12} md={8}>
-                          <Form.Item
-                            label="Relación"
-                            name="guardianRelationship"
-                            rules={[{ required: true, message: 'Seleccione la relación' }]}
-                          >
-                            <Select placeholder="Seleccione">
-                              <Option value={GuardianRelationship.FATHER}>Padre</Option>
-                              <Option value={GuardianRelationship.MOTHER}>Madre</Option>
-                              <Option value={GuardianRelationship.GUARDIAN}>Apoderado</Option>
-                              <Option value={GuardianRelationship.GRANDPARENT}>Abuelo/a</Option>
-                              <Option value={GuardianRelationship.OTHER}>Otro</Option>
-                            </Select>
-                          </Form.Item>
-                        </Col>
-                      </Row>
-
-                      <Row gutter={16}>
                         <Col xs={24} sm={12}>
                           <Form.Item
                             label="Teléfono del Apoderado"
-                            name="guardianPhone"
+                            name="parentPhone"
                             rules={[
                               { pattern: /^\d{9}$/, message: 'Debe tener 9 dígitos' }
                             ]}
@@ -484,10 +299,13 @@ const StudentForm = () => {
                             <Input placeholder="Teléfono del apoderado" maxLength={9} />
                           </Form.Item>
                         </Col>
-                        <Col xs={24} sm={12}>
+                      </Row>
+
+                      <Row gutter={16}>
+                        <Col xs={24}>
                           <Form.Item
                             label="Email del Apoderado"
-                            name="guardianEmail"
+                            name="parentEmail"
                             rules={[
                               { type: 'email', message: 'Ingrese un email válido' }
                             ]}
@@ -514,7 +332,7 @@ const StudentForm = () => {
                         htmlType="submit"
                         loading={loading}
                       >
-                        {isEdit ? 'Actualizar' : 'Guardar'} Estudiante
+                        Guardar Estudiante
                       </Button>
                     </div>
                   </Form>

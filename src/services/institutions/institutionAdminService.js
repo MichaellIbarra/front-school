@@ -1,5 +1,5 @@
 import { Institution, validateInstitution } from '../../types/institutions';
-import { refreshTokenKeycloak } from '../../auth/authService';
+import { refreshTokenKeycloak } from '../auth/authService';
 
 class InstitutionAdminService {
   constructor() {
@@ -251,10 +251,13 @@ class InstitutionAdminService {
         scheduleSettings: {
           morningStartTime: institutionData.scheduleSettings?.morningStartTime || '08:00',
           morningEndTime: institutionData.scheduleSettings?.morningEndTime || '12:00',
+          morningToleranceMinutes: Number(institutionData.scheduleSettings?.morningToleranceMinutes) || 15,
           afternoonStartTime: institutionData.scheduleSettings?.afternoonStartTime || '14:00',
           afternoonEndTime: institutionData.scheduleSettings?.afternoonEndTime || '18:00',
+          afternoonToleranceMinutes: Number(institutionData.scheduleSettings?.afternoonToleranceMinutes) || 10,
           nightStartTime: institutionData.scheduleSettings?.nightStartTime || '19:00',
-          nightEndTime: institutionData.scheduleSettings?.nightEndTime || '22:00'
+          nightEndTime: institutionData.scheduleSettings?.nightEndTime || '22:00',
+          nightToleranceMinutes: Number(institutionData.scheduleSettings?.nightToleranceMinutes) || 20
         }
       };
 
@@ -571,7 +574,7 @@ class InstitutionAdminService {
           };
         }
   
-        const response = await fetch(`https://matichain.dev/instituciones?codinst=${codInstitution}`, {
+        const response = await fetch(`https://escale.matichain.dev/instituciones?codinst=${codInstitution}`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json'

@@ -188,6 +188,9 @@ const InstitutionAdd = () => {
         moment(institution.scheduleSettings.nightStartTime, 'HH:mm:ss') : moment('19:00:00', 'HH:mm:ss'),
       'scheduleSettings.nightEndTime': institution.scheduleSettings?.nightEndTime ? 
         moment(institution.scheduleSettings.nightEndTime, 'HH:mm:ss') : moment('22:00:00', 'HH:mm:ss'),
+      'scheduleSettings.morningToleranceMinutes': institution.scheduleSettings?.morningToleranceMinutes || 15,
+      'scheduleSettings.afternoonToleranceMinutes': institution.scheduleSettings?.afternoonToleranceMinutes || 10,
+      'scheduleSettings.nightToleranceMinutes': institution.scheduleSettings?.nightToleranceMinutes || 20,
     });
 
     // Inicializar fileList si hay logo existente
@@ -304,10 +307,13 @@ const InstitutionAdd = () => {
         scheduleSettings: {
           morningStartTime: values['scheduleSettings.morningStartTime'].format('HH:mm:ss'),
           morningEndTime: values['scheduleSettings.morningEndTime'].format('HH:mm:ss'),
+          morningToleranceMinutes: values['scheduleSettings.morningToleranceMinutes'] || 15,
           afternoonStartTime: values['scheduleSettings.afternoonStartTime'].format('HH:mm:ss'),
           afternoonEndTime: values['scheduleSettings.afternoonEndTime'].format('HH:mm:ss'),
+          afternoonToleranceMinutes: values['scheduleSettings.afternoonToleranceMinutes'] || 10,
           nightStartTime: values['scheduleSettings.nightStartTime']?.format('HH:mm:ss'),
-          nightEndTime: values['scheduleSettings.nightEndTime']?.format('HH:mm:ss')
+          nightEndTime: values['scheduleSettings.nightEndTime']?.format('HH:mm:ss'),
+          nightToleranceMinutes: values['scheduleSettings.nightToleranceMinutes'] || 20
         }
       };
 
@@ -628,7 +634,7 @@ const InstitutionAdd = () => {
                         <Col span={12}>
                           <h5>Turno Mañana</h5>
                           <Row gutter={8}>
-                            <Col span={12}>
+                            <Col span={8}>
                               <Form.Item
                                 label="Hora Inicio"
                                 name="scheduleSettings.morningStartTime"
@@ -639,7 +645,7 @@ const InstitutionAdd = () => {
                                 />
                               </Form.Item>
                             </Col>
-                            <Col span={12}>
+                            <Col span={8}>
                               <Form.Item
                                 label="Hora Fin"
                                 name="scheduleSettings.morningEndTime"
@@ -650,12 +656,28 @@ const InstitutionAdd = () => {
                                 />
                               </Form.Item>
                             </Col>
+                            <Col span={8}>
+                              <Form.Item
+                                label="Tolerancia (min)"
+                                name="scheduleSettings.morningToleranceMinutes"
+                                rules={[
+                                  { type: 'number', min: 0, max: 60, message: 'Debe ser entre 0 y 60 minutos' }
+                                ]}
+                              >
+                                <InputNumber
+                                  min={0}
+                                  max={60}
+                                  placeholder="15"
+                                  style={{ width: '100%' }}
+                                />
+                              </Form.Item>
+                            </Col>
                           </Row>
                         </Col>
                         <Col span={12}>
                           <h5>Turno Tarde</h5>
                           <Row gutter={8}>
-                            <Col span={12}>
+                            <Col span={8}>
                               <Form.Item
                                 label="Hora Inicio"
                                 name="scheduleSettings.afternoonStartTime"
@@ -666,13 +688,29 @@ const InstitutionAdd = () => {
                                 />
                               </Form.Item>
                             </Col>
-                            <Col span={12}>
+                            <Col span={8}>
                               <Form.Item
                                 label="Hora Fin"
                                 name="scheduleSettings.afternoonEndTime"
                               >
                                 <TimePicker
                                   format="HH:mm"
+                                  style={{ width: '100%' }}
+                                />
+                              </Form.Item>
+                            </Col>
+                            <Col span={8}>
+                              <Form.Item
+                                label="Tolerancia (min)"
+                                name="scheduleSettings.afternoonToleranceMinutes"
+                                rules={[
+                                  { type: 'number', min: 0, max: 60, message: 'Debe ser entre 0 y 60 minutos' }
+                                ]}
+                              >
+                                <InputNumber
+                                  min={0}
+                                  max={60}
+                                  placeholder="10"
                                   style={{ width: '100%' }}
                                 />
                               </Form.Item>
@@ -685,7 +723,7 @@ const InstitutionAdd = () => {
                         <Col span={12}>
                           <h5>Turno Noche</h5>
                           <Row gutter={8}>
-                            <Col span={12}>
+                            <Col span={8}>
                               <Form.Item
                                 label="Hora Inicio"
                                 name="scheduleSettings.nightStartTime"
@@ -696,13 +734,29 @@ const InstitutionAdd = () => {
                                 />
                               </Form.Item>
                             </Col>
-                            <Col span={12}>
+                            <Col span={8}>
                               <Form.Item
                                 label="Hora Fin"
                                 name="scheduleSettings.nightEndTime"
                               >
                                 <TimePicker
                                   format="HH:mm"
+                                  style={{ width: '100%' }}
+                                />
+                              </Form.Item>
+                            </Col>
+                            <Col span={8}>
+                              <Form.Item
+                                label="Tolerancia (min)"
+                                name="scheduleSettings.nightToleranceMinutes"
+                                rules={[
+                                  { type: 'number', min: 0, max: 60, message: 'Debe ser entre 0 y 60 minutos' }
+                                ]}
+                              >
+                                <InputNumber
+                                  min={0}
+                                  max={60}
+                                  placeholder="20"
                                   style={{ width: '100%' }}
                                 />
                               </Form.Item>

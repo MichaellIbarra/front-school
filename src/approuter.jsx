@@ -50,41 +50,45 @@ import UserInstitutionList from "./pages/admin/adminDirector/userInstitution/Use
 import UserInstitutionCreate from "./pages/admin/adminDirector/userInstitution/UserInstitutionCreate";
 import UserInstitutionEdit from "./pages/admin/adminDirector/userInstitution/UserInstitutionEdit";
 import UserInstitutionView from "./pages/admin/adminDirector/userInstitution/UserInstitutionView";
-//Courses - Academic Director
-import CourseList from "./pages/secretary/academicDirector/course/CourseList";
-import AddCourse from "./pages/secretary/academicDirector/course/AddCourse";
-import EditCourse from "./pages/secretary/academicDirector/course/EditCourse";
-// Period components - Secretary Academic Director
-import PeriodList from "./pages/secretary/academicDirector/periods/PeriodList";
-import AddPeriod from "./pages/secretary/academicDirector/periods/AddPeriod";
-import EditPeriod from "./pages/secretary/academicDirector/periods/EditPeriod";
+//Courses - Academic
+import CourseList from "./pages/secretary/academic/CourseList";
+// Period components - Secretary Academic
+import PeriodList from "./pages/secretary/academic/PeriodList";
 
-// Componentes de Estudiantes y Matrículas
-import StudentList from "./pages/secretary/students/studentList";
-import StudentForm from "./pages/secretary/students/studentForm";
 import StudentEnrollments from "./pages/secretary/students/studentEnrollments";
 import StudentBulkImport from "./pages/secretary/students/studentBulkImport";
 import EnrollmentList from "./pages/secretary/enrollments/enrollmentList";
 import EnrollmentForm from "./pages/secretary/enrollments/enrollmentForm";
-import AuxiliaryAttendanceListPage from "./pages/auxiliary/attendance/AttendanceListPage";
-import AuxiliaryJustificationManagementPage from "./pages/auxiliary/attendance/JustificationManagementPage";
+import EditEnrollment from "./pages/secretary/enrollments/EditEnrollment";
+import EnrollmentBulkImport from "./pages/secretary/enrollments/enrollmentBulkImport";
+
+// Componentes de Estudiantes y Matrículas
+import StudentList from "./pages/secretary/students/studentList";
+import StudentForm from "./pages/secretary/students/studentForm";
+import EditStudent from "./pages/secretary/students/EditStudent";
+
 import Fut from "./pages/secretary/fut";
 // Grades and Notifications
 import GradeList from "./pages/teacher/grades/gradeList";
 import NotificationList from "./pages/teacher/grades/notificationList";
 import EnrollmentAnalytics from "./pages/secretary/enrollments/enrollmentAnalytics";
+// Teacher Assignments
+import MyAssignments from "./pages/teacher/MyAssignments";
 
 // Classroom components - Secretary Academic Director
-import ClassroomList from "./pages/secretary/academicDirector/classroom/ClassroomList";
-import AddClassroom from "./pages/secretary/academicDirector/classroom/AddClassroom";
-import EditClassroom from "./pages/secretary/academicDirector/classroom/EditClassroom";
 // Teacher Assignment components - Secretary Academic Director
-import TeacherAssignmentList from "./pages/secretary/academicDirector/teacherAssignment/TeacherAssignmentList";
-import AddTeacherAssignment from "./pages/secretary/academicDirector/teacherAssignment/AddTeacherAssignment";
-import EditTeacherAssignment from "./pages/secretary/academicDirector/teacherAssignment/EditTeacherAssignment";
 import DirectorInstitutionView from "./pages/director/institutions/directorInstitutionView";
 import DirectorHeadquarterList from "./pages/director/institutions/directorHeadquarter";
 import DirectorHeadquarterAdd from "./pages/director/institutions/directorHeadquarterAdd";
+// Academic Dashboard
+import AcademicDashboard from "./pages/secretary/academic/AcademicDashboard";
+import ClassroomList from "./pages/secretary/academic/ClassroomList";
+import TeacherAssignmentList from "./pages/secretary/academic/TeacherAssignmentList";
+import MyClassrooms from "./pages/auxiliary/attendance/myClassrooms";
+import AttendanceRegister from "./pages/auxiliary/attendance/AttendanceRegister";
+
+import DirectorAssignmentList from "./pages/director/institutions/directorAssignments";
+import DirectorAssignmentAdd from "./pages/director/institutions/directorAssignmentAdd";
 
 //Accounts
 const Approuter = () => {
@@ -253,6 +257,24 @@ const Approuter = () => {
           />
 
           <Route
+            path="/director/assignments"
+            element={
+              <DirectorRoute>
+                <DirectorAssignmentList />
+              </DirectorRoute>
+            }
+          />
+
+          <Route
+            path="/director/assignments/create"
+            element={
+              <DirectorRoute>
+                <DirectorAssignmentAdd />
+              </DirectorRoute>
+            }
+          />
+
+          <Route
             path="/director/headquarters"
             element={
               <DirectorRoute>
@@ -390,6 +412,16 @@ const Approuter = () => {
             }
           />
 
+          {/* Rutas de Asignaciones del Docente */}
+          <Route
+            path="/teacher/my-assignments"
+            element={
+              <TeacherRoute>
+                <MyAssignments />
+              </TeacherRoute>
+            }
+          />
+
           {/* ============= RUTAS DE AUXILIARY ============= */}
           <Route
             path="/auxiliary/maintenance"
@@ -401,22 +433,24 @@ const Approuter = () => {
           />
 
           <Route
-            path="/auxiliary/attendance"
+            path="/auxiliary/my-classrooms"
             element={
               <AuxiliaryRoute>
-                <AuxiliaryAttendanceListPage />
+                <MyClassrooms />
               </AuxiliaryRoute>
             }
           />
 
           <Route
-            path="/auxiliary/justifications"
+            path="/auxiliary/attendance/register/:classroomId"
             element={
               <AuxiliaryRoute>
-                <AuxiliaryJustificationManagementPage />
+                <AttendanceRegister />
               </AuxiliaryRoute>
             }
           />
+
+          
 
           {/* ============= RUTAS DE SECRETARY ============= */}
           <Route
@@ -460,7 +494,7 @@ const Approuter = () => {
             path="/secretary/students/edit/:id"
             element={
               <SecretaryRoute>
-                <StudentForm />
+                <EditStudent />
               </SecretaryRoute>
             }
           />
@@ -505,7 +539,7 @@ const Approuter = () => {
             path="/secretary/enrollments/edit/:id"
             element={
               <SecretaryRoute>
-                <EnrollmentForm />
+                <EditEnrollment />
               </SecretaryRoute>
             }
           />
@@ -520,6 +554,28 @@ const Approuter = () => {
           />
 
           <Route
+            path="/secretary/enrollments/bulk-import"
+            element={
+              <SecretaryRoute>
+                <EnrollmentBulkImport />
+              </SecretaryRoute>
+            }
+          />
+
+          {/* ============= RUTAS DE SECRETARY - ACADEMIC MODULE ============= */}
+          
+          {/* Academic Dashboard */}
+          <Route
+            path="/secretary/academic/dashboard"
+            element={
+              <SecretaryRoute>
+                <AcademicDashboard />
+              </SecretaryRoute>
+            }
+          />
+
+          {/* Rutas de Cursos */}
+          <Route
             path="/secretary/courses"
             element={
               <SecretaryRoute>
@@ -528,24 +584,7 @@ const Approuter = () => {
             }
           />
 
-          <Route
-            path="/secretary/courses/add"
-            element={
-              <SecretaryRoute>
-                <AddCourse />
-              </SecretaryRoute>
-            }
-          />
-
-          <Route
-            path="/secretary/courses/edit/:id"
-            element={
-              <SecretaryRoute>
-                <EditCourse />
-              </SecretaryRoute>
-            }
-          />
-
+          {/* Rutas de Períodos */}
           <Route
             path="/secretary/periods"
             element={
@@ -555,24 +594,7 @@ const Approuter = () => {
             }
           />
 
-          <Route
-            path="/secretary/periods/add"
-            element={
-              <SecretaryRoute>
-                <AddPeriod />
-              </SecretaryRoute>
-            }
-          />
-
-          <Route
-            path="/secretary/periods/edit/:id"
-            element={
-              <SecretaryRoute>
-                <EditPeriod />
-              </SecretaryRoute>
-            }
-          />
-
+          {/* Rutas de Aulas */}
           <Route
             path="/secretary/classrooms"
             element={
@@ -582,47 +604,12 @@ const Approuter = () => {
             }
           />
 
-          <Route
-            path="/secretary/classrooms/add"
-            element={
-              <SecretaryRoute>
-                <AddClassroom />
-              </SecretaryRoute>
-            }
-          />
-
-          <Route
-            path="/secretary/classrooms/edit/:id"
-            element={
-              <SecretaryRoute>
-                <EditClassroom />
-              </SecretaryRoute>
-            }
-          />
-
+          {/* Rutas de Asignaciones de Docentes */}
           <Route
             path="/secretary/teacher-assignments"
             element={
               <SecretaryRoute>
                 <TeacherAssignmentList />
-              </SecretaryRoute>
-            }
-          />
-
-          <Route
-            path="/secretary/teacher-assignments/add"
-            element={
-              <SecretaryRoute>
-                <AddTeacherAssignment />
-              </SecretaryRoute>
-            }
-          />
-
-          <Route
-            path="/secretary/teacher-assignments/edit/:id"
-            element={
-              <SecretaryRoute>
-                <EditTeacherAssignment />
               </SecretaryRoute>
             }
           />

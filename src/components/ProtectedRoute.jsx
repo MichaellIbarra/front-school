@@ -2,7 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { Navigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
-import { canAccessRoute } from '../auth/authService';
+import { canAccessRoute } from '../services/auth/authService';
 
 const ProtectedRoute = ({ 
   children, 

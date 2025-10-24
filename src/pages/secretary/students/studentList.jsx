@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Table, Button, Input, Select, Space, Dropdown, Tag, Tooltip, Menu } from "antd";
-import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, UndoOutlined, CheckOutlined, CloseOutlined, EyeOutlined, UserOutlined, FileTextOutlined, DownloadOutlined } from "@ant-design/icons";
+import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, UndoOutlined, CheckOutlined, CloseOutlined, EyeOutlined, UserOutlined, FileTextOutlined, DownloadOutlined, IdcardOutlined, CalendarOutlined, ManOutlined, WomanOutlined, CheckCircleOutlined, HomeOutlined, EnvironmentOutlined, PhoneOutlined, MailOutlined, ClockCircleOutlined, HistoryOutlined, UnorderedListOutlined } from "@ant-design/icons";
 import FeatherIcon from "feather-icons-react";
 import { MoreHorizontal, Filter } from "react-feather";
 import Header from "../../../components/Header";
@@ -10,7 +10,7 @@ import Sidebar from "../../../components/Sidebar";
 import AlertModal from "../../../components/AlertModal";
 import useAlert from "../../../hooks/useAlert";
 import studentService from "../../../services/students/studentService";
-import { StudentStatus, Gender, getStatusText, getStatusColor, formatBirthDate, calculateAge, formatDateTime, arrayToDate } from "../../../types/students/students";
+import { Gender, getStatusText, getStatusColor, formatBirthDate, calculateAge, formatDateTime, arrayToDate } from "../../../types/students/students";
 
 // Suprimir warning de compatibilidad de Ant Design con React 19
 const originalWarn = console.warn;
@@ -23,18 +23,17 @@ const { Option } = Select;
 
 const StudentList = () => {
   const navigate = useNavigate();
-  const { alertState, showAlert, showSuccess, showError, showWarning, handleConfirm: alertConfirm, handleCancel: alertCancel } = useAlert();
+  const { showSuccess, showError, showWarning, handleConfirm: alertConfirm, handleCancel: alertCancel } = useAlert();
   
   // Estados para manejo de datos
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   
   // Estados para filtros y búsqueda
   const [searchText, setSearchText] = useState('');
-  const [activeTab, setActiveTab] = useState('ACTIVE');
   const [genderFilter, setGenderFilter] = useState('all');
-  const [filteredStudents, setFilteredStudents] = useState([]);
+  const [displayStudents, setDisplayStudents] = useState([]);
+  const [currentView, setCurrentView] = useState('all'); // 'all', 'unenrolled', 'inactive', etc.
   
   // Estados para modal de detalles
   const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -48,7 +47,7 @@ const StudentList = () => {
   // Aplicar filtros cuando cambien los datos, búsqueda o filtros
   useEffect(() => {
     applyFilters();
-  }, [students, searchText, activeTab, genderFilter]);
+  }, [students, searchText, genderFilter]);
 
   /**
    * Carga todos los estudiantes desde el servicio
@@ -56,9 +55,10 @@ const StudentList = () => {
   const loadStudents = async () => {
     setLoading(true);
     try {
-      const response = await studentService.getAllStudents();
+      const response = await studentService.getStudentsByInstitution();
       if (response.success) {
         setStudents(response.data);
+        setCurrentView('all');
         if (response.message) {
           showSuccess(response.message);
         }
@@ -86,20 +86,16 @@ const StudentList = () => {
         student.firstName?.toLowerCase().includes(search) ||
         student.lastName?.toLowerCase().includes(search) ||
         student.documentNumber?.toLowerCase().includes(search) ||
-        student.email?.toLowerCase().includes(search) ||
         `${student.firstName} ${student.lastName}`.toLowerCase().includes(search)
       );
     }
-
-    // Filtro por estado (siempre filtra por el tab activo)
-    filtered = filtered.filter(student => student.status === activeTab);
 
     // Filtro por género
     if (genderFilter !== 'all') {
       filtered = filtered.filter(student => student.gender === genderFilter);
     }
 
-    setFilteredStudents(filtered);
+    setDisplayStudents(filtered);
   };
 
   /**
@@ -112,13 +108,11 @@ const StudentList = () => {
   /**
    * Navega al formulario de editar estudiante
    */
-  const handleEdit = (student) => {
-    navigate(`/secretary/students/edit/${student.id}`, { 
-      state: { student } 
-    });
-  };
-
-  /**
+      const handleEdit = (student) => {
+        navigate(`/secretary/students/edit/${student.id}`, {
+          state: { student }
+        });
+      };  /**
    * Muestra detalles del estudiante
    */
   const handleView = (student) => {
@@ -135,138 +129,117 @@ const StudentList = () => {
   };
 
   /**
-   * Cambia el estado de un estudiante
-   */
-  const handleToggleStatus = async (student) => {
-    const newStatus = student.status === StudentStatus.ACTIVE ? StudentStatus.INACTIVE : StudentStatus.ACTIVE;
-    const action = newStatus === StudentStatus.ACTIVE ? 'activar' : 'desactivar';
-    
-    showAlert({
-      title: `¿Estás seguro de ${action} este estudiante?`,
-      message: `Se ${action}á al estudiante "${student.firstName} ${student.lastName}"`,
-      type: 'warning',
-      onConfirm: async () => {
-        try {
-          let response;
-          
-          if (newStatus === StudentStatus.ACTIVE) {
-            // Para activar, usar restoreStudent
-            response = await studentService.restoreStudent(student.id);
-          } else {
-            // Para desactivar, usar deactivateStudent
-            response = await studentService.deactivateStudent(student.id);
-          }
-          
-          if (response.success) {
-            showSuccess(`Estudiante ${action}do correctamente`);
-            loadStudents();
-          } else {
-            showError(response.error);
-          }
-        } catch (error) {
-          console.error(`Error al ${action} estudiante:`, error);
-          showError(`Error al ${action} el estudiante`);
-        }
-      },
-    });
-  };
-
-  /**
-   * Elimina un estudiante
-   */
-  const handleDelete = async (student) => {
-    showAlert({
-      title: '¿Eliminar este estudiante?',
-      message: `Se eliminará al estudiante "${student.firstName} ${student.lastName}". Esta acción se puede revertir.`,
-      type: 'warning',
-      onConfirm: async () => {
-        try {
-          const response = await studentService.deleteStudent(student.id);
-          if (response.success) {
-            showSuccess('Estudiante eliminado correctamente');
-            loadStudents();
-          } else {
-            showError(response.error);
-          }
-        } catch (error) {
-          showError('Error al eliminar el estudiante');
-        }
-      },
-    });
-  };
-
-  /**
-   * Restaura un estudiante eliminado
-   */
-  const handleRestore = async (student) => {
-    showAlert({
-      title: '¿Restaurar este estudiante?',
-      message: `Se restaurará al estudiante "${student.firstName} ${student.lastName}"`,
-      type: 'info',
-      onConfirm: async () => {
-        try {
-          const response = await studentService.restoreStudent(student.id);
-          if (response.success) {
-            showSuccess('Estudiante restaurado correctamente');
-            loadStudents();
-          } else {
-            showError(response.error);
-          }
-        } catch (error) {
-          showError('Error al restaurar el estudiante');
-        }
-      },
-    });
-  };
-
-  /**
-   * Elimina múltiples estudiantes seleccionados
-   */
-  const handleBulkDelete = () => {
-    if (selectedRowKeys.length === 0) {
-      showWarning('Selecciona al menos un estudiante');
-      return;
-    }
-
-    showAlert({
-      title: `¿Eliminar ${selectedRowKeys.length} estudiante(s)?`,
-      message: 'Los estudiantes seleccionados serán eliminados. Esta acción se puede revertir.',
-      type: 'warning',
-      onConfirm: async () => {
-        try {
-          let successCount = 0;
-          let errorCount = 0;
-
-          for (const id of selectedRowKeys) {
-            const response = await studentService.deleteStudent(id);
-            if (response.success) {
-              successCount++;
-            } else {
-              errorCount++;
-            }
-          }
-
-          if (successCount > 0) {
-            showSuccess(`${successCount} estudiante(s) eliminado(s) correctamente`);
-          }
-          if (errorCount > 0) {
-            showError(`Error al eliminar ${errorCount} estudiante(s)`);
-          }
-
-          setSelectedRowKeys([]);
-          loadStudents();
-        } catch (error) {
-          showError('Error en la eliminación masiva');
-        }
-      },
-    });
-  };
-
-  /**
    * Navega a la página de importación masiva de estudiantes
    */
-  const handleBulkCreate = () => {
+  const handleBulkImport = () => {
     navigate('/secretary/students/bulk-import');
+  };
+
+  /**
+   * Ver estudiantes no matriculados
+   */
+  const handleViewUnenrolledStudents = async () => {
+    setLoading(true);
+    try {
+      const response = await studentService.getUnenrolledStudents();
+      if (response.success) {
+        setStudents(response.data);
+        setCurrentView('unenrolled');
+        showSuccess(`${response.data.length} estudiantes no matriculados encontrados`);
+      } else {
+        showError(response.error);
+      }
+    } catch (error) {
+      showError('Error al obtener estudiantes no matriculados');
+    }
+    setLoading(false);
+  };
+
+  /**
+   * Ver estudiantes inactivos
+   */
+  const handleViewInactiveStudents = async () => {
+    setLoading(true);
+    try {
+      console.log('Cargando estudiantes inactivos...'); // Debug
+      const response = await studentService.getStudentsByStatus('INACTIVE');
+      console.log('Respuesta estudiantes inactivos:', response); // Debug
+      if (response.success) {
+        setStudents(response.data);
+        setCurrentView('inactive');
+        showSuccess(`${response.data.length} estudiantes inactivos encontrados`);
+      } else {
+        console.error('Error en respuesta:', response.error); // Debug
+        showError(response.error);
+      }
+    } catch (error) {
+      console.error('Excepción al obtener estudiantes inactivos:', error); // Debug
+      showError('Error al obtener estudiantes inactivos');
+    }
+    setLoading(false);
+  };
+
+  /**
+   * Ver estadísticas de estudiantes
+   */
+  const handleViewStatistics = async () => {
+    setLoading(true);
+    try {
+      const response = await studentService.getStudentStatistics();
+      if (response.success) {
+        // Mostrar estadísticas en un modal o navegar a una página de estadísticas
+        setCurrentView('statistics');
+        showSuccess('Estadísticas cargadas exitosamente');
+        console.log('Estadísticas:', response.data);
+        // Aquí podrías abrir un modal con las estadísticas o navegar a otra página
+      } else {
+        showError(response.error);
+      }
+    } catch (error) {
+      showError('Error al obtener estadísticas');
+    }
+    setLoading(false);
+  };
+
+  /**
+   * Volver a la vista de todos los estudiantes
+   */
+  const handleViewAll = () => {
+    loadStudents();
+  };
+
+  /**
+   * Activar estudiante
+   */
+  const handleActivateStudent = async (studentId) => {
+    try {
+      const response = await studentService.activateStudent(studentId);
+      if (response.success) {
+        showSuccess(response.message);
+        loadStudents(); // Recargar la lista
+      } else {
+        showError(response.error);
+      }
+    } catch (error) {
+      showError('Error al activar el estudiante');
+    }
+  };
+
+  /**
+   * Desactivar estudiante
+   */
+  const handleDeactivateStudent = async (studentId) => {
+    try {
+      const response = await studentService.deactivateStudent(studentId);
+      if (response.success) {
+        showSuccess(response.message);
+        loadStudents(); // Recargar la lista
+      } else {
+        showError(response.error);
+      }
+    } catch (error) {
+      showError('Error al desactivar el estudiante');
+    }
   };
 
   /**
@@ -278,7 +251,7 @@ const StudentList = () => {
       const { default: ExportUtils } = await import('../../../utils/students/exportUtils');
       
       // Usar los estudiantes filtrados actuales
-      const dataToExport = filteredStudents.length > 0 ? filteredStudents : students;
+      const dataToExport = displayStudents.length > 0 ? displayStudents : students;
       
       if (dataToExport.length === 0) {
         showWarning('No hay estudiantes para exportar');
@@ -291,14 +264,6 @@ const StudentList = () => {
       console.error('Error al exportar estudiantes:', error);
       showError('Error al exportar los estudiantes');
     }
-  };
-
-  // Configuración de selección de filas
-  const rowSelection = {
-    selectedRowKeys,
-    onChange: (newSelectedRowKeys) => {
-      setSelectedRowKeys(newSelectedRowKeys);
-    },
   };
 
   // Configuración de columnas de la tabla
@@ -328,15 +293,14 @@ const StudentList = () => {
           </div>
         );
       },
-      sorter: (a, b) => calculateAge(a.birthDate) - calculateAge(b.birthDate),
+      sorter: (a, b) => calculateAge(b.birthDate) - calculateAge(a.birthDate),
     },
     {
-      title: 'Contacto',
-      key: 'contact',
+      title: 'Teléfono',
+      key: 'phone',
       render: (_, record) => (
         <div>
-          <div><small>{record.email || 'Sin email'}</small></div>
-          <div><small>{record.phone || 'Sin teléfono'}</small></div>
+          <div>{record.phone || 'Sin teléfono'}</div>
         </div>
       ),
     },
@@ -345,9 +309,18 @@ const StudentList = () => {
       key: 'guardian',
       render: (_, record) => (
         <div>
-          <div><small>{record.guardianName} {record.guardianLastName}</small></div>
-          <div><small>{record.guardianPhone || 'Sin teléfono'}</small></div>
+          <div>{record.parentName}</div>
+          <div><small>{record.parentPhone || 'Sin teléfono'}</small></div>
+          <div><small>{record.parentEmail || 'Sin email'}</small></div>
         </div>
+      ),
+    },
+    {
+      title: 'Dirección',
+      dataIndex: 'address',
+      key: 'address',
+      render: (address) => (
+        <small>{address || 'Sin dirección'}</small>
       ),
     },
     {
@@ -359,17 +332,6 @@ const StudentList = () => {
           {getStatusText(status)}
         </Tag>
       ),
-    },
-    {
-      title: 'Fecha Registro',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      render: (date) => formatDateTime(date),
-      sorter: (a, b) => {
-        const dateA = arrayToDate(a.createdAt);
-        const dateB = arrayToDate(b.createdAt);
-        return dateA && dateB ? dateA - dateB : 0;
-      },
     },
     {
       title: 'Acciones',
@@ -389,27 +351,25 @@ const StudentList = () => {
             onClick: () => handleEdit(record),
           },
           {
-            key: 'enrollments',
-            label: 'Matrículas',
-            icon: <UserOutlined />,
-            onClick: () => navigate(`/secretary/students/${record.id}/enrollments`),
-          },
-          {
-            key: 'toggle',
-            label: record.status === StudentStatus.ACTIVE ? 'Desactivar' : 'Activar',
-            icon: record.status === StudentStatus.ACTIVE ? <CloseOutlined /> : <CheckOutlined />,
-            onClick: () => handleToggleStatus(record),
-          },
-          {
             type: 'divider',
           },
-          {
-            key: 'delete',
-            label: 'Eliminar',
-            icon: <DeleteOutlined />,
-            onClick: () => handleDelete(record),
-            danger: true,
-          },
+          ...(record.status === 'ACTIVE' ? [
+            {
+              key: 'deactivate',
+              label: 'Desactivar',
+              icon: <CloseOutlined />,
+              onClick: () => handleDeactivateStudent(record.id),
+              style: { color: '#ff4d4f' }
+            }
+          ] : [
+            {
+              key: 'activate',
+              label: 'Activar',
+              icon: <CheckOutlined />,
+              onClick: () => handleActivateStudent(record.id),
+              style: { color: '#52c41a' }
+            }
+          ])
         ];
 
         return (
@@ -440,7 +400,12 @@ const StudentList = () => {
             <div className="row">
               <div className="col-sm-12">
                 <div className="page-sub-header">
-                  <h3 className="page-title">Gestión de Estudiantes</h3>
+                  <h3 className="page-title">
+                    Gestión de Estudiantes
+                    {currentView === 'unenrolled' && <span style={{color: '#1890ff', marginLeft: '10px'}}> - No Matriculados</span>}
+                    {currentView === 'inactive' && <span style={{color: '#1890ff', marginLeft: '10px'}}> - Inactivos</span>}
+                    {currentView === 'statistics' && <span style={{color: '#1890ff', marginLeft: '10px'}}> - Estadísticas</span>}
+                  </h3>
                   <ul className="breadcrumb">
                     <li className="breadcrumb-item">
                       <Link to="/secretary/dashboard">Dashboard</Link>
@@ -469,144 +434,75 @@ const StudentList = () => {
                         />
                       </div>
                     </div>
-                    <div className="col-lg-2 col-md-3 col-sm-6 mb-2">
+                    <div className="col-lg-2 col-md-3 col-sm-12 mb-2">
                       <Select
-                        placeholder="Género"
+                        placeholder="Estado"
                         value={genderFilter}
                         onChange={setGenderFilter}
                         className="w-100"
                       >
                         <Option value="all">Todos los géneros</Option>
-                        <Option value={Gender.MALE}>Masculino</Option>
-                        <Option value={Gender.FEMALE}>Femenino</Option>
+                        <Option value="MALE">Masculino</Option>
+                        <Option value="FEMALE">Femenino</Option>
                       </Select>
                     </div>
                     <div className="col-lg-6 col-md-12 col-sm-12 mb-2">
-                      <div className="d-flex flex-wrap justify-content-end gap-2">
+                      <div className="d-flex gap-2 flex-wrap justify-content-end">
+                        <Button
+                          type={currentView === 'all' ? 'primary' : 'default'}
+                          icon={<UnorderedListOutlined />}
+                          onClick={handleViewAll}
+                        >
+                          Todas
+                        </Button>
+                        <Button
+                          type={currentView === 'unenrolled' ? 'primary' : 'default'}
+                          icon={<UserOutlined />}
+                          onClick={handleViewUnenrolledStudents}
+                        >
+                          No Matriculados
+                        </Button>
+                        <Button
+                          type={currentView === 'inactive' ? 'primary' : 'default'}
+                          icon={<CloseOutlined />}
+                          onClick={handleViewInactiveStudents}
+                        >
+                          Inactivos
+                        </Button>
+                        <Button
+                          type={currentView === 'statistics' ? 'primary' : 'default'}
+                          icon={<FileTextOutlined />}
+                          onClick={handleViewStatistics}
+                        >
+                          Estadísticas
+                        </Button>
+                        <Button
+                          type="default"
+                          icon={<DownloadOutlined />}
+                          onClick={handleBulkImport}
+                        >
+                          Importar Masivo
+                        </Button>
                         <Button
                           type="primary"
                           icon={<PlusOutlined />}
                           onClick={handleCreate}
-                          className="btn-sm"
                         >
                           Nuevo Estudiante
                         </Button>
-                        <Button
-                          icon={<FileTextOutlined />}
-                          onClick={handleBulkCreate}
-                          className="btn-sm"
-                        >
-                          Importar Lote
-                        </Button>
-                        <Button
-                          icon={<DownloadOutlined />}
-                          onClick={handleExportStudents}
-                          className="btn-sm"
-                        >
-                          Exportar
-                        </Button>
-                        <Button
-                          icon={<UserOutlined />}
-                          onClick={() => navigate('/secretary/enrollments')}
-                          className="btn-sm"
-                        >
-                          Matrículas
-                        </Button>
-                        {selectedRowKeys.length > 0 && (
-                          <Button
-                            danger
-                            icon={<DeleteOutlined />}
-                            onClick={handleBulkDelete}
-                            className="btn-sm"
-                          >
-                            Eliminar ({selectedRowKeys.length})
-                          </Button>
-                        )}
                       </div>
                     </div>
-                  </div>
-
-                  {/* Pestañas por estado */}
-                  <div className="mb-3">
-                    <ul className="nav nav-tabs nav-tabs-solid">
-                      <li className="nav-item">
-                        <button 
-                          className={`nav-link ${activeTab === StudentStatus.ACTIVE ? 'active' : ''}`}
-                          onClick={() => setActiveTab(StudentStatus.ACTIVE)}
-                          type="button"
-                        >
-                          <CheckOutlined style={{ color: '#52c41a', marginRight: '8px' }} />
-                          Activos
-                          <Tag color="success" style={{ marginLeft: '8px' }}>
-                            {students.filter(s => s.status === StudentStatus.ACTIVE).length}
-                          </Tag>
-                        </button>
-                      </li>
-                      <li className="nav-item">
-                        <button 
-                          className={`nav-link ${activeTab === StudentStatus.INACTIVE ? 'active' : ''}`}
-                          onClick={() => setActiveTab(StudentStatus.INACTIVE)}
-                          type="button"
-                        >
-                          <CloseOutlined style={{ color: '#faad14', marginRight: '8px' }} />
-                          Inactivos
-                          <Tag color="warning" style={{ marginLeft: '8px' }}>
-                            {students.filter(s => s.status === StudentStatus.INACTIVE).length}
-                          </Tag>
-                        </button>
-                      </li>
-                      <li className="nav-item">
-                        <button 
-                          className={`nav-link ${activeTab === StudentStatus.TRANSFERRED ? 'active' : ''}`}
-                          onClick={() => setActiveTab(StudentStatus.TRANSFERRED)}
-                          type="button"
-                        >
-                          <UndoOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
-                          Transferidos
-                          <Tag color="blue" style={{ marginLeft: '8px' }}>
-                            {students.filter(s => s.status === StudentStatus.TRANSFERRED).length}
-                          </Tag>
-                        </button>
-                      </li>
-                      <li className="nav-item">
-                        <button 
-                          className={`nav-link ${activeTab === StudentStatus.GRADUATED ? 'active' : ''}`}
-                          onClick={() => setActiveTab(StudentStatus.GRADUATED)}
-                          type="button"
-                        >
-                          <span style={{ marginRight: '8px' }}>🎓</span>
-                          Graduados
-                          <Tag color="purple" style={{ marginLeft: '8px' }}>
-                            {students.filter(s => s.status === StudentStatus.GRADUATED).length}
-                          </Tag>
-                        </button>
-                      </li>
-                      <li className="nav-item">
-                        <button 
-                          className={`nav-link ${activeTab === StudentStatus.DECEASED ? 'active' : ''}`}
-                          onClick={() => setActiveTab(StudentStatus.DECEASED)}
-                          type="button"
-                        >
-                          <DeleteOutlined style={{ color: '#ff4d4f', marginRight: '8px' }} />
-                          Retirados
-                          <Tag color="error" style={{ marginLeft: '8px' }}>
-                            {students.filter(s => s.status === StudentStatus.DECEASED).length}
-                          </Tag>
-                        </button>
-                      </li>
-                    </ul>
                   </div>
 
                   {/* Tabla de estudiantes */}
                   <div className="table-responsive">
                     <Table
-                      rowSelection={rowSelection}
                       columns={columns}
-                      dataSource={filteredStudents}
+                      dataSource={displayStudents}
                       rowKey="id"
                       loading={loading}
                       pagination={{
-                        total: filteredStudents.length,
+                        total: displayStudents.length,
                         pageSize: 10,
                         showSizeChanger: true,
                         showQuickJumper: true,
@@ -662,30 +558,30 @@ const StudentList = () => {
                       </div>
                       <div className="card-body">
                         <div className="row mb-2">
-                          <div className="col-5"><strong>Nombres:</strong></div>
+                          <div className="col-5"><strong><UserOutlined /> Nombres:</strong></div>
                           <div className="col-7">{selectedStudent.firstName}</div>
                         </div>
                         <div className="row mb-2">
-                          <div className="col-5"><strong>Apellidos:</strong></div>
+                          <div className="col-5"><strong><UserOutlined /> Apellidos:</strong></div>
                           <div className="col-7">{selectedStudent.lastName}</div>
                         </div>
                         <div className="row mb-2">
-                          <div className="col-5"><strong>Documento:</strong></div>
+                          <div className="col-5"><strong><IdcardOutlined /> Documento:</strong></div>
                           <div className="col-7">{selectedStudent.documentType}: {selectedStudent.documentNumber}</div>
                         </div>
                         <div className="row mb-2">
-                          <div className="col-5"><strong>Fecha Nac.:</strong></div>
+                          <div className="col-5"><strong><CalendarOutlined /> Fecha Nac.:</strong></div>
                           <div className="col-7">
                             {formatBirthDate(selectedStudent.birthDate)} 
                             <small className="text-muted"> ({calculateAge(selectedStudent.birthDate)} años)</small>
                           </div>
                         </div>
                         <div className="row mb-2">
-                          <div className="col-5"><strong>Género:</strong></div>
+                          <div className="col-5"><strong>{selectedStudent.gender === 'MALE' ? <ManOutlined /> : <WomanOutlined />} Género:</strong></div>
                           <div className="col-7">{selectedStudent.gender === 'MALE' ? 'Masculino' : 'Femenino'}</div>
                         </div>
                         <div className="row mb-2">
-                          <div className="col-5"><strong>Estado:</strong></div>
+                          <div className="col-5"><strong><CheckCircleOutlined /> Estado:</strong></div>
                           <div className="col-7">
                             <Tag color={getStatusColor(selectedStudent.status)}>
                               {getStatusText(selectedStudent.status)}
@@ -706,29 +602,37 @@ const StudentList = () => {
                       </div>
                       <div className="card-body">
                         <div className="row mb-2">
-                          <div className="col-4"><strong>Dirección:</strong></div>
+                          <div className="col-4"><strong><HomeOutlined /> Dirección:</strong></div>
                           <div className="col-8">{selectedStudent.address}</div>
                         </div>
+                        {selectedStudent.district && (
+                          <div className="row mb-2">
+                            <div className="col-4"><strong><EnvironmentOutlined /> Distrito:</strong></div>
+                            <div className="col-8">{selectedStudent.district}</div>
+                          </div>
+                        )}
+                        {selectedStudent.province && (
+                          <div className="row mb-2">
+                            <div className="col-4"><strong><EnvironmentOutlined /> Provincia:</strong></div>
+                            <div className="col-8">{selectedStudent.province}</div>
+                          </div>
+                        )}
+                        {selectedStudent.department && (
+                          <div className="row mb-2">
+                            <div className="col-4"><strong><EnvironmentOutlined /> Departamento:</strong></div>
+                            <div className="col-8">{selectedStudent.department}</div>
+                          </div>
+                        )}
                         <div className="row mb-2">
-                          <div className="col-4"><strong>Distrito:</strong></div>
-                          <div className="col-8">{selectedStudent.district}</div>
-                        </div>
-                        <div className="row mb-2">
-                          <div className="col-4"><strong>Provincia:</strong></div>
-                          <div className="col-8">{selectedStudent.province}</div>
-                        </div>
-                        <div className="row mb-2">
-                          <div className="col-4"><strong>Departamento:</strong></div>
-                          <div className="col-8">{selectedStudent.department}</div>
-                        </div>
-                        <div className="row mb-2">
-                          <div className="col-4"><strong>Teléfono:</strong></div>
+                          <div className="col-4"><strong><PhoneOutlined /> Teléfono:</strong></div>
                           <div className="col-8">{selectedStudent.phone || <span className="text-muted">No registrado</span>}</div>
                         </div>
-                        <div className="row mb-2">
-                          <div className="col-4"><strong>Email:</strong></div>
-                          <div className="col-8">{selectedStudent.email || <span className="text-muted">No registrado</span>}</div>
-                        </div>
+                        {selectedStudent.email && (
+                          <div className="row mb-2">
+                            <div className="col-4"><strong><MailOutlined /> Email:</strong></div>
+                            <div className="col-8">{selectedStudent.email}</div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -745,30 +649,18 @@ const StudentList = () => {
                         <div className="row">
                           <div className="col-md-6">
                             <div className="row mb-2">
-                              <div className="col-4"><strong>Nombres:</strong></div>
-                              <div className="col-8">{selectedStudent.guardianName}</div>
+                              <div className="col-4"><strong><UserOutlined /> Nombre:</strong></div>
+                              <div className="col-8">{selectedStudent.parentName}</div>
                             </div>
                             <div className="row mb-2">
-                              <div className="col-4"><strong>Apellidos:</strong></div>
-                              <div className="col-8">{selectedStudent.guardianLastName}</div>
-                            </div>
-                            <div className="row mb-2">
-                              <div className="col-4"><strong>Documento:</strong></div>
-                              <div className="col-8">{selectedStudent.guardianDocumentType}: {selectedStudent.guardianDocumentNumber}</div>
+                              <div className="col-4"><strong><PhoneOutlined /> Teléfono:</strong></div>
+                              <div className="col-8">{selectedStudent.parentPhone || <span className="text-muted">No registrado</span>}</div>
                             </div>
                           </div>
                           <div className="col-md-6">
                             <div className="row mb-2">
-                              <div className="col-4"><strong>Relación:</strong></div>
-                              <div className="col-8">{selectedStudent.guardianRelationship}</div>
-                            </div>
-                            <div className="row mb-2">
-                              <div className="col-4"><strong>Teléfono:</strong></div>
-                              <div className="col-8">{selectedStudent.guardianPhone || <span className="text-muted">No registrado</span>}</div>
-                            </div>
-                            <div className="row mb-2">
-                              <div className="col-4"><strong>Email:</strong></div>
-                              <div className="col-8">{selectedStudent.guardianEmail || <span className="text-muted">No registrado</span>}</div>
+                              <div className="col-4"><strong><MailOutlined /> Email:</strong></div>
+                              <div className="col-8">{selectedStudent.parentEmail || <span className="text-muted">No registrado</span>}</div>
                             </div>
                           </div>
                         </div>
@@ -788,13 +680,13 @@ const StudentList = () => {
                         <div className="row">
                           <div className="col-md-6">
                             <div className="row mb-2">
-                              <div className="col-4"><strong>Fecha Registro:</strong></div>
+                              <div className="col-4"><strong><ClockCircleOutlined /> Fecha Registro:</strong></div>
                               <div className="col-8">{formatDateTime(selectedStudent.createdAt)}</div>
                             </div>
                           </div>
                           <div className="col-md-6">
                             <div className="row mb-2">
-                              <div className="col-4"><strong>Última Actualización:</strong></div>
+                              <div className="col-4"><strong><HistoryOutlined /> Última Actualización:</strong></div>
                               <div className="col-8">{formatDateTime(selectedStudent.updatedAt)}</div>
                             </div>
                           </div>
@@ -839,7 +731,6 @@ const StudentList = () => {
       
       {/* AlertModal para confirmaciones */}
       <AlertModal 
-        alert={alertState} 
         onConfirm={alertConfirm} 
         onCancel={alertCancel} 
       />

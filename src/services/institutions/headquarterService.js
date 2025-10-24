@@ -1,5 +1,5 @@
 import { Headquarter, validateHeadquarter } from '../../types/institutions';
-import { refreshTokenKeycloak } from '../../auth/authService';
+import { refreshTokenKeycloak } from '../auth/authService';
 
 class HeadquarterService {
   constructor() {

@@ -18,15 +18,10 @@ export class ExportUtils {
       'Edad',
       'Género',
       'Dirección',
-      'Distrito',
-      'Provincia',
-      'Departamento',
       'Teléfono',
-      'Email',
-      'Apoderado',
+      'Nombre Apoderado',
       'Teléfono Apoderado',
       'Email Apoderado',
-      'Relación',
       'Estado',
       'Fecha Registro'
     ];
@@ -40,15 +35,10 @@ export class ExportUtils {
       `"${calculateAge(student.birthDate) || ''}"`,
       `"${student.gender === 'MALE' ? 'Masculino' : 'Femenino'}"`,
       `"${student.address || ''}"`,
-      `"${student.district || ''}"`,
-      `"${student.province || ''}"`,
-      `"${student.department || ''}"`,
       `"${student.phone || ''}"`,
-      `"${student.email || ''}"`,
-      `"${student.guardianName || ''} ${student.guardianLastName || ''}"`,
-      `"${student.guardianPhone || ''}"`,
-      `"${student.guardianEmail || ''}"`,
-      `"${student.guardianRelationship || ''}"`,
+      `"${student.parentName || ''}"`,
+      `"${student.parentPhone || ''}"`,
+      `"${student.parentEmail || ''}"`,
       `"${this.getStatusText(student.status)}"`,
       `"${this.formatDateTime(student.createdAt) || ''}"`
     ];
@@ -69,7 +59,7 @@ export class ExportUtils {
         <td>${student.documentType}: ${student.documentNumber}</td>
         <td>${calculateAge(student.birthDate)} años</td>
         <td>${student.gender === 'MALE' ? 'Masculino' : 'Femenino'}</td>
-        <td>${student.guardianName} ${student.guardianLastName}</td>
+        <td>${student.parentName}</td>
         <td>${this.getStatusText(student.status)}</td>
       </tr>
     `;
@@ -91,18 +81,10 @@ export class ExportUtils {
         birthDate: "2011-01-10",
         gender: "MALE",
         address: "Calle Los Cedros 456",
-        district: "San Juan",
-        province: "Lima",
-        department: "Lima",
         phone: "912458963",
-        email: "luis.ramirez@email.com",
-        guardianName: "María",
-        guardianLastName: "Torres",
-        guardianDocumentType: "DNI",
-        guardianDocumentNumber: "22223333",
-        guardianPhone: "921456987",
-        guardianEmail: "maria.torres@email.com",
-        guardianRelationship: "MOTHER"
+        parentName: "María Torres",
+        parentPhone: "921456987",
+        parentEmail: "maria.torres@email.com"
       }
     ];
 

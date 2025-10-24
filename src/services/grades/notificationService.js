@@ -1,5 +1,5 @@
 import { Notification, validateNotification } from '../../types/grades/notification';
-import { refreshTokenKeycloak } from '../../auth/authService';
+import { refreshTokenKeycloak } from '../auth/authService';
 
 class NotificationService {
   constructor() {

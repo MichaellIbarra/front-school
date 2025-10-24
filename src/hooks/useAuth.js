@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getUserInfo, isTokenValid, refreshTokenKeycloak, clearInstitutionData } from '../auth/authService';
+import { getUserInfo, isTokenValid, refreshTokenKeycloak, clearInstitutionData } from '../services/auth/authService';
 
 const useAuth = () => {
   const [user, setUser] = useState(null);

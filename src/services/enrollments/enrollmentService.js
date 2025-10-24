@@ -1,9 +1,9 @@
-import { Enrollment, validateEnrollment, validateBulkEnrollments, formatDateForBackend, generateEnrollmentNumber } from '../../types/enrollments/enrollments';
-import { refreshTokenKeycloak } from '../../auth/authService';
+import { Enrollment, validateEnrollment, formatDateForBackend } from '../../types/enrollments/enrollments';
+import { refreshTokenKeycloak } from '../auth/authService';
 
 class EnrollmentService {
   constructor() {
-    this.baseURL = `${process.env.REACT_APP_DOMAIN}/api/v1/enrollments`;
+    this.baseURL = `${process.env.REACT_APP_BASE_API_URL}`;
   }
 
   /**
@@ -14,14 +14,43 @@ class EnrollmentService {
   }
 
   /**
+   * Obtiene la institución del usuario desde localStorage
+   */
+  getUserInstitution() {
+    try {
+      const institutionData = localStorage.getItem('institution');
+      return institutionData ? JSON.parse(institutionData) : null;
+    } catch (error) {
+      console.error('Error al obtener institución desde localStorage:', error);
+      return null;
+    }
+  }
+
+  /**
    * Obtiene los headers de autorización para las peticiones
    */
   getAuthHeaders() {
     const token = this.getAuthToken();
-    return {
+    const institution = this.getUserInstitution();
+    
+    const headers = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     };
+    
+    // Agregar headers adicionales si existen
+    if (institution && institution.id) {
+      headers['X-Institution-Id'] = institution.id;
+    }
+    
+    // Agregar role y user id del token
+    const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
+    if (userInfo.id) {
+      headers['X-User-Id'] = userInfo.id;
+    }
+    headers['X-User-Roles'] = 'secretary';
+    
+    return headers;
   }
 
   /**
@@ -134,74 +163,8 @@ class EnrollmentService {
   }
 
   /**
-   * Obtiene todas las matrículas
-   * GET /api/v1/enrollments
-   */
-  async getAllEnrollments() {
-    try {
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(this.baseURL, {
-          method: 'GET',
-          headers: this.getAuthHeaders()
-        });
-
-        const result = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: result.data || [],
-          metadata: result.metadata,
-          message: result.metadata?.message || 'Matrículas obtenidas exitosamente'
-        };
-      });
-    } catch (error) {
-      console.error('Error al obtener matrículas:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener las matrículas',
-        data: []
-      };
-    }
-  }
-
-  /**
-   * Obtiene una matrícula por ID
-   * GET /api/v1/enrollments/{id}
-   */
-  async getEnrollmentById(id) {
-    try {
-      if (!id) {
-        throw new Error('ID de matrícula requerido');
-      }
-
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/${id}`, {
-          method: 'GET',
-          headers: this.getAuthHeaders()
-        });
-
-        const result = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: result.data?.[0] || null,
-          metadata: result.metadata,
-          message: result.metadata?.message || 'Matrícula encontrada'
-        };
-      });
-    } catch (error) {
-      console.error('Error al obtener matrícula:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener la matrícula',
-        data: null
-      };
-    }
-  }
-
-  /**
    * Crea una nueva matrícula
-   * POST /api/v1/enrollments
+   * POST /enrollments/secretary/create
    */
   async createEnrollment(enrollmentData) {
     try {
@@ -215,16 +178,16 @@ class EnrollmentService {
         };
       }
 
-      // Crear el payload sin el ID (se genera en el backend)
+      // Crear el payload con la nueva estructura
       const payload = {
         studentId: enrollmentData.studentId,
         classroomId: enrollmentData.classroomId,
-        enrollmentNumber: enrollmentData.enrollmentNumber,
-        enrollmentDate: formatDateForBackend(enrollmentData.enrollmentDate)
+        enrollmentDate: formatDateForBackend(enrollmentData.enrollmentDate),
+        enrollmentType: enrollmentData.enrollmentType || 'REGULAR'
       };
 
       return await this.executeWithRetry(async () => {
-        const response = await fetch(this.baseURL, {
+        const response = await fetch(`${this.baseURL}/enrollments/secretary/create`, {
           method: 'POST',
           headers: this.getAuthHeaders(),
           body: JSON.stringify(payload)
@@ -249,286 +212,13 @@ class EnrollmentService {
   }
 
   /**
-   * Actualiza el estado de una matrícula
-   * PUT /api/v1/enrollments/{id}/status/{status}
-   */
-  async updateEnrollmentStatus(id, status) {
-    try {
-      if (!id) {
-        throw new Error('ID de matrícula requerido');
-      }
-
-      if (!status) {
-        throw new Error('Estado requerido');
-      }
-
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/${id}/status/${status}`, {
-          method: 'PUT',
-          headers: this.getAuthHeaders()
-        });
-
-        const result = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: result.data?.[0] || null,
-          metadata: result.metadata,
-          message: result.metadata?.message || 'Estado de matrícula actualizado exitosamente'
-        };
-      });
-    } catch (error) {
-      console.error('Error al actualizar estado de matrícula:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al actualizar el estado de la matrícula'
-      };
-    }
-  }
-
-  /**
-   * Elimina una matrícula (inactiva)
-   * DELETE /api/v1/enrollments/{id}
-   */
-  async deleteEnrollment(id) {
-    try {
-      if (!id) {
-        throw new Error('ID de matrícula requerido');
-      }
-
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/${id}`, {
-          method: 'DELETE',
-          headers: this.getAuthHeaders()
-        });
-
-        const result = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: result.data || [],
-          metadata: result.metadata,
-          message: result.metadata?.message || 'Matrícula eliminada exitosamente'
-        };
-      });
-    } catch (error) {
-      console.error('Error al eliminar matrícula:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al eliminar la matrícula'
-      };
-    }
-  }
-
-  /**
-   * Restaura una matrícula eliminada
-   * PUT /api/v1/enrollments/{id}/restore
-   */
-  async restoreEnrollment(id) {
-    try {
-      if (!id) {
-        throw new Error('ID de matrícula requerido');
-      }
-
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/${id}/restore`, {
-          method: 'PUT',
-          headers: this.getAuthHeaders()
-        });
-
-        const result = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: result.data || [],
-          metadata: result.metadata,
-          message: result.metadata?.message || 'Matrícula restaurada exitosamente'
-        };
-      });
-    } catch (error) {
-      console.error('Error al restaurar matrícula:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al restaurar la matrícula'
-      };
-    }
-  }
-
-  /**
-   * Carga masiva de matrículas
-   * POST /api/v1/enrollments/bulk
-   */
-  async bulkCreateEnrollments(enrollmentsData) {
-    try {
-      if (!Array.isArray(enrollmentsData) || enrollmentsData.length === 0) {
-        throw new Error('Se requiere un array de matrículas');
-      }
-
-      // Validar datos
-      const validation = validateBulkEnrollments(enrollmentsData);
-      if (!validation.isValid) {
-        return {
-          success: false,
-          error: 'Errores de validación en los datos',
-          validationErrors: validation.errors
-        };
-      }
-
-      // Preparar payload
-      const payload = enrollmentsData.map(enrollment => ({
-        studentId: enrollment.studentId,
-        classroomId: enrollment.classroomId,
-        enrollmentNumber: enrollment.enrollmentNumber,
-        enrollmentDate: formatDateForBackend(enrollment.enrollmentDate)
-      }));
-
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/bulk`, {
-          method: 'POST',
-          headers: this.getAuthHeaders(),
-          body: JSON.stringify(payload)
-        });
-
-        const result = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: result.data || [],
-          metadata: result.metadata,
-          message: result.metadata?.message || 'Matrículas creadas exitosamente'
-        };
-      });
-    } catch (error) {
-      console.error('Error en carga masiva de matrículas:', error);
-      return {
-        success: false,
-        error: error.message || 'Error en la carga masiva de matrículas'
-      };
-    }
-  }
-
-  /**
-   * Obtiene las matrículas de un estudiante específico
-   * GET /api/v1/enrollments?studentId={studentId}
-   */
-  async getEnrollmentsByStudent(studentId) {
-    try {
-      const response = await fetch(`${this.baseURL}?studentId=${studentId}`, {
-        method: 'GET',
-        headers: this.getAuthHeaders()
-      });
-
-      const result = await this.handleResponse(response);
-      return result;
-    } catch (error) {
-      if (error.message === 'TOKEN_REFRESHED') {
-        // Reintentar después del refresh del token
-        return this.getEnrollmentsByStudent(studentId);
-      }
-      console.error('Error al obtener matrículas del estudiante:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener matrículas del estudiante'
-      };
-    }
-  }
-
-  /**
-   * Genera el próximo número de matrícula disponible
-   * @returns {Promise<string>} - Número de matrícula generado
-   */
-  async generateNextEnrollmentNumber() {
-    try {
-      // Obtener todas las matrículas para calcular el correlativo
-      const response = await this.getAllEnrollments();
-      
-      if (response.success) {
-        const existingEnrollments = response.data || [];
-        return generateEnrollmentNumber(existingEnrollments);
-      } else {
-        // Si no se pueden obtener las matrículas, generar con correlativo 0001
-        const currentYear = new Date().getFullYear();
-        return `MAT-${currentYear}-0001`;
-      }
-    } catch (error) {
-      console.error('Error al generar número de matrícula:', error);
-      // Fallback: generar con correlativo 0001
-      const currentYear = new Date().getFullYear();
-      return `MAT-${currentYear}-0001`;
-    }
-  }
-
-  /**
-   * GET /api/v1/enrollments/classroom/{classroomId} - Busca matrículas por ID de aula
-   */
-  async getEnrollmentsByClassroom(classroomId) {
-    return await this.executeWithRetry(async () => {
-      const response = await fetch(`${this.baseURL}/classroom/${classroomId}`, {
-        method: 'GET',
-        headers: this.getAuthHeaders()
-      });
-
-      const result = await this.handleResponse(response);
-      
-      return {
-        success: true,
-        data: result.data || [],
-        message: `Matrículas del aula ${classroomId} obtenidas exitosamente`,
-        metadata: result.metadata
-      };
-    });
-  }
-
-  /**
-   * GET /api/v1/enrollments/enrollment-number/{enrollmentNumber} - Busca matrícula por número
-   */
-  async getEnrollmentByNumber(enrollmentNumber) {
-    return await this.executeWithRetry(async () => {
-      const response = await fetch(`${this.baseURL}/enrollment-number/${enrollmentNumber}`, {
-        method: 'GET',
-        headers: this.getAuthHeaders()
-      });
-
-      const result = await this.handleResponse(response);
-      
-      return {
-        success: true,
-        data: result.data,
-        message: `Matrícula ${enrollmentNumber} encontrada`,
-        metadata: result.metadata
-      };
-    });
-  }
-
-  /**
-   * GET /api/v1/enrollments/status/{status} - Filtra matrículas por estado
-   */
-  async getEnrollmentsByStatus(status) {
-    return await this.executeWithRetry(async () => {
-      const response = await fetch(`${this.baseURL}/status/${status}`, {
-        method: 'GET',
-        headers: this.getAuthHeaders()
-      });
-
-      const result = await this.handleResponse(response);
-      
-      return {
-        success: true,
-        data: result.data || [],
-        message: `Matrículas con estado ${status} obtenidas exitosamente`,
-        metadata: result.metadata
-      };
-    });
-  }
-
-  /**
-   * PUT /api/v1/enrollments/{id} - Actualiza una matrícula completa
+   * Actualiza una matrícula existente
+   * PUT /enrollments/secretary/update/{id}
    */
   async updateEnrollment(id, enrollmentData) {
     try {
-      // Validar datos de entrada
+      // Validar los datos antes de enviar
       const validation = validateEnrollment(enrollmentData);
-      
       if (!validation.isValid) {
         return {
           success: false,
@@ -537,26 +227,41 @@ class EnrollmentService {
         };
       }
 
+      // Crear el payload con la nueva estructura
       const payload = {
+        studentId: enrollmentData.studentId,
         classroomId: enrollmentData.classroomId,
         enrollmentDate: formatDateForBackend(enrollmentData.enrollmentDate),
-        status: enrollmentData.status || 'ACTIVE'
+        enrollmentType: enrollmentData.enrollmentType || 'REGULAR',
+        status: enrollmentData.status,
+        transferReason: enrollmentData.transferReason || null,
       };
 
       return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/${id}`, {
+        const response = await fetch(`${this.baseURL}/enrollments/secretary/update/${id}`, {
           method: 'PUT',
           headers: this.getAuthHeaders(),
           body: JSON.stringify(payload)
         });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          try {
+            const errorJson = JSON.parse(errorText);
+            const errorMessage = errorJson.metadata?.message || errorText;
+            throw new Error(errorMessage);
+          } catch (parseError) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+        }
 
         const result = await this.handleResponse(response);
         
         return {
           success: true,
           data: result.data,
-          message: 'Matrícula actualizada exitosamente',
-          metadata: result.metadata
+          metadata: result.metadata,
+          message: result.metadata?.message || 'Matrícula actualizada exitosamente'
         };
       });
     } catch (error) {
@@ -569,121 +274,102 @@ class EnrollmentService {
   }
 
   /**
-   * GET /api/v1/enrollments/analytics/classroom/{classroomId}/stats - Obtiene estadísticas de un aula
+   * Obtiene todas las matrículas del secretary
+   * GET /enrollments/secretary
    */
-  async getClassroomStats(classroomId) {
-    return await this.executeWithRetry(async () => {
-      const response = await fetch(`${this.baseURL}/analytics/classroom/${classroomId}/stats`, {
-        method: 'GET',
-        headers: this.getAuthHeaders()
-      });
-
-      const result = await this.handleResponse(response);
-      
-      return {
-        success: true,
-        data: result.data,
-        message: `Estadísticas del aula ${classroomId} obtenidas exitosamente`,
-        metadata: result.metadata
-      };
-    });
-  }
-
-  /**
-   * GET /api/v1/enrollments/analytics/enrollment-distribution - Obtiene distribución de matrículas
-   */
-  async getEnrollmentDistribution() {
-    return await this.executeWithRetry(async () => {
-      const response = await fetch(`${this.baseURL}/analytics/enrollment-distribution`, {
-        method: 'GET',
-        headers: this.getAuthHeaders()
-      });
-
-      const result = await this.handleResponse(response);
-      
-      return {
-        success: true,
-        data: result.data,
-        message: 'Distribución de matrículas obtenida exitosamente',
-        metadata: result.metadata
-      };
-    });
-  }
-
-  /**
-   * Obtiene el último número de matrícula para generar el siguiente
-   */
-  async getLastEnrollmentNumber() {
+  async getAllEnrollments() {
     try {
       return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/last-number`, {
+        const response = await fetch(`${this.baseURL}/enrollments/secretary`, {
           method: 'GET',
           headers: this.getAuthHeaders()
         });
 
         const result = await this.handleResponse(response);
-        
+        // Normalizar posibles estructuras de respuesta
+        let data = [];
+        if (Array.isArray(result.data)) {
+          data = result.data;
+        } else if (result.data && Array.isArray(result.data.data)) {
+          data = result.data.data;
+        } else if (Array.isArray(result)) {
+          data = result;
+        }
+
         return {
           success: true,
-          data: result.data,
-          message: 'Último número obtenido exitosamente'
+          data,
+          metadata: result.metadata,
+          message: result.metadata?.message || result.message || 'Matrículas obtenidas exitosamente'
         };
       });
     } catch (error) {
-      // Método alternativo si falla el endpoint principal
-      console.warn('⚠️ Endpoint /last-number falló, intentando método alternativo:', error.message);
-      
-      try {
-        console.log('🔄 Intentando obtener último número desde matrículas existentes...');
-        const enrollmentsResult = await this.getAllEnrollments();
-        
-        if (enrollmentsResult.success) {
-          console.log(`📊 Procesando ${enrollmentsResult.data.length} matrículas para encontrar último número...`);
-          
-          const currentYear = new Date().getFullYear();
-          const enrollmentNumbers = enrollmentsResult.data
-            .filter(enrollment => enrollment.enrollmentNumber && enrollment.enrollmentNumber.includes(`MAT-${currentYear}-`))
-            .map(enrollment => {
-              // Extraer el número correlativo de formatos como "MAT-2025-0001"
-              const parts = enrollment.enrollmentNumber.split('-');
-              if (parts.length >= 3) {
-                const correlative = parseInt(parts[2]);
-                return isNaN(correlative) ? 0 : correlative;
-              }
-              return 0;
-            })
-            .filter(num => num > 0);
-          
-          const lastNumber = enrollmentNumbers.length > 0 ? Math.max(...enrollmentNumbers) : 0;
-          
-          console.log(`✅ Último número de matrícula encontrado: ${lastNumber} (de ${enrollmentNumbers.length} números válidos) usando método alternativo`);
-          
-          return {
-            success: true,
-            data: lastNumber,
-            message: 'Último número obtenido exitosamente (método alternativo)'
-          };
-        }
-      } catch (alternativeError) {
-        console.error('❌ También falló el método alternativo:', alternativeError);
-      }
-      
-      console.error('❌ Error al obtener último número de matrícula:', error);
+      console.error('Error al obtener matrículas:', error);
       return {
         success: false,
-        error: error.message || 'Error al obtener el último número de matrícula',
-        data: 0
+        error: error.message || 'Error al obtener las matrículas',
+        data: []
       };
     }
   }
 
   /**
-   * Obtiene las aulas disponibles para matrícula
+   * Obtiene las aulas usando el endpoint de academics
+   * GET /academics/classrooms/secretary/classrooms
    */
-  async getAvailableClassrooms() {
+  async getClassrooms() {
     try {
       return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/classrooms/available`, {
+        const url = `${process.env.REACT_APP_ACADEMICS_API_URL}/academics/classrooms/secretary/classrooms`;
+        console.log('[DEBUG] Requesting classrooms from URL (via enrollmentService):', url);
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: this.getAuthHeaders()
+        });
+
+        const result = await this.handleResponse(response);
+
+        // Normalizar estructuras posibles: { total, data: [...] } o { data: { data: [...] } }
+        let data = [];
+        if (Array.isArray(result.data)) {
+          data = result.data;
+        } else if (result.data && Array.isArray(result.data.data)) {
+          data = result.data.data;
+        } else if (Array.isArray(result)) {
+          data = result;
+        }
+
+        return {
+          success: true,
+          data,
+          metadata: result.metadata || { total: result.total },
+          message: result.metadata?.message || result.message || 'Aulas obtenidas exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('Error al obtener aulas (enrollmentService):', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener las aulas',
+        data: []
+      };
+    }
+  }
+
+  /**
+   * Obtiene las matrículas de un aula específica
+   * GET /enrollments/secretary/by-classroom/{classroomId}
+   */
+  async getEnrollmentsByClassroom(classroomId) {
+    try {
+      if (!classroomId) {
+        throw new Error('ID de aula requerido');
+      }
+
+      return await this.executeWithRetry(async () => {
+        const url = `${this.baseURL}/enrollments/secretary/by-classroom/${classroomId}`;
+        console.log('[DEBUG] Requesting enrollments from URL:', url);
+        const response = await fetch(url, {
           method: 'GET',
           headers: this.getAuthHeaders()
         });
@@ -692,52 +378,319 @@ class EnrollmentService {
         
         return {
           success: true,
-          data: result.data,
-          message: 'Aulas obtenidas exitosamente'
+          data: result.data || [],
+          metadata: result.metadata,
+          message: result.metadata?.message || 'Matrículas obtenidas exitosamente'
         };
       });
     } catch (error) {
-      // Método alternativo si falla el endpoint principal
-      console.warn('⚠️ Endpoint /classrooms/available falló, intentando método alternativo:', error.message);
-      
-      try {
-        console.log('🔄 Intentando obtener aulas desde matrículas existentes...');
-        const enrollmentsResult = await this.getAllEnrollments();
-        
-        if (enrollmentsResult.success) {
-          console.log(`📊 Procesando ${enrollmentsResult.data.length} matrículas para extraer aulas...`);
-          const uniqueClassrooms = {};
-          
-          enrollmentsResult.data.forEach(enrollment => {
-            if (enrollment.classroomId) {
-              uniqueClassrooms[enrollment.classroomId] = {
-                id: enrollment.classroomId,
-                name: enrollment.classroomName || `Aula ${enrollment.classroomId}`,
-                status: 'ACTIVE'
-              };
-            }
-          });
-          
-          const classroomsArray = Object.values(uniqueClassrooms);
-          console.log(`✅ Encontradas ${classroomsArray.length} aulas únicas usando método alternativo:`, classroomsArray.map(c => c.name));
-          
-          return {
-            success: true,
-            data: classroomsArray,
-            message: 'Aulas obtenidas exitosamente (método alternativo)'
-          };
-        } else {
-          console.error('❌ Falló también el método alternativo para obtener matrículas');
-        }
-      } catch (alternativeError) {
-        console.error('❌ También falló el método alternativo:', alternativeError);
-      }
-      
-      console.error('❌ Error al obtener aulas disponibles:', error);
+      console.error('Error al obtener matrículas por aula:', error);
       return {
         success: false,
-        error: error.message || 'Error al obtener las aulas disponibles',
+        error: error.message || 'Error al obtener las matrículas',
         data: []
+      };
+    }
+  }
+
+  /**
+   * Crea múltiples matrículas de forma masiva
+   * POST /enrollments/secretary/bulk-create
+   */
+  async bulkCreateEnrollments(enrollmentsData) {
+    try {
+      if (!Array.isArray(enrollmentsData) || enrollmentsData.length === 0) {
+        return {
+          success: false,
+          error: 'Se requiere un array de matrículas válido'
+        };
+      }
+
+      // Validar cada matrícula
+      const validationErrors = [];
+      const validEnrollments = [];
+
+      enrollmentsData.forEach((enrollment, index) => {
+        const validation = validateEnrollment(enrollment);
+        if (!validation.isValid) {
+          validationErrors.push(`Matrícula ${index + 1}: ${validation.errors.join(', ')}`);
+        } else {
+          validEnrollments.push({
+            studentId: enrollment.studentId,
+            classroomId: enrollment.classroomId,
+            enrollmentDate: enrollment.enrollmentDate, // Formato yyyy-mm-dd esperado
+            enrollmentType: enrollment.enrollmentType || 'REGULAR'
+          });
+        }
+      });
+
+      if (validationErrors.length > 0) {
+        return {
+          success: false,
+          error: 'Errores de validación encontrados',
+          validationErrors
+        };
+      }
+
+      const payload = {
+        enrollments: validEnrollments
+      };
+
+      return await this.executeWithRetry(async () => {
+        const response = await fetch(`${this.baseURL}/enrollments/secretary/bulk-create`, {
+          method: 'POST',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          try {
+            const errorJson = JSON.parse(errorText);
+            const errorMessage = errorJson.metadata?.message || errorJson.message || errorText;
+            throw new Error(errorMessage);
+          } catch (parseError) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+        }
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.data,
+          metadata: result.metadata,
+          message: result.metadata?.message || result.message || 'Matrículas creadas exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('Error al crear matrículas masivamente:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al crear las matrículas'
+      };
+    }
+  }
+
+  /**
+   * Obtiene matrículas por estado
+   * GET /enrollments/secretary/by-status/{status}
+   */
+  async getEnrollmentsByStatus(status) {
+    try {
+      if (!status) {
+        throw new Error('Estado requerido');
+      }
+
+      return await this.executeWithRetry(async () => {
+        const url = `${this.baseURL}/enrollments/secretary/by-status/${status}`;
+        console.log('[DEBUG] Requesting enrollments by status from URL:', url);
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: this.getAuthHeaders()
+        });
+
+        const result = await this.handleResponse(response);
+        
+        let data = [];
+        if (Array.isArray(result.data)) {
+          data = result.data;
+        } else if (result.data && Array.isArray(result.data.data)) {
+          data = result.data.data;
+        } else if (Array.isArray(result)) {
+          data = result;
+        }
+
+        return {
+          success: true,
+          data,
+          metadata: result.metadata,
+          message: result.message || `Matrículas con estado ${status} obtenidas exitosamente`
+        };
+      });
+    } catch (error) {
+      console.error('Error al obtener matrículas por estado:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener las matrículas por estado',
+        data: []
+      };
+    }
+  }
+
+  /**
+   * Obtiene estadísticas de matrículas
+   * GET /enrollments/secretary/statistics
+   */
+  async getEnrollmentStatistics() {
+    try {
+      return await this.executeWithRetry(async () => {
+        const url = `${this.baseURL}/enrollments/secretary/statistics`;
+        console.log('[DEBUG] Requesting enrollment statistics from URL:', url);
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: this.getAuthHeaders()
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.data || result,
+          metadata: result.metadata,
+          message: result.message || 'Estadísticas de matrículas obtenidas exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('Error al obtener estadísticas de matrículas:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener las estadísticas de matrículas',
+        data: {}
+      };
+    }
+  }
+
+  /**
+   * Transfiere un estudiante a otra aula
+   * PUT /enrollments/secretary/transfer/{enrollmentId}
+   */
+  async transferStudent(enrollmentId, newClassroomId) {
+    try {
+      if (!enrollmentId) {
+        throw new Error('ID de matrícula requerido');
+      }
+      if (!newClassroomId) {
+        throw new Error('ID de nueva aula requerido');
+      }
+
+      const payload = {
+        newClassroomId: newClassroomId
+      };
+
+      return await this.executeWithRetry(async () => {
+        const response = await fetch(`${this.baseURL}/enrollments/secretary/transfer/${enrollmentId}`, {
+          method: 'PUT',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          try {
+            const errorJson = JSON.parse(errorText);
+            const errorMessage = errorJson.metadata?.message || errorJson.message || errorText;
+            throw new Error(errorMessage);
+          } catch (parseError) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+        }
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.data,
+          metadata: result.metadata,
+          message: result.metadata?.message || result.message || 'Estudiante transferido exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('Error al transferir estudiante:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al transferir el estudiante'
+      };
+    }
+  }
+
+  /**
+   * Obtiene matrículas por estudiante
+   * GET /enrollments/secretary/by-student/{studentId}
+   */
+  async getEnrollmentsByStudent(studentId) {
+    try {
+      if (!studentId) {
+        throw new Error('ID de estudiante requerido');
+      }
+
+      return await this.executeWithRetry(async () => {
+        const url = `${this.baseURL}/enrollments/secretary/by-student/${studentId}`;
+        console.log('[DEBUG] Requesting enrollments by student from URL:', url);
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: this.getAuthHeaders()
+        });
+
+        const result = await this.handleResponse(response);
+        
+        let data = [];
+        if (Array.isArray(result.data)) {
+          data = result.data;
+        } else if (result.data && Array.isArray(result.data.data)) {
+          data = result.data.data;
+        } else if (Array.isArray(result)) {
+          data = result;
+        }
+
+        return {
+          success: true,
+          data,
+          metadata: result.metadata,
+          message: result.message || 'Matrículas del estudiante obtenidas exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('Error al obtener matrículas por estudiante:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener las matrículas del estudiante',
+        data: []
+      };
+    }
+  }
+
+  /**
+   * Cancela una matrícula
+   * PUT /enrollments/secretary/cancel/{enrollmentId}
+   */
+  async cancelEnrollment(enrollmentId) {
+    try {
+      if (!enrollmentId) {
+        throw new Error('ID de matrícula requerido');
+      }
+
+      return await this.executeWithRetry(async () => {
+        const response = await fetch(`${this.baseURL}/enrollments/secretary/cancel/${enrollmentId}`, {
+          method: 'PUT',
+          headers: this.getAuthHeaders()
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          try {
+            const errorJson = JSON.parse(errorText);
+            const errorMessage = errorJson.metadata?.message || errorJson.message || errorText;
+            throw new Error(errorMessage);
+          } catch (parseError) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+        }
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.data,
+          metadata: result.metadata,
+          message: result.metadata?.message || result.message || 'Matrícula cancelada exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('Error al cancelar matrícula:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al cancelar la matrícula'
       };
     }
   }

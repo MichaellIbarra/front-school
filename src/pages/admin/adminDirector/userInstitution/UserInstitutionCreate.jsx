@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { userInstitutionService } from '../../../../services/adminDirectorService/userInstitutionService';
-import directorUserService from '../../../../services/adminDirectorService/directorUserService';
+import { userInstitutionService } from '../../../../services/users/userInstitutionService';
+import directorUserService from '../../../../services/users/directorUserService';
 import Sidebar from '../../../../components/Sidebar';
 import Header from '../../../../components/Header';
 

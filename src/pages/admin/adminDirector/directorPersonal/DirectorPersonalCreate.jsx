@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import directorUserService from '../../../../services/adminDirectorService/directorUserService';
-import reniecService from '../../../../services/reniec/reniecService';
+import directorUserService from '../../../../services/users/directorUserService';
+import reniecService from '../../../../services/users/reniecService';
 import Header from '../../../../components/Header';
 import Sidebar from '../../../../components/Sidebar';
 import { 

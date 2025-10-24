@@ -26,7 +26,8 @@ export class TeacherAssignmentRequest {
         this.teacherId = data.teacherId || '';
         this.courseId = data.courseId || '';
         this.classroomId = data.classroomId || '';
-        this.periodId = data.periodId || '';
+        this.assignmentDate = data.assignmentDate || '';
+        this.assignmentType = data.assignmentType || 'REGULAR';
     }
 }
 
@@ -86,8 +87,8 @@ export const validateTeacherAssignment = (assignment) => {
         return 'El aula es obligatoria';
     }
 
-    if (!assignment.periodId || assignment.periodId.trim() === '') {
-        return 'El período académico es obligatorio';
+    if (!assignment.assignmentDate || assignment.assignmentDate.trim() === '') {
+        return 'La fecha de asignación es obligatoria';
     }
 
     return null;

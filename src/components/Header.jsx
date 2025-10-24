@@ -2,7 +2,7 @@
 import React, { useEffect} from "react";
 import { Link } from "react-router-dom";
 import useAuth from "../hooks/useAuth";
-import { formatUserRoles, getUserInstitution, isDirector, hasAnyRole } from "../auth/authService";
+import { formatUserRoles, getUserInstitution, isDirector, hasAnyRole } from "../services/auth/authService";
 // import "../../src/assets/js/app";
 // import { baricon1, imguser, logo, noteicon, noteicon1, searchnormal, settingicon01, user06 } from './imagepath';
 import {

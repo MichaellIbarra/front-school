@@ -1,4 +1,4 @@
-import { refreshTokenKeycloak } from '../../auth/authService';
+import { refreshTokenKeycloak } from '../auth/authService';
 
 class InstitutionDirectorService {
   constructor() {

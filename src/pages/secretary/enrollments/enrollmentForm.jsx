@@ -1,16 +1,16 @@
 /* eslint-disable no-unused-vars */
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useParams, useLocation } from "react-router-dom";
-import { Form, Input, Select, Button, Card, Row, Col, AutoComplete } from "antd";
-import { SaveOutlined, ArrowLeftOutlined, SearchOutlined } from "@ant-design/icons";
+import { Form, Input, Select, Button, Card, Row, Col, AutoComplete, Alert } from "antd";
+import { SaveOutlined, ArrowLeftOutlined } from "@ant-design/icons";
 import Header from "../../../components/Header";
 import Sidebar from "../../../components/Sidebar";
 import AlertModal from "../../../components/AlertModal";
 import useAlert from "../../../hooks/useAlert";
 import enrollmentService from "../../../services/enrollments/enrollmentService";
 import studentService from "../../../services/students/studentService";
-import { Enrollment, validateEnrollment } from "../../../types/enrollments/enrollments";
-// Usando Date nativo de JavaScript
+import classroomService from "../../../services/academic/classroomService";
+import { Enrollment, EnrollmentType, validateEnrollment } from "../../../types/enrollments/enrollments";
 
 const { Option } = Select;
 
@@ -26,7 +26,10 @@ const EnrollmentForm = () => {
   const [students, setStudents] = useState([]);
   const [studentOptions, setStudentOptions] = useState([]);
   const [searchingStudents, setSearchingStudents] = useState(false);
-  const isEdit = Boolean(id);
+  const [classrooms, setClassrooms] = useState([]);
+  const isEdit = false; // No se permite editar matrículas
+
+  const [selectedEnrollmentType, setSelectedEnrollmentType] = useState(EnrollmentType.REGULAR);
 
   useEffect(() => {
     // Obtener studentId de los parámetros de búsqueda de la URL
@@ -34,33 +37,26 @@ const EnrollmentForm = () => {
     const urlStudentId = searchParams.get('studentId');
     
     loadStudents();
+    loadClassrooms();
     
-    if (isEdit) {
-      // Si viene del state de navegación, usar esos datos
-      if (location.state?.enrollment) {
-        const enrollmentData = location.state.enrollment;
-        setEnrollment(enrollmentData);
-        populateForm(enrollmentData);
-      } else {
-        // Si no, cargar desde el servicio
-        loadEnrollment();
-      }
-    } else {
-      // Nueva matrícula
-      initializeNewEnrollment(urlStudentId);
+    // Nueva matrícula
+    initializeNewEnrollment(urlStudentId);
+  }, [location.search]);
+
+  useEffect(() => {
+    // Actualizar el estado local cuando el formulario cambie el tipo de matrícula
+    const currentEnrollmentType = form.getFieldValue('enrollmentType');
+    if (currentEnrollmentType) {
+      setSelectedEnrollmentType(currentEnrollmentType);
     }
-  }, [id, location.state, location.search]);
+  }, [form.getFieldValue('enrollmentType')]);
 
   /**
-   * Inicializa una nueva matrícula con número generado automáticamente
+   * Inicializa una nueva matrícula
    */
   const initializeNewEnrollment = async (studentId = null) => {
     try {
       const newEnrollment = enrollmentService.createNewEnrollment();
-      
-      // Generar número de matrícula automáticamente
-      const enrollmentNumber = await enrollmentService.generateNextEnrollmentNumber();
-      newEnrollment.enrollmentNumber = enrollmentNumber;
       
       // Si hay studentId en la URL, preseleccionar el estudiante
       if (studentId) {
@@ -71,51 +67,64 @@ const EnrollmentForm = () => {
       populateForm(newEnrollment);
     } catch (error) {
       console.error('Error al inicializar nueva matrícula:', error);
-      showError('Error al generar número de matrícula');
+      showError('Error al inicializar matrícula');
     }
   };
 
   /**
-   * Carga los estudiantes disponibles
+   * Carga los estudiantes disponibles (solo los no matriculados)
    */
   const loadStudents = async () => {
     try {
-      const response = await studentService.getStudentsNotEnrolled();
+      // Cargar solo estudiantes no matriculados
+      const response = await studentService.getUnenrolledStudents();
+      console.log('[DEBUG] Unenrolled Students API Response (EnrollmentForm):', response);
       if (response.success) {
         setStudents(response.data);
-        // Preparar opciones para el AutoComplete
+        // Preparar opciones para el Select
         const options = response.data.map(student => ({
           value: student.id,
           label: `${student.firstName} ${student.lastName} - ${student.documentNumber}`,
           student: student
         }));
         setStudentOptions(options);
+        
+        // Mostrar información al usuario sobre la cantidad de estudiantes disponibles
+        if (response.data.length === 0) {
+          showAlert({
+            type: 'warning',
+            title: 'Sin estudiantes disponibles',
+            message: 'No hay estudiantes sin matrícula disponibles para matricular.'
+          });
+        } else {
+          console.log(`${response.data.length} estudiantes sin matrícula disponibles`);
+        }
+      } else {
+        showError(response.error || 'Error al cargar estudiantes');
       }
     } catch (error) {
-      console.error('Error al cargar estudiantes:', error);
+      console.error('Error al cargar estudiantes no matriculados:', error);
+      showError('Error al cargar estudiantes disponibles');
     }
   };
 
   /**
-   * Carga los datos de la matrícula desde el servicio
+   * Carga las aulas disponibles
    */
-  const loadEnrollment = async () => {
-    setLoading(true);
+  const loadClassrooms = async () => {
     try {
-      const response = await enrollmentService.getEnrollmentById(id);
-      
-      if (response.success && response.data) {
-        setEnrollment(response.data);
-        populateForm(response.data);
+      const response = await classroomService.getAllClassrooms();
+      console.log('[DEBUG] Classroom API Response (EnrollmentForm):', response);
+      if (response.success) {
+        setClassrooms(response.data);
+        console.log('[DEBUG] Classrooms state in EnrollmentForm:', response.data);
       } else {
-        showError(response.error || 'Matrícula no encontrada');
-        navigate('/secretary/enrollments');
+        showError(response.error || "Error al cargar las aulas");
       }
     } catch (error) {
-      showError('Error al cargar la matrícula');
-      navigate('/secretary/enrollments');
+      console.error('Error al cargar aulas:', error);
+      showError('Error de red al cargar las aulas');
     }
-    setLoading(false);
   };
 
   /**
@@ -135,53 +144,6 @@ const EnrollmentForm = () => {
   };
 
   /**
-   * Busca estudiantes por texto
-   */
-  const handleStudentSearch = async (searchText) => {
-    if (!searchText || searchText.length < 2) {
-      setStudentOptions(students.map(student => ({
-        value: student.id,
-        label: `${student.firstName} ${student.lastName} - ${student.documentNumber}`,
-        student: student
-      })));
-      return;
-    }
-
-    setSearchingStudents(true);
-    
-    try {
-      // Buscar por nombre
-      const nameResponse = await studentService.searchStudentsByFirstName(searchText);
-      let foundStudents = nameResponse.success ? nameResponse.data : [];
-      
-      // Si no encuentra por nombre, buscar por apellido
-      if (foundStudents.length === 0) {
-        const lastNameResponse = await studentService.searchStudentsByLastName(searchText);
-        foundStudents = lastNameResponse.success ? lastNameResponse.data : [];
-      }
-      
-      // Si no encuentra por nombre/apellido, buscar por documento
-      if (foundStudents.length === 0 && /^\d+$/.test(searchText)) {
-        const docResponse = await studentService.getStudentByDocument(searchText);
-        foundStudents = docResponse.success ? docResponse.data : [];
-      }
-      
-      // Preparar opciones
-      const options = foundStudents.map(student => ({
-        value: student.id,
-        label: `${student.firstName} ${student.lastName} - ${student.documentNumber}`,
-        student: student
-      }));
-      
-      setStudentOptions(options);
-    } catch (error) {
-      console.error('Error al buscar estudiantes:', error);
-    }
-    
-    setSearchingStudents(false);
-  };
-
-  /**
    * Maneja el envío del formulario
    */
   const handleSubmit = async (values) => {
@@ -189,31 +151,21 @@ const EnrollmentForm = () => {
     
     try {
       // Preparar los datos
-      let enrollmentNumber = values.enrollmentNumber;
-      
-      // Si no hay número de matrícula, generar uno nuevo
-      if (!enrollmentNumber) {
-        enrollmentNumber = await enrollmentService.generateNextEnrollmentNumber();
-      }
-      
       const enrollmentData = {
         ...values,
-        enrollmentNumber,
         enrollmentDate: values.enrollmentDate ? 
           (typeof values.enrollmentDate === 'string' ? values.enrollmentDate : 
            values.enrollmentDate.toISOString ? values.enrollmentDate.toISOString().split('T')[0] : 
            values.enrollmentDate) : null,
+        enrollmentType: values.enrollmentType,
+        ...(values.enrollmentType === EnrollmentType.TRANSFER && { transferReason: values.transferReason }),
       };
 
-      let response;
-      if (isEdit) {
-        response = await enrollmentService.updateEnrollment(id, enrollmentData);
-      } else {
-        response = await enrollmentService.createEnrollment(enrollmentData);
-      }
+      // Solo crear matrículas, no editar
+      const response = await enrollmentService.createEnrollment(enrollmentData);
 
       if (response.success) {
-        showSuccess(response.message || `Matrícula ${isEdit ? 'actualizada' : 'creada'} exitosamente`);
+        showSuccess(response.message || 'Matrícula creada exitosamente');
         navigate('/secretary/enrollments');
       } else {
         if (response.validationErrors) {
@@ -223,7 +175,7 @@ const EnrollmentForm = () => {
         }
       }
     } catch (error) {
-      showError(`Error al ${isEdit ? 'actualizar' : 'crear'} la matrícula`);
+      showError('Error al crear la matrícula');
     }
     
     setLoading(false);
@@ -236,20 +188,6 @@ const EnrollmentForm = () => {
     navigate('/secretary/enrollments');
   };
 
-  /**
-   * Genera automáticamente el número de matrícula
-   */
-  const handleGenerateNumber = async () => {
-    try {
-      const number = await enrollmentService.generateNextEnrollmentNumber();
-      form.setFieldsValue({ enrollmentNumber: number });
-      setEnrollment(prev => ({ ...prev, enrollmentNumber: number }));
-    } catch (error) {
-      console.error('Error al generar número de matrícula:', error);
-      showError('Error al generar número de matrícula');
-    }
-  };
-
   return (
     <>
       <div className="page-wrapper">
@@ -260,7 +198,7 @@ const EnrollmentForm = () => {
               <div className="col-sm-12">
                 <div className="page-sub-header">
                   <h3 className="page-title">
-                    {isEdit ? 'Editar Matrícula' : 'Nueva Matrícula'}
+                    Nueva Matrícula
                   </h3>
                   <ul className="breadcrumb">
                     <li className="breadcrumb-item">
@@ -270,7 +208,7 @@ const EnrollmentForm = () => {
                       <Link to="/secretary/enrollments">Matrículas</Link>
                     </li>
                     <li className="breadcrumb-item active">
-                      {isEdit ? 'Editar' : 'Nueva'}
+                      Nueva
                     </li>
                   </ul>
                 </div>
@@ -289,32 +227,18 @@ const EnrollmentForm = () => {
                     onFinish={handleSubmit}
                     disabled={loading}
                   >
+                    {/* Alerta informativa */}
+                    <Alert
+                      message="Información importante"
+                      description={`Solo se muestran estudiantes que NO tienen matrícula activa. Si no ve el estudiante que busca, verifique que no esté ya matriculado. Estudiantes disponibles: ${students.length}`}
+                      type="info"
+                      showIcon
+                      className="mb-3"
+                    />
+
                     {/* Datos de la Matrícula */}
                     <Card title="Datos de la Matrícula" className="mb-4">
                       <Row gutter={16}>
-                        <Col xs={24} sm={12} md={8}>
-                          <Form.Item
-                            label="Número de Matrícula"
-                            name="enrollmentNumber"
-                            rules={[
-                              { required: true, message: 'El número de matrícula es requerido' }
-                            ]}
-                          >
-                            <Input 
-                              placeholder="Ingrese el número de matrícula"
-                              addonAfter={
-                                <Button 
-                                  type="link" 
-                                  size="small" 
-                                  onClick={handleGenerateNumber}
-                                  disabled={isEdit}
-                                >
-                                  Generar
-                                </Button>
-                              }
-                            />
-                          </Form.Item>
-                        </Col>
                         <Col xs={24} sm={12} md={8}>
                           <Form.Item
                             label="Fecha de Matrícula"
@@ -325,35 +249,76 @@ const EnrollmentForm = () => {
                               type="date"
                               placeholder="Seleccione la fecha"
                               className="w-100"
+                              defaultValue={new Date().toISOString().split('T')[0]}
                             />
                           </Form.Item>
                         </Col>
                         <Col xs={24} sm={12} md={8}>
                           <Form.Item
-                            label="ID del Aula"
+                            label="Aula"
                             name="classroomId"
-                            rules={[{ required: true, message: 'El ID del aula es requerido' }]}
+                            rules={[{ required: true, message: 'El aula es requerida' }]}
                           >
-                            <Input placeholder="Ingrese el ID del aula" />
+                            <Select
+                              showSearch
+                              placeholder="Seleccione un aula"
+                              optionFilterProp="children"
+                              filterOption={(input, option) =>
+                                (option?.children ?? '').toLowerCase().includes(input.toLowerCase())
+                              }
+                            >
+                              {classrooms.map(classroom => (
+                                <Option key={classroom.id} value={classroom.id}>
+                                  {classroom.classroomName} {classroom.section ? `(${classroom.section})` : ''}
+                                </Option>
+                              ))}
+                            </Select>
                           </Form.Item>
                         </Col>
+                        <Col xs={24} sm={12} md={8}>
+                          <Form.Item
+                            label="Tipo de Matrícula"
+                            name="enrollmentType"
+                            initialValue={EnrollmentType.REGULAR}
+                          >
+                            <Select 
+                              placeholder="Seleccione" 
+                              onChange={(value) => setSelectedEnrollmentType(value)}
+                            >
+                              <Option value={EnrollmentType.REGULAR}>Regular</Option>
+                              <Option value={EnrollmentType.TRANSFER}>Transferencia</Option>
+                              <Option value={EnrollmentType.REPEAT}>Repetición</Option>
+                            </Select>
+                          </Form.Item>
+                        </Col>
+                        {selectedEnrollmentType === EnrollmentType.TRANSFER && (
+                          <Col xs={24} sm={12} md={8}>
+                            <Form.Item
+                              label="Razón de Transferencia"
+                              name="transferReason"
+                              rules={[{ required: true, message: 'La razón de transferencia es requerida' }]}
+                            >
+                              <Input.TextArea rows={2} placeholder="Ingrese la razón de la transferencia" />
+                            </Form.Item>
+                          </Col>
+                        )}
                       </Row>
 
                       <Row gutter={16}>
-                        <Col xs={24} sm={12}>
+                        <Col xs={24}>
                           <Form.Item
-                            label="Estudiante"
+                            label="Estudiante (Solo estudiantes sin matrícula)"
                             name="studentId"
                             rules={[{ required: true, message: 'Seleccione un estudiante' }]}
                           >
                             <Select
                               showSearch
-                              placeholder="Busque y seleccione un estudiante"
+                              placeholder="Busque un estudiante disponible para matricular"
                               optionFilterProp="children"
                               loading={searchingStudents}
-                              onSearch={handleStudentSearch}
-                              filterOption={false}
-                              notFoundContent={searchingStudents ? 'Buscando...' : 'No encontrado'}
+                              filterOption={(input, option) =>
+                                option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                              }
                             >
                               {studentOptions.map(option => (
                                 <Option key={option.value} value={option.value}>
@@ -363,22 +328,6 @@ const EnrollmentForm = () => {
                             </Select>
                           </Form.Item>
                         </Col>
-                        {isEdit && (
-                          <Col xs={24} sm={12}>
-                            <Form.Item
-                              label="Estado"
-                              name="status"
-                              rules={[{ required: true, message: 'Seleccione el estado' }]}
-                            >
-                              <Select placeholder="Seleccione el estado">
-                                <Option value="ACTIVE">Activa</Option>
-                                <Option value="INACTIVE">Inactiva</Option>
-                                <Option value="COMPLETED">Completada</Option>
-                                <Option value="CANCELLED">Cancelada</Option>
-                              </Select>
-                            </Form.Item>
-                          </Col>
-                        )}
                       </Row>
                     </Card>
 
@@ -398,7 +347,7 @@ const EnrollmentForm = () => {
                         htmlType="submit"
                         loading={loading}
                       >
-                        {isEdit ? 'Actualizar' : 'Guardar'} Matrícula
+                        Guardar Matrícula
                       </Button>
                     </div>
                   </Form>

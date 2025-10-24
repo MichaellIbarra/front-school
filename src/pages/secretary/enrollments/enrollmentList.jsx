@@ -1,66 +1,143 @@
 /* eslint-disable no-unused-vars */
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Table, Button, Input, Select, Space, Dropdown, Tag, Tooltip, Menu } from "antd";
-import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, UndoOutlined, CheckOutlined, CloseOutlined, EyeOutlined, UserOutlined, FileTextOutlined, DownloadOutlined, UsergroupAddOutlined } from "@ant-design/icons";
+import { Table, Button, Input, Select, Space, Dropdown, Tag, Tooltip, Menu, Modal, Card, Row, Col, Descriptions, Checkbox, Form, DatePicker } from "antd";
+import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, UndoOutlined, CheckOutlined, CloseOutlined, EyeOutlined, UserOutlined, FileTextOutlined, DownloadOutlined } from "@ant-design/icons";
 import FeatherIcon from "feather-icons-react";
 import { MoreHorizontal, Filter } from "react-feather";
 import Header from "../../../components/Header";
 import Sidebar from "../../../components/Sidebar";
 import AlertModal from "../../../components/AlertModal";
-import BulkEnrollmentModal from "./BulkEnrollmentModal";
 import useAlert from "../../../hooks/useAlert";
 import enrollmentService from "../../../services/enrollments/enrollmentService";
 import studentService from "../../../services/students/studentService";
-import { EnrollmentStatus, getEnrollmentStatusText, getEnrollmentStatusColor, formatEnrollmentDate, formatDateTime, arrayToDate } from "../../../types/enrollments/enrollments";
+import classroomService from "../../../services/academic/classroomService";
+import { EnrollmentType, getEnrollmentStatusText, getEnrollmentStatusColor, formatEnrollmentDate, formatDateTime, arrayToDate } from "../../../types/enrollments/enrollments";
 
 const { Option } = Select;
 
 const EnrollmentList = () => {
+  // Estado para los datos de estudiantes
+  const [students, setStudents] = useState([]);
+  // Estado para los datos de aulas
+  const [classrooms, setClassrooms] = useState([]);
+
   const navigate = useNavigate();
   const { alertState, showAlert, showSuccess, showError, showWarning, handleConfirm: alertConfirm, handleCancel: alertCancel } = useAlert();
-  
+
   // Estados para manejo de datos
   const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
-  
+  const [displayEnrollments, setDisplayEnrollments] = useState([]);
+
   // Estados para filtros y búsqueda
   const [searchText, setSearchText] = useState('');
-  const [activeTab, setActiveTab] = useState(EnrollmentStatus.ACTIVE);
-  const [classroomFilter, setClassroomFilter] = useState('all');
-  const [filteredEnrollments, setFilteredEnrollments] = useState([]);
   const [statistics, setStatistics] = useState(null);
-  
+  const [currentView, setCurrentView] = useState('all'); // 'all', 'retired', 'active', etc.
+
   // Estados para modal de detalles
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedEnrollment, setSelectedEnrollment] = useState(null);
-  
-  // Estados para modal de matrícula masiva
-  const [showBulkModal, setShowBulkModal] = useState(false);
 
-  // Cargar matrículas al montar el componente
+  // Estados para modal de importación masiva
+  const [showBulkImportModal, setShowBulkImportModal] = useState(false);
+  const [bulkEnrollments, setBulkEnrollments] = useState([]); // Lista de estudiantes no matriculados
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [selectedStudentsForBulk, setSelectedStudentsForBulk] = useState([]); // IDs de estudiantes seleccionados
+  const [bulkSelectedClassroom, setBulkSelectedClassroom] = useState(null); // Aula seleccionada para matrícula masiva
+
+  /**
+   * Abre el modal de detalles de la matrícula
+   * @param {object} enrollment - Objeto de matrícula a mostrar
+   */
+  const handleViewDetails = (enrollment) => {
+    const student = students.find(s => s.id === enrollment.studentId);
+    setSelectedEnrollment({ ...enrollment, student });
+    setShowDetailsModal(true);
+  };
+
+  /**
+   * Cierra el modal de detalles de la matrícula
+   */
+  const handleCloseDetailsModal = () => {
+    setShowDetailsModal(false);
+    setSelectedEnrollment(null);
+  };
+
+  // Estados para filtro de aulas
+  const [selectedClassroom, setSelectedClassroom] = useState(null);
+
+  // Solo cargar aulas y setear la primera como seleccionada, pero NO cargar matrículas aquí
   useEffect(() => {
-    loadEnrollments();
-    loadStatistics();
+    const fetchInitialData = async () => {
+      setLoading(true);
+      try {
+        // Cargar aulas
+        const classroomsResponse = await classroomService.getAllClassrooms();
+        console.log('[DEBUG] Classrooms fetched in EnrollmentList:', classroomsResponse);
+        if (classroomsResponse.success) {
+          setClassrooms(classroomsResponse.data);
+          console.log('[DEBUG] Classrooms state in EnrollmentList:', classroomsResponse.data);
+          if (classroomsResponse.data.length > 0) {
+            setSelectedClassroom(classroomsResponse.data[0].id);
+          }
+        } else {
+          showError(classroomsResponse.error || "Error al cargar las aulas");
+          setClassrooms([]);
+        }
+
+        // Cargar todos los estudiantes de la institución para mostrar nombre en la tabla
+        const studentsResponse = await studentService.getStudentsByInstitution();
+        console.log('[DEBUG] Students fetched in EnrollmentList:', studentsResponse);
+        if (studentsResponse.success) {
+          setStudents(studentsResponse.data);
+        } else {
+          showError(studentsResponse.error || "Error al cargar los estudiantes");
+          setStudents([]);
+        }
+      } catch (error) {
+        console.error('Error fetching initial data:', error);
+        showError('Error al cargar datos iniciales');
+      }
+      setLoading(false);
+    };
+    fetchInitialData();
   }, []);
+
+  // Cuando cambia el aula seleccionada, recargar matrículas de ese aula
+  useEffect(() => {
+    console.log('[DEBUG] selectedClassroom changed:', selectedClassroom);
+    if (selectedClassroom) {
+      loadEnrollments(selectedClassroom);
+    } else {
+      setEnrollments([]);
+    }
+    // eslint-disable-next-line
+  }, [selectedClassroom]);
 
   // Aplicar filtros cuando cambien los datos, búsqueda o filtros
   useEffect(() => {
     applyFilters();
-  }, [enrollments, searchText, activeTab, classroomFilter]);
+  }, [enrollments, students, searchText]);
 
   /**
-   * Carga todas las matrículas desde el servicio y enriquece con datos reales de estudiantes
+   * Carga todas las matrículas desde el servicio
    */
-  const loadEnrollments = async () => {
+  // Cargar matrículas de un aula específica
+  const loadEnrollments = async (classroomId) => {
     setLoading(true);
     try {
-      const response = await enrollmentService.getAllEnrollments();
+      // Debug: mostrar classroomId y detalles de la petición
+      console.log('[DEBUG] loadEnrollments classroomId:', classroomId);
+      const headers = enrollmentService.getAuthHeaders();
+      const url = `${enrollmentService.baseURL}/enrollments/secretary/by-classroom/${classroomId}`;
+      console.log('[DEBUG] URL:', url);
+      console.log('[DEBUG] Headers:', headers);
+      const response = await enrollmentService.getEnrollmentsByClassroom(classroomId);
+      console.log('[DEBUG] Respuesta API:', response);
       if (response.success) {
-        // Enriquecer con datos reales de estudiantes
-        const enrichedEnrollments = await enrichWithRealStudentData(response.data);
-        setEnrollments(enrichedEnrollments);
+        setEnrollments(response.data);
+        setCurrentView('all'); // Establecer vista como 'todas' cuando se cargan normalmente
         if (response.message) {
           showSuccess(response.message);
         }
@@ -69,6 +146,7 @@ const EnrollmentList = () => {
         setEnrollments([]);
       }
     } catch (error) {
+      console.error('[DEBUG] Error en loadEnrollments:', error);
       showError('Error al cargar las matrículas');
       setEnrollments([]);
     }
@@ -76,111 +154,27 @@ const EnrollmentList = () => {
   };
 
   /**
-   * Enriquece las matrículas con datos reales de estudiantes de forma eficiente
-   */
-  const enrichWithRealStudentData = async (enrollments) => {
-    try {
-      // Obtener IDs únicos de estudiantes
-      const studentIds = [...new Set(enrollments.map(e => e.studentId).filter(Boolean))];
-      
-      if (studentIds.length === 0) {
-        console.log('⚠️ No hay IDs de estudiantes para cargar');
-        return enrollments;
-      }
-
-      console.log(`🔄 Iniciando carga de ${studentIds.length} estudiantes únicos...`);
-      
-      // Cargar estudiantes
-      const studentsResponse = await studentService.getStudentsByIds(studentIds);
-      
-      // Crear mapa de estudiantes por ID
-      const studentsMap = new Map();
-      
-      if (studentsResponse.success && studentsResponse.data) {
-        studentsResponse.data.forEach(student => {
-          if (student && student.id) {
-            studentsMap.set(student.id, student);
-          }
-        });
-        console.log(`✅ ${studentsMap.size} estudiantes mapeados correctamente`);
-      } else {
-        console.error('❌ Error en respuesta de estudiantes:', studentsResponse.error);
-      }
-      
-      // Enriquecer matrículas con datos de estudiantes
-      const enrichedEnrollments = enrollments.map(enrollment => {
-        const student = studentsMap.get(enrollment.studentId);
-        return {
-          ...enrollment,
-          student: student || null
-        };
-      });
-      
-      // Mostrar estadísticas
-      const withStudentData = enrichedEnrollments.filter(e => e.student).length;
-      const withoutStudentData = enrichedEnrollments.length - withStudentData;
-      
-      console.log(`📊 Estadísticas: ${withStudentData} con datos, ${withoutStudentData} sin datos`);
-      
-      return enrichedEnrollments;
-      
-    } catch (error) {
-      console.error('💥 Error al enriquecer con datos de estudiantes:', error);
-      return enrollments; // Devolver datos originales si falla
-    }
-  };
-
-  /**
-   * Carga estadísticas de matrículas
-   */
-  const loadStatistics = async () => {
-    try {
-      const response = await enrollmentService.getEnrollmentDistribution();
-      if (response.success) {
-        setStatistics(response.data);
-      }
-    } catch (error) {
-      console.error('Error al cargar estadísticas:', error);
-    }
-  };
-
-  /**
-   * Aplica filtros de búsqueda, estado y aula
+   * Aplica filtros de búsqueda
    */
   const applyFilters = () => {
     let filtered = [...enrollments];
 
-    // Filtro por texto de búsqueda
     if (searchText) {
       const search = searchText.toLowerCase();
       filtered = filtered.filter(enrollment => {
-        // Buscar en campos básicos
-        const basicMatch = enrollment.enrollmentNumber?.toLowerCase().includes(search) ||
-                          enrollment.classroomId?.toLowerCase().includes(search) ||
-                          enrollment.studentId?.toLowerCase().includes(search);
-        
-        // Buscar en datos reales del estudiante si están disponibles
-        let studentMatch = false;
-        if (enrollment.student) {
-          studentMatch = enrollment.student.firstName?.toLowerCase().includes(search) ||
-                        enrollment.student.lastName?.toLowerCase().includes(search) ||
-                        enrollment.student.documentNumber?.toLowerCase().includes(search) ||
-                        enrollment.student.email?.toLowerCase().includes(search);
-        }
-        
-        return basicMatch || studentMatch;
+        const student = students.find(s => s.id === enrollment.studentId);
+        const studentName = student ? `${student.firstName} ${student.lastName}`.toLowerCase() : '';
+        const documentNumber = student ? student.documentNumber?.toLowerCase() : '';
+        const classroomId = enrollment.classroomId?.toLowerCase() || '';
+
+        return (
+          studentName.includes(search) ||
+          documentNumber.includes(search) ||
+          classroomId.includes(search)
+        );
       });
     }
-
-    // Filtro por estado (siempre filtra por el tab activo)
-    filtered = filtered.filter(enrollment => enrollment.status === activeTab);
-
-    // Filtro por aula
-    if (classroomFilter !== 'all') {
-      filtered = filtered.filter(enrollment => enrollment.classroomId === classroomFilter);
-    }
-
-    setFilteredEnrollments(filtered);
+    setDisplayEnrollments(filtered);
   };
 
   /**
@@ -191,337 +185,274 @@ const EnrollmentList = () => {
   };
 
   /**
-   * Abre el modal de matrícula masiva
+   * Abre el modal de importación masiva de matrículas
    */
-  const handleBulkEnrollment = () => {
-    setShowBulkModal(true);
+  const handleBulkImport = () => {
+    console.log('[DEBUG] Aulas disponibles para modal:', classrooms); // Debug para ver estructura
+    loadUnenrolledStudents();
+    setShowBulkImportModal(true);
   };
 
   /**
-   * Cierra el modal de matrícula masiva
+   * Cierra el modal de importación masiva
    */
-  const handleCloseBulkModal = () => {
-    setShowBulkModal(false);
+  const handleCloseBulkImportModal = () => {
+    setShowBulkImportModal(false);
+    setBulkEnrollments([]);
+    setSelectedStudentsForBulk([]);
+    setBulkSelectedClassroom(null);
   };
 
   /**
-   * Maneja el éxito de la matrícula masiva
+   * Carga estudiantes no matriculados
    */
-  const handleBulkEnrollmentSuccess = () => {
-    loadEnrollments(); // Recargar la lista
-    loadStatistics(); // Recargar estadísticas
-  };
-
-  /**
-   * Navega al formulario de editar matrícula
-   */
-  const handleEdit = (enrollment) => {
-    navigate(`/secretary/enrollments/edit/${enrollment.id}`, { 
-      state: { enrollment } 
-    });
-  };
-
-  /**
-   * Muestra detalles de la matrícula
-   */
-  const handleView = (enrollment) => {
-    setSelectedEnrollment(enrollment);
-    setShowDetailsModal(true);
-  };
-
-  /**
-   * Cierra el modal de detalles
-   */
-  const handleCloseDetailsModal = () => {
-    setShowDetailsModal(false);
-    setSelectedEnrollment(null);
-  };
-
-  /**
-   * Cambia el estado de una matrícula
-   */
-  const handleChangeStatus = (enrollment, newStatus) => {
-    const statusText = getEnrollmentStatusText(newStatus);
-    
-    showAlert({
-      title: `¿Cambiar estado a ${statusText}?`,
-      message: `Se cambiará el estado de la matrícula "${enrollment.enrollmentNumber}" a ${statusText}`,
-      type: 'warning',
-      onConfirm: async () => {
-        try {
-          const response = await enrollmentService.updateEnrollmentStatus(enrollment.id, newStatus);
-          if (response.success) {
-            showSuccess(`Estado actualizado a ${statusText} correctamente`);
-            loadEnrollments();
-          } else {
-            showError(response.error);
-          }
-        } catch (error) {
-          showError('Error al actualizar el estado');
-        }
-      },
-    });
-  };
-
-  /**
-   * Elimina una matrícula
-   */
-  const handleDelete = async (enrollment) => {
-    showAlert({
-      title: '¿Eliminar esta matrícula?',
-      message: `Se eliminará la matrícula "${enrollment.enrollmentNumber}". Esta acción se puede revertir.`,
-      type: 'warning',
-      onConfirm: async () => {
-        try {
-          const response = await enrollmentService.deleteEnrollment(enrollment.id);
-          if (response.success) {
-            showSuccess('Matrícula eliminada correctamente');
-            loadEnrollments();
-          } else {
-            showError(response.error);
-          }
-        } catch (error) {
-          showError('Error al eliminar la matrícula');
-        }
-      },
-    });
-  };
-
-  /**
-   * Restaura una matrícula eliminada
-   */
-  const handleRestore = async (enrollment) => {
-    showAlert({
-      title: '¿Restaurar esta matrícula?',
-      message: `Se restaurará la matrícula "${enrollment.enrollmentNumber}"`,
-      type: 'info',
-      onConfirm: async () => {
-        try {
-          const response = await enrollmentService.restoreEnrollment(enrollment.id);
-          if (response.success) {
-            showSuccess('Matrícula restaurada correctamente');
-            loadEnrollments();
-          } else {
-            showError(response.error);
-          }
-        } catch (error) {
-          showError('Error al restaurar la matrícula');
-        }
-      },
-    });
-  };
-
-  /**
-   * Elimina múltiples matrículas seleccionadas
-   */
-  const handleBulkDelete = () => {
-    if (selectedRowKeys.length === 0) {
-      showWarning('Selecciona al menos una matrícula');
-      return;
-    }
-
-    showAlert({
-      title: `¿Eliminar ${selectedRowKeys.length} matrícula(s)?`,
-      message: 'Las matrículas seleccionadas serán eliminadas. Esta acción se puede revertir.',
-      type: 'warning',
-      onConfirm: async () => {
-        try {
-          let successCount = 0;
-          let errorCount = 0;
-
-          for (const id of selectedRowKeys) {
-            const response = await enrollmentService.deleteEnrollment(id);
-            if (response.success) {
-              successCount++;
-            } else {
-              errorCount++;
-            }
-          }
-
-          if (successCount > 0) {
-            showSuccess(`${successCount} matrícula(s) eliminada(s) correctamente`);
-          }
-          if (errorCount > 0) {
-            showError(`Error al eliminar ${errorCount} matrícula(s)`);
-          }
-
-          setSelectedRowKeys([]);
-          loadEnrollments();
-        } catch (error) {
-          showError('Error en la eliminación masiva');
-        }
-      },
-    });
-  };
-
-  /**
-   * Exporta la lista de matrículas actual a CSV
-   */
-  const handleExportEnrollments = async () => {
+  const loadUnenrolledStudents = async () => {
+    setBulkLoading(true);
     try {
-      // Importar dinámicamente la utilidad de exportación
-      const { default: EnrollmentExportUtils } = await import('../../../utils/enrollments/exportUtils');
-      
-      // Usar las matrículas filtradas actuales
-      const dataToExport = filteredEnrollments.length > 0 ? filteredEnrollments : enrollments;
-      
-      if (dataToExport.length === 0) {
-        showWarning('No hay matrículas para exportar');
-        return;
+      const response = await studentService.getUnenrolledStudents();
+      if (response.success) {
+        setBulkEnrollments(response.data);
+        showSuccess(`${response.data.length} estudiantes disponibles para matricular`);
+      } else {
+        showError(response.error);
+        setBulkEnrollments([]);
       }
-
-      EnrollmentExportUtils.exportEnrollmentsToCSV(dataToExport);
-      showSuccess(`${dataToExport.length} matrículas exportadas exitosamente`);
     } catch (error) {
-      console.error('Error al exportar matrículas:', error);
-      showError('Error al exportar las matrículas');
+      showError('Error al cargar estudiantes no matriculados');
+      setBulkEnrollments([]);
     }
+    setBulkLoading(false);
   };
 
   /**
-   * Muestra estadísticas de matrículas por aula
+   * Ejecuta la matrícula masiva de estudiantes seleccionados
    */
-  const handleViewAnalytics = () => {
-    if (!statistics) {
-      showWarning('No hay estadísticas disponibles');
+  const handleExecuteBulkImport = async () => {
+    if (selectedStudentsForBulk.length === 0) {
+      showWarning('Seleccione al menos un estudiante para matricular');
       return;
     }
 
-    const analyticsText = Object.entries(statistics)
-      .map(([key, value]) => `${key}: ${value}`)
-      .join('\n');
+    if (!bulkSelectedClassroom) {
+      showWarning('Seleccione un aula para la matrícula');
+      return;
+    }
 
-    showAlert({
-      title: 'Estadísticas de Matrículas',
-      message: `Distribución de Matrículas:\n\n${analyticsText}`,
-      type: 'info',
-      showCancel: false,
-      confirmText: 'Cerrar'
-    });
+    setBulkLoading(true);
+    try {
+      const enrollmentsToCreate = selectedStudentsForBulk.map(studentId => ({
+        studentId: studentId,
+        classroomId: bulkSelectedClassroom,
+        enrollmentType: 'REGULAR',
+        academicYear: new Date().getFullYear().toString(),
+        enrollmentDate: new Date().toISOString().split('T')[0]
+      }));
+
+      const response = await enrollmentService.bulkCreateEnrollments(enrollmentsToCreate);
+      
+      if (response.success) {
+        showSuccess(`✅ ${selectedStudentsForBulk.length} estudiantes matriculados exitosamente`);
+        handleCloseBulkImportModal();
+        if (selectedClassroom) {
+          loadEnrollments(selectedClassroom); // Recargar la lista
+        }
+      } else {
+        showError(`❌ Error al matricular estudiantes: ${response.error}`);
+      }
+    } catch (error) {
+      showError(`❌ Error inesperado: ${error.message}`);
+    }
+    setBulkLoading(false);
   };
 
   /**
-   * Obtiene las aulas únicas para el filtro
+   * Maneja la selección individual de estudiantes
    */
-  const getUniqueClassrooms = () => {
-    const classrooms = [...new Set(enrollments.map(e => e.classroomId))].filter(Boolean);
-    return classrooms.sort();
+  const handleStudentSelection = (studentId, checked) => {
+    if (checked) {
+      setSelectedStudentsForBulk([...selectedStudentsForBulk, studentId]);
+    } else {
+      setSelectedStudentsForBulk(selectedStudentsForBulk.filter(id => id !== studentId));
+    }
   };
 
-  // Configuración de selección de filas
-  const rowSelection = {
-    selectedRowKeys,
-    onChange: (newSelectedRowKeys) => {
-      setSelectedRowKeys(newSelectedRowKeys);
-    },
+  /**
+   * Selecciona o deselecciona todos los estudiantes
+   */
+  const handleSelectAllStudents = (checked) => {
+    if (checked) {
+      const allStudentIds = bulkEnrollments.map(student => student.id);
+      setSelectedStudentsForBulk(allStudentIds);
+    } else {
+      setSelectedStudentsForBulk([]);
+    }
   };
 
-  // Configuración de columnas de la tabla
+  /**
+   * Volver a ver todas las matrículas del aula seleccionada
+   */
+  const handleViewAll = () => {
+    if (selectedClassroom) {
+      loadEnrollments(selectedClassroom);
+      setCurrentView('all');
+      showSuccess('Mostrando todas las matrículas del aula');
+    } else {
+      showWarning('Seleccione un aula primero');
+    }
+  };
+
+  /**
+   * Ver matrículas por estado
+   */
+  const handleViewByStatus = async (status) => {
+    setLoading(true);
+    try {
+      const response = await enrollmentService.getEnrollmentsByStatus(status);
+      if (response.success) {
+        setEnrollments(response.data);
+        setCurrentView(status.toLowerCase());
+        const statusText = status === 'RETIRED' ? 'retiradas' : status.toLowerCase();
+        showSuccess(`${response.data.length} matrículas ${statusText} encontradas. Use "Todas" para volver a la vista normal.`);
+      } else {
+        showError(response.error);
+      }
+    } catch (error) {
+      showError(`Error al obtener matrículas con estado ${status}`);
+    }
+    setLoading(false);
+  };
+
+  /**
+   * Ver estadísticas de matrículas
+   */
+  const handleViewStatistics = async () => {
+    setLoading(true);
+    try {
+      const response = await enrollmentService.getEnrollmentStatistics();
+      if (response.success) {
+        setStatistics(response.data);
+        showSuccess('Estadísticas cargadas exitosamente');
+        console.log('Estadísticas de matrículas:', response.data);
+        // Aquí podrías abrir un modal con las estadísticas o navegar a otra página
+      } else {
+        showError(response.error);
+      }
+    } catch (error) {
+      showError('Error al obtener estadísticas de matrículas');
+    }
+    setLoading(false);
+  };
+
+  /**
+   * Transferir estudiante a otra aula
+   */
+  const handleTransferStudent = async (enrollmentId, newClassroomId) => {
+    try {
+      const response = await enrollmentService.transferStudent(enrollmentId, newClassroomId);
+      if (response.success) {
+        showSuccess(response.message);
+        loadEnrollments(selectedClassroom); // Recargar la lista
+      } else {
+        showError(response.error);
+      }
+    } catch (error) {
+      showError('Error al transferir el estudiante');
+    }
+  };
+
+  /**
+   * Cancelar matrícula
+   */
+  const handleCancelEnrollment = async (enrollmentId) => {
+    try {
+      const response = await enrollmentService.cancelEnrollment(enrollmentId);
+      if (response.success) {
+        showSuccess(response.message);
+        loadEnrollments(selectedClassroom); // Recargar la lista
+      } else {
+        showError(response.error);
+      }
+    } catch (error) {
+      showError('Error al cancelar la matrícula');
+    }
+  };
+
+  /**
+   * Ver matrículas por estudiante
+   */
+  const handleViewByStudent = async (studentId) => {
+    setLoading(true);
+    try {
+      const response = await enrollmentService.getEnrollmentsByStudent(studentId);
+      if (response.success) {
+        setEnrollments(response.data);
+        const student = students.find(s => s.id === studentId);
+        const studentName = student ? `${student.firstName} ${student.lastName}` : 'el estudiante';
+        showSuccess(`${response.data.length} matrículas de ${studentName} encontradas`);
+      } else {
+        showError(response.error);
+      }
+    } catch (error) {
+      showError('Error al obtener matrículas del estudiante');
+    }
+    setLoading(false);
+  };
+
   const columns = [
     {
-      title: 'Número de Matrícula',
-      dataIndex: 'enrollmentNumber',
-      key: 'enrollmentNumber',
-      sorter: (a, b) => a.enrollmentNumber.localeCompare(b.enrollmentNumber),
-    },
-    {
       title: 'Estudiante',
-      dataIndex: 'student',
-      key: 'student',
-      render: (student, record) => {
-        // Si tenemos datos reales del estudiante
+      dataIndex: 'studentId',
+      key: 'studentId',
+      render: (studentId, record) => {
+        // Buscar el estudiante por ID
+        const student = students.find(s => s.id === studentId);
         if (student) {
           return (
-            <div>
-              <div className="fw-bold text-primary">
-                {student.firstName} {student.lastName}
-              </div>
-              <small className="text-muted">
-                {student.documentType}: {student.documentNumber}
-              </small>
-            </div>
+            <span>
+              {student.firstName} {student.lastName}
+              {student.documentNumber ? ` - ${student.documentNumber}` : ''}
+            </span>
           );
         }
-        
-        // Fallback si no se pudieron cargar los datos reales
-        return (
-          <div>
-            <div className="text-danger fw-bold">
-              ⚠️ Estudiante no encontrado
-            </div>
-            <small className="text-muted">
-              ID: {record.studentId?.slice(0, 8)}...{record.studentId?.slice(-4)}
-            </small>
-            <br/>
-            <small className="text-warning">
-              <i className="fas fa-unlink me-1"></i>
-              Referencia rota
-            </small>
-          </div>
-        );
-      },
-      sorter: (a, b) => {
-        const getStudentName = (record) => {
-          if (record.student) {
-            return `${record.student.firstName} ${record.student.lastName}`;
-          }
-          return record.studentId || '';
-        };
-        
-        return getStudentName(a).localeCompare(getStudentName(b));
+        return <span>{studentId || '-'}</span>;
       },
     },
     {
       title: 'Aula',
       dataIndex: 'classroomId',
       key: 'classroomId',
-      render: (classroomId) => (
-        <div>
-          <small>{classroomId}</small>
-        </div>
+      render: (classroomId) => {
+        const classroom = classrooms.find(c => c.id === classroomId);
+        return (
+          <small>{classroom ? `${classroom.classroomName} ${classroom.section ? `(${classroom.section})` : ''}` : classroomId}</small>
+        );
+      },
+    },
+    {
+      title: 'Tipo de Matrícula',
+      dataIndex: 'enrollmentType',
+      key: 'enrollmentType',
+      render: (type) => (
+        <span>{type}</span>
       ),
     },
     {
       title: 'Fecha de Matrícula',
       dataIndex: 'enrollmentDate',
       key: 'enrollmentDate',
-      render: (date) => formatEnrollmentDate(date),
-      sorter: (a, b) => {
-        const dateA = arrayToDate(a.enrollmentDate);
-        const dateB = arrayToDate(b.enrollmentDate);
-        return dateA && dateB ? dateA - dateB : 0;
-      },
+      render: (date) => (
+        <span>{Array.isArray(date) ? date.join('-') : '-'}</span>
+      ),
     },
     {
       title: 'Estado',
       dataIndex: 'status',
       key: 'status',
       render: (status) => (
-        <Tag color={getEnrollmentStatusColor(status)}>
-          {getEnrollmentStatusText(status)}
-        </Tag>
+        <span>{status}</span>
       ),
-      filters: [
-        { text: 'Activa', value: EnrollmentStatus.ACTIVE },
-        { text: 'Inactiva', value: EnrollmentStatus.INACTIVE },
-        { text: 'Completada', value: EnrollmentStatus.COMPLETED },
-        { text: 'Transferida', value: EnrollmentStatus.TRANSFERRED },
-        { text: 'Retirada', value: EnrollmentStatus.WITHDRAWN },
-        { text: 'Suspendida', value: EnrollmentStatus.SUSPENDED },
-      ],
-      onFilter: (value, record) => record.status === value,
     },
-    {
-      title: 'Fecha Creación',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      render: (date) => formatDateTime(date),
-      sorter: (a, b) => {
-        const dateA = arrayToDate(a.createdAt);
-        const dateB = arrayToDate(b.createdAt);
-        return dateA && dateB ? dateA - dateB : 0;
-      },
-    },
+    // No mostrar columna de Fecha Creación
     {
       title: 'Acciones',
       key: 'actions',
@@ -531,48 +462,45 @@ const EnrollmentList = () => {
             key: 'view',
             label: 'Ver Detalles',
             icon: <EyeOutlined />,
-            onClick: () => handleView(record),
+            onClick: () => handleViewDetails(record),
           },
           {
             key: 'edit',
             label: 'Editar',
             icon: <EditOutlined />,
-            onClick: () => handleEdit(record),
+            onClick: () => navigate(`/secretary/enrollments/edit/${record.id}`, { state: { enrollment: record } }),
           },
           {
             type: 'divider',
           },
           {
-            key: 'active',
-            label: 'Marcar como Activa',
-            icon: <CheckOutlined />,
-            onClick: () => handleChangeStatus(record, EnrollmentStatus.ACTIVE),
-            disabled: record.status === EnrollmentStatus.ACTIVE,
+            key: 'transfer',
+            label: 'Transferir',
+            icon: <UndoOutlined />,
+            onClick: () => {
+              // Aquí podrías abrir un modal para seleccionar la nueva aula
+              const newClassroomId = prompt('Ingrese el ID de la nueva aula:');
+              if (newClassroomId) {
+                handleTransferStudent(record.id, newClassroomId);
+              }
+            },
           },
           {
-            key: 'completed',
-            label: 'Marcar como Completada',
-            icon: <CheckOutlined />,
-            onClick: () => handleChangeStatus(record, EnrollmentStatus.COMPLETED),
-            disabled: record.status === EnrollmentStatus.COMPLETED,
+            key: 'viewStudent',
+            label: 'Ver Matrículas del Estudiante',
+            icon: <UserOutlined />,
+            onClick: () => handleViewByStudent(record.studentId),
           },
           {
-            key: 'cancelled',
-            label: 'Cancelar',
+            type: 'divider',
+          },
+          {
+            key: 'cancel',
+            label: 'Cancelar Matrícula',
             icon: <CloseOutlined />,
-            onClick: () => handleChangeStatus(record, EnrollmentStatus.CANCELLED),
-            disabled: record.status === EnrollmentStatus.CANCELLED,
-          },
-          {
-            type: 'divider',
-          },
-          {
-            key: 'delete',
-            label: 'Eliminar',
-            icon: <DeleteOutlined />,
-            onClick: () => handleDelete(record),
-            danger: true,
-          },
+            onClick: () => handleCancelEnrollment(record.id),
+            style: { color: '#ff4d4f' }
+          }
         ];
 
         return (
@@ -603,7 +531,14 @@ const EnrollmentList = () => {
             <div className="row">
               <div className="col-sm-12">
                 <div className="page-sub-header">
-                  <h3 className="page-title">Gestión de Matrículas</h3>
+                  <h3 className="page-title">
+                    Gestión de Matrículas
+                    {currentView !== 'all' && (
+                      <small className="text-muted ms-2">
+                        - Mostrando: {currentView === 'retired' ? 'Retiradas' : currentView}
+                      </small>
+                    )}
+                  </h3>
                   <ul className="breadcrumb">
                     <li className="breadcrumb-item">
                       <Link to="/secretary/dashboard">Dashboard</Link>
@@ -632,21 +567,60 @@ const EnrollmentList = () => {
                         />
                       </div>
                     </div>
-                    <div className="col-lg-2 col-md-3 col-sm-6 mb-2">
+                    <div className="col-lg-2 col-md-4 col-sm-12 mb-2">
+                      {/* Select para filtrar por aula */}
                       <Select
-                        placeholder="Aula"
-                        value={classroomFilter}
-                        onChange={setClassroomFilter}
-                        className="w-100"
+                        showSearch
+                        placeholder="Filtrar por aula"
+                        value={selectedClassroom}
+                        onChange={setSelectedClassroom}
+                        style={{ width: '100%' }}
+                        optionFilterProp="children"
+                        filterOption={(input, option) =>
+                          (option?.children ?? '').toLowerCase().includes(input.toLowerCase())
+                        }
+                        allowClear={false}
                       >
-                        <Option value="all">Todas las aulas</Option>
-                        {getUniqueClassrooms().map(classroom => (
-                          <Option key={classroom} value={classroom}>{classroom}</Option>
+                        {classrooms.map((classroom) => (
+                          <Option key={classroom.id} value={classroom.id}>
+                            {classroom.classroomName} {classroom.section ? `(${classroom.section})` : ''}
+                          </Option>
                         ))}
                       </Select>
                     </div>
-                    <div className="col-lg-6 col-md-12 col-sm-12 mb-2">
+                    <div className="col-lg-6 col-md-6 col-sm-12 mb-2">
                       <div className="d-flex flex-wrap justify-content-end gap-2">
+                        <Button
+                          type={currentView === 'all' ? 'primary' : 'default'}
+                          icon={<CheckOutlined />}
+                          onClick={handleViewAll}
+                          className="btn-sm"
+                        >
+                          Todas
+                        </Button>
+                        <Button
+                          type={currentView === 'retired' ? 'primary' : 'default'}
+                          icon={<CloseOutlined />}
+                          onClick={() => handleViewByStatus('RETIRED')}
+                          className="btn-sm"
+                        >
+                          Retirados
+                        </Button>
+                        <Button
+                          type="default"
+                          icon={<FileTextOutlined />}
+                          onClick={handleViewStatistics}
+                          className="btn-sm"
+                        >
+                          Estadísticas
+                        </Button>
+                        <Button
+                          icon={<DownloadOutlined />}
+                          onClick={handleBulkImport}
+                          className="btn-sm"
+                        >
+                          Importar Masivo
+                        </Button>
                         <Button
                           type="primary"
                           icon={<PlusOutlined />}
@@ -655,144 +629,19 @@ const EnrollmentList = () => {
                         >
                           Nueva Matrícula
                         </Button>
-                        <Button
-                          type="primary"
-                          icon={<UsergroupAddOutlined />}
-                          onClick={handleBulkEnrollment}
-                          className="btn-sm"
-                          style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
-                        >
-                          Matrícula Masiva
-                        </Button>
-                        <Button
-                          icon={<DownloadOutlined />}
-                          onClick={handleExportEnrollments}
-                          className="btn-sm"
-                        >
-                          Exportar
-                        </Button>
-                        <Button
-                          icon={<FileTextOutlined />}
-                          onClick={handleViewAnalytics}
-                          className="btn-sm"
-                        >
-                          Analytics
-                        </Button>
-                        <Button
-                          icon={<UserOutlined />}
-                          onClick={() => navigate('/secretary/students')}
-                          className="btn-sm"
-                        >
-                          Estudiantes
-                        </Button>
-                        {selectedRowKeys.length > 0 && (
-                          <Button
-                            danger
-                            icon={<DeleteOutlined />}
-                            onClick={handleBulkDelete}
-                            className="btn-sm"
-                          >
-                            Eliminar ({selectedRowKeys.length})
-                          </Button>
-                        )}
                       </div>
                     </div>
-                  </div>
-
-                  {/* Pestañas por estado */}
-                  <div className="mb-3">
-                    <ul className="nav nav-tabs nav-tabs-solid">
-                      <li className="nav-item">
-                        <button 
-                          className={`nav-link ${activeTab === EnrollmentStatus.ACTIVE ? 'active' : ''}`}
-                          onClick={() => setActiveTab(EnrollmentStatus.ACTIVE)}
-                          type="button"
-                        >
-                          <CheckOutlined style={{ color: '#52c41a', marginRight: '8px' }} />
-                          Activas
-                          <Tag color="success" style={{ marginLeft: '8px' }}>
-                            {enrollments.filter(e => e.status === EnrollmentStatus.ACTIVE).length}
-                          </Tag>
-                        </button>
-                      </li>
-                      <li className="nav-item">
-                        <button 
-                          className={`nav-link ${activeTab === EnrollmentStatus.INACTIVE ? 'active' : ''}`}
-                          onClick={() => setActiveTab(EnrollmentStatus.INACTIVE)}
-                          type="button"
-                        >
-                          <CloseOutlined style={{ color: '#ff4d4f', marginRight: '8px' }} />
-                          Inactivas
-                          <Tag color="error" style={{ marginLeft: '8px' }}>
-                            {enrollments.filter(e => e.status === EnrollmentStatus.INACTIVE).length}
-                          </Tag>
-                        </button>
-                      </li>
-                      <li className="nav-item">
-                        <button 
-                          className={`nav-link ${activeTab === EnrollmentStatus.COMPLETED ? 'active' : ''}`}
-                          onClick={() => setActiveTab(EnrollmentStatus.COMPLETED)}
-                          type="button"
-                        >
-                          <span style={{ marginRight: '8px' }}>✅</span>
-                          Completadas
-                          <Tag color="blue" style={{ marginLeft: '8px' }}>
-                            {enrollments.filter(e => e.status === EnrollmentStatus.COMPLETED).length}
-                          </Tag>
-                        </button>
-                      </li>
-                      <li className="nav-item">
-                        <button 
-                          className={`nav-link ${activeTab === EnrollmentStatus.TRANSFERRED ? 'active' : ''}`}
-                          onClick={() => setActiveTab(EnrollmentStatus.TRANSFERRED)}
-                          type="button"
-                        >
-                          <UndoOutlined style={{ color: '#722ed1', marginRight: '8px' }} />
-                          Transferidas
-                          <Tag color="purple" style={{ marginLeft: '8px' }}>
-                            {enrollments.filter(e => e.status === EnrollmentStatus.TRANSFERRED).length}
-                          </Tag>
-                        </button>
-                      </li>
-                      <li className="nav-item">
-                        <button 
-                          className={`nav-link ${activeTab === EnrollmentStatus.WITHDRAWN ? 'active' : ''}`}
-                          onClick={() => setActiveTab(EnrollmentStatus.WITHDRAWN)}
-                          type="button"
-                        >
-                          <span style={{ marginRight: '8px' }}>📤</span>
-                          Retiradas
-                          <Tag color="orange" style={{ marginLeft: '8px' }}>
-                            {enrollments.filter(e => e.status === EnrollmentStatus.WITHDRAWN).length}
-                          </Tag>
-                        </button>
-                      </li>
-                      <li className="nav-item">
-                        <button 
-                          className={`nav-link ${activeTab === EnrollmentStatus.SUSPENDED ? 'active' : ''}`}
-                          onClick={() => setActiveTab(EnrollmentStatus.SUSPENDED)}
-                          type="button"
-                        >
-                          <span style={{ marginRight: '8px' }}>⏸️</span>
-                          Suspendidas
-                          <Tag color="volcano" style={{ marginLeft: '8px' }}>
-                            {enrollments.filter(e => e.status === EnrollmentStatus.SUSPENDED).length}
-                          </Tag>
-                        </button>
-                      </li>
-                    </ul>
                   </div>
 
                   {/* Tabla de matrículas */}
                   <div className="table-responsive">
                     <Table
-                      rowSelection={rowSelection}
                       columns={columns}
-                      dataSource={filteredEnrollments}
+                      dataSource={displayEnrollments}
                       rowKey="id"
                       loading={loading}
                       pagination={{
-                        total: filteredEnrollments.length,
+                        total: displayEnrollments.length,
                         pageSize: 10,
                         showSizeChanger: true,
                         showQuickJumper: true,
@@ -847,9 +696,9 @@ const EnrollmentList = () => {
                       </div>
                       <div className="card-body">
                         <div className="row mb-2">
-                          <div className="col-5"><strong>N° Matrícula:</strong></div>
+                          <div className="col-5"><strong>ID Matrícula:</strong></div>
                           <div className="col-7">
-                            <span className="badge bg-primary">{selectedEnrollment.enrollmentNumber}</span>
+                            <span className="badge bg-primary">{selectedEnrollment.id}</span>
                           </div>
                         </div>
                         <div className="row mb-2">
@@ -870,6 +719,20 @@ const EnrollmentList = () => {
                             </Tag>
                           </div>
                         </div>
+                        {selectedEnrollment.enrollmentType === EnrollmentType.TRANSFER && selectedEnrollment.transferReason && (
+                          <div className="row mb-2">
+                            <div className="col-5"><strong>Razón de Transferencia:</strong></div>
+                            <div className="col-7">{selectedEnrollment.transferReason}</div>
+                          </div>
+                        )}
+                        {selectedEnrollment.qrCode && (
+                          <div className="row mb-2">
+                            <div className="col-5"><strong>Código QR:</strong></div>
+                            <div className="col-7">
+                              <img src={selectedEnrollment.qrCode} alt="QR Code" style={{ maxWidth: '100px' }} />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1004,8 +867,8 @@ const EnrollmentList = () => {
                   type="button" 
                   className="btn btn-primary"
                   onClick={() => {
-                    handleCloseDetailsModal();
-                    handleEdit(selectedEnrollment);
+                    // handleCloseDetailsModal();
+                    // handleEdit(selectedEnrollment);
                   }}
                 >
                   <EditOutlined style={{ marginRight: '6px' }} />
@@ -1016,7 +879,7 @@ const EnrollmentList = () => {
                     type="button" 
                     className="btn btn-info"
                     onClick={() => {
-                      handleCloseDetailsModal();
+                      // handleCloseDetailsModal();
                       navigate('/secretary/students', { 
                         state: { highlightStudent: selectedEnrollment.studentId } 
                       });
@@ -1039,22 +902,177 @@ const EnrollmentList = () => {
           onClick={handleCloseDetailsModal}
         />
       )}
-      
+
       {/* Modal de Matrícula Masiva */}
-      <BulkEnrollmentModal
-        visible={showBulkModal}
-        onCancel={handleCloseBulkModal}
-        onSuccess={handleBulkEnrollmentSuccess}
-      />
-      
+      <Modal
+        title={
+          <div className="d-flex align-items-center">
+            <UserOutlined className="me-2" />
+            Matrícula Masiva de Estudiantes
+          </div>
+        }
+        open={showBulkImportModal}
+        onCancel={handleCloseBulkImportModal}
+        width={1000}
+        footer={[
+          <Button key="cancel" onClick={handleCloseBulkImportModal}>
+            Cancelar
+          </Button>,
+          <Button
+            key="enroll"
+            type="primary"
+            loading={bulkLoading}
+            onClick={handleExecuteBulkImport}
+            disabled={selectedStudentsForBulk.length === 0 || !bulkSelectedClassroom}
+          >
+            Matricular {selectedStudentsForBulk.length} Estudiantes
+          </Button>
+        ]}
+      >
+        <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
+          {/* Selección de Aula */}
+          <div className="mb-4">
+            <Form layout="vertical">
+              <Form.Item label="Seleccionar Aula" required>
+                <Select
+                  placeholder="Seleccione un aula"
+                  value={bulkSelectedClassroom}
+                  onChange={setBulkSelectedClassroom}
+                  style={{ width: '100%' }}
+                >
+                  {classrooms.map(classroom => (
+                    <Select.Option key={classroom.id} value={classroom.id}>
+                      {(() => {
+                        // Construir nombre descriptivo del aula
+                        let displayName = '';
+                        
+                        if (classroom.name) {
+                          displayName = classroom.name;
+                        } else if (classroom.grade && classroom.section) {
+                          displayName = `${classroom.grade}° ${classroom.section}`;
+                        } else if (classroom.grade) {
+                          displayName = `${classroom.grade}° Grado`;
+                        } else if (classroom.level) {
+                          displayName = classroom.level;
+                        } else {
+                          displayName = `Aula ${classroom.id.substring(0, 8)}...`;
+                        }
+                        
+                        // Agregar información adicional si está disponible
+                        const extras = [];
+                        if (classroom.capacity) extras.push(`Cap: ${classroom.capacity}`);
+                        if (classroom.academicYear) extras.push(classroom.academicYear);
+                        
+                        return displayName + (extras.length > 0 ? ` (${extras.join(', ')})` : '');
+                      })()}
+                    </Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Form>
+          </div>
+
+          {/* Lista de Estudiantes No Matriculados */}
+          <div className="mb-3">
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <h6>Estudiantes Disponibles ({bulkEnrollments.length})</h6>
+              <Checkbox
+                checked={selectedStudentsForBulk.length === bulkEnrollments.length && bulkEnrollments.length > 0}
+                indeterminate={selectedStudentsForBulk.length > 0 && selectedStudentsForBulk.length < bulkEnrollments.length}
+                onChange={(e) => handleSelectAllStudents(e.target.checked)}
+              >
+                Seleccionar Todos
+              </Checkbox>
+            </div>
+
+            {bulkLoading ? (
+              <div className="text-center py-4">
+                <p>Cargando estudiantes disponibles...</p>
+              </div>
+            ) : bulkEnrollments.length === 0 ? (
+              <div className="text-center py-4">
+                <p className="text-muted">No hay estudiantes disponibles para matricular</p>
+              </div>
+            ) : (
+              <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid #f0f0f0', borderRadius: '4px' }}>
+                {bulkEnrollments.map((student) => (
+                  <div 
+                    key={student.id} 
+                    className="p-3 border-bottom d-flex justify-content-between align-items-center"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => handleStudentSelection(student.id, !selectedStudentsForBulk.includes(student.id))}
+                  >
+                    <div className="d-flex align-items-center">
+                      <Checkbox
+                        checked={selectedStudentsForBulk.includes(student.id)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          handleStudentSelection(student.id, e.target.checked);
+                        }}
+                        className="me-3"
+                      />
+                      <div>
+                        <strong>{student.firstName} {student.lastName}</strong>
+                        <br />
+                        <small className="text-muted">
+                          {student.documentType}: {student.documentNumber}
+                        </small>
+                        {student.birthDate && (
+                          <>
+                            <br />
+                            <small className="text-muted">
+                              Nació: {student.birthDate}
+                            </small>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-end">
+                      <Tag color={student.gender === 'MALE' ? 'blue' : 'pink'}>
+                        {student.gender === 'MALE' ? 'M' : 'F'}
+                      </Tag>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {selectedStudentsForBulk.length > 0 && (
+            <div className="mt-3 p-2" style={{ backgroundColor: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: '4px' }}>
+              <strong>{selectedStudentsForBulk.length}</strong> estudiantes seleccionados
+              {bulkSelectedClassroom && (
+                <span> para matricular en <strong>{
+                  (() => {
+                    const classroom = classrooms.find(c => c.id === bulkSelectedClassroom);
+                    if (!classroom) return 'Aula seleccionada';
+                    
+                    if (classroom.name) {
+                      return classroom.name;
+                    } else if (classroom.grade && classroom.section) {
+                      return `${classroom.grade}° ${classroom.section}`;
+                    } else if (classroom.grade) {
+                      return `${classroom.grade}° Grado`;
+                    } else if (classroom.level) {
+                      return classroom.level;
+                    } else {
+                      return `Aula ${classroom.id.substring(0, 8)}...`;
+                    }
+                  })()
+                }</strong></span>
+              )}
+            </div>
+          )}
+        </div>
+      </Modal>
+
       {/* AlertModal para confirmaciones */}
       <AlertModal 
-        alert={alertState} 
         onConfirm={alertConfirm} 
         onCancel={alertCancel} 
       />
     </>
   );
-};
+}
 
 export default EnrollmentList;

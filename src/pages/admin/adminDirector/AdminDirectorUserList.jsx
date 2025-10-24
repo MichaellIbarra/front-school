@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Table, Button, Input, Select, Space, Dropdown, Tag } from 'antd';
 import { SearchOutlined, PlusOutlined, EditOutlined, EyeOutlined, CloseOutlined, DeleteOutlined, PlayCircleOutlined, UndoOutlined } from '@ant-design/icons';
 import { MoreHorizontal } from 'react-feather';
-import adminUserService from '../../../services/adminDirectorService/adminUserService';
+import adminUserService from '../../../services/users/adminUserService';
 import Header from '../../../components/Header';
 import Sidebar from '../../../components/Sidebar';
 import AlertModal from '../../../components/AlertModal';

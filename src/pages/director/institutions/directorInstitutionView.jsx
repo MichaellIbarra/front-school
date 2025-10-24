@@ -236,12 +236,18 @@ const DirectorInstitutionView = () => {
                         <Space direction="vertical" style={{ width: '100%' }}>
                           <div>
                             <strong>Mañana:</strong> {institution.scheduleSettings?.morningStartTime} - {institution.scheduleSettings?.morningEndTime}
+                            <br />
+                            <small className="text-muted">Tolerancia: {institution.scheduleSettings?.morningToleranceMinutes || 15} minutos</small>
                           </div>
                           <div>
                             <strong>Tarde:</strong> {institution.scheduleSettings?.afternoonStartTime} - {institution.scheduleSettings?.afternoonEndTime}
+                            <br />
+                            <small className="text-muted">Tolerancia: {institution.scheduleSettings?.afternoonToleranceMinutes || 10} minutos</small>
                           </div>
                           <div>
                             <strong>Noche:</strong> {institution.scheduleSettings?.nightStartTime} - {institution.scheduleSettings?.nightEndTime}
+                            <br />
+                            <small className="text-muted">Tolerancia: {institution.scheduleSettings?.nightToleranceMinutes || 20} minutos</small>
                           </div>
                         </Space>
                       </Card>

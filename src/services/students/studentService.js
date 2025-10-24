@@ -1,9 +1,9 @@
 import { Student, validateStudent, formatDateForBackend } from '../../types/students/students';
-import { refreshTokenKeycloak } from '../../auth/authService';
+import { refreshTokenKeycloak } from '../auth/authService';
 
 class StudentService {
   constructor() {
-    this.baseURL = `${process.env.REACT_APP_DOMAIN}/api/v1/students`;
+    this.baseURL = `${process.env.REACT_APP_STUDENTS_API_URL}`;
   }
 
   /**
@@ -14,14 +14,44 @@ class StudentService {
   }
 
   /**
+   * Obtiene la institución del usuario desde localStorage
+   */
+  getUserInstitution() {
+    try {
+      const institutionData = localStorage.getItem('institution');
+      return institutionData ? JSON.parse(institutionData) : null;
+    } catch (error) {
+      console.error('Error al obtener institución desde localStorage:', error);
+      return null;
+    }
+  }
+
+  /**
    * Obtiene los headers de autorización para las peticiones
    */
   getAuthHeaders() {
     const token = this.getAuthToken();
-    return {
+    const institution = this.getUserInstitution();
+    
+    const headers = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     };
+    
+    // Agregar headers adicionales si existen
+    if (institution && institution.id) {
+      headers['X-Institution-Id'] = institution.id;
+    }
+    
+    // Agregar role y user id del token
+    const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
+    if (userInfo.id) {
+      headers['X-User-Id'] = userInfo.id;
+    }
+    // Normalizar role en lowercase para compatibilidad con backend
+    headers['X-User-Roles'] = 'secretary';
+    
+    return headers;
   }
 
   /**
@@ -79,7 +109,8 @@ class StudentService {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+        // Si la respuesta no es OK, pero es JSON, usar el mensaje del backend
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
       }
       
       return data;
@@ -88,8 +119,9 @@ class StudentService {
         throw error; // Re-lanzar la señal especial
       }
       
-      // Error de parsing JSON
+      // Si hay un error de parsing JSON o la respuesta no es JSON
       if (!response.ok) {
+        // Si la respuesta no es OK y no es JSON, o hubo error de parsing, usar el status
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
@@ -134,159 +166,8 @@ class StudentService {
   }
 
   /**
-   * Obtiene todos los estudiantes
-   * GET /api/v1/students
-   */
-  async getAllStudents() {
-    try {
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(this.baseURL, {
-          method: 'GET',
-          headers: this.getAuthHeaders()
-        });
-
-        const result = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: result.data || [],
-          metadata: result.metadata,
-          message: result.metadata?.message || 'Estudiantes obtenidos exitosamente'
-        };
-      });
-    } catch (error) {
-      console.error('Error al obtener estudiantes:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener los estudiantes',
-        data: []
-      };
-    }
-  }
-
-  /**
-   * Obtiene un estudiante por ID
-   * GET /api/v1/students/{id}
-   */
-  async getStudentById(id) {
-    try {
-      if (!id) {
-        throw new Error('ID de estudiante requerido');
-      }
-
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/${id}`, {
-          method: 'GET',
-          headers: this.getAuthHeaders()
-        });
-
-        const result = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: result.data || null,
-          metadata: result.metadata,
-          message: result.metadata?.message || 'Estudiante encontrado'
-        };
-      });
-    } catch (error) {
-      console.error('Error al obtener estudiante:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener el estudiante',
-        data: null
-      };
-    }
-  }
-
-  /**
-   * Obtiene múltiples estudiantes por sus IDs usando llamadas individuales
-   */
-  async getStudentsByIds(studentIds) {
-    try {
-      if (!studentIds || studentIds.length === 0) {
-        return {
-          success: true,
-          data: [],
-          message: 'No hay estudiantes para consultar'
-        };
-      }
-
-      console.log(`📥 Cargando ${studentIds.length} estudiantes individualmente...`);
-      
-      const studentsData = [];
-      const errors = [];
-      
-      // Cargar estudiantes de forma individual pero con control de concurrencia
-      const loadStudent = async (studentId) => {
-        try {
-          const response = await this.getStudentById(studentId);
-          if (response.success && response.data) {
-            return response.data;
-          } else {
-            // Solo agregamos a errores, logging al final
-            errors.push(studentId);
-            return null;
-          }
-        } catch (error) {
-          console.error(`❌ Error cargando estudiante ${studentId}:`, error);
-          errors.push(studentId);
-          return null;
-        }
-      };
-
-      // Procesar en lotes de 3 para no sobrecargar el servidor
-      const batchSize = 3;
-      for (let i = 0; i < studentIds.length; i += batchSize) {
-        const batch = studentIds.slice(i, i + batchSize);
-        const batchPromises = batch.map(id => loadStudent(id));
-        const batchResults = await Promise.all(batchPromises);
-        
-        // Agregar solo los estudiantes válidos
-        batchResults.forEach(student => {
-          if (student) {
-            studentsData.push(student);
-          }
-        });
-        
-        // Pausa pequeña entre lotes
-        if (i + batchSize < studentIds.length) {
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
-      }
-      
-      // Logging resumido y útil
-      if (errors.length > 0) {
-        console.warn(`⚠️ ${errors.length} estudiantes no encontrados de ${studentIds.length} solicitados`);
-        console.log(`✅ ${studentsData.length} estudiantes cargados exitosamente`);
-        if (errors.length <= 5) {
-          console.log('📋 IDs no encontrados:', errors.map(id => id.substring(0, 8) + '...').join(', '));
-        }
-      } else {
-        console.log(`✅ Todos los estudiantes cargados: ${studentsData.length}/${studentIds.length}`);
-      }
-      
-      return {
-        success: true,
-        data: studentsData,
-        message: `${studentsData.length} de ${studentIds.length} estudiantes cargados`,
-        errors: errors.length > 0 ? errors : undefined,
-        notFoundIds: errors // Para fácil acceso a los IDs no encontrados
-      };
-      
-    } catch (error) {
-      console.error('💥 Error general al obtener estudiantes:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener estudiantes',
-        data: []
-      };
-    }
-  }
-
-  /**
    * Crea un nuevo estudiante
-   * POST /api/v1/students
+   * POST /students/secretary/create
    */
   async createStudent(studentData) {
     try {
@@ -300,7 +181,7 @@ class StudentService {
         };
       }
 
-      // Crear el payload sin el ID (se genera en el backend)
+      // Crear el payload con la nueva estructura
       const payload = {
         firstName: studentData.firstName || '',
         lastName: studentData.lastName || '',
@@ -309,22 +190,14 @@ class StudentService {
         birthDate: formatDateForBackend(studentData.birthDate),
         gender: studentData.gender || 'MALE',
         address: studentData.address || '',
-        district: studentData.district || '',
-        province: studentData.province || '',
-        department: studentData.department || '',
         phone: studentData.phone || '',
-        email: studentData.email || '',
-        guardianName: studentData.guardianName || '',
-        guardianLastName: studentData.guardianLastName || '',
-        guardianDocumentType: studentData.guardianDocumentType || 'DNI',
-        guardianDocumentNumber: studentData.guardianDocumentNumber || '',
-        guardianPhone: studentData.guardianPhone || '',
-        guardianEmail: studentData.guardianEmail || '',
-        guardianRelationship: studentData.guardianRelationship || 'FATHER'
+        parentName: studentData.parentName || '',
+        parentPhone: studentData.parentPhone || '',
+        parentEmail: studentData.parentEmail || ''
       };
 
       return await this.executeWithRetry(async () => {
-        const response = await fetch(this.baseURL, {
+        const response = await fetch(`${process.env.REACT_APP_STUDENTS_API_URL}/students/secretary/create`, {
           method: 'POST',
           headers: this.getAuthHeaders(),
           body: JSON.stringify(payload)
@@ -362,15 +235,46 @@ class StudentService {
   }
 
   /**
-   * Actualiza un estudiante existente
-   * PUT /api/v1/students/{id}
+   * Obtiene un estudiante por su ID
+   * GET /students/secretary/{id}
    */
-  async updateStudent(id, studentData) {
+  async getStudentById(id) {
     try {
       if (!id) {
         throw new Error('ID de estudiante requerido');
       }
 
+      return await this.executeWithRetry(async () => {
+        const response = await fetch(`${this.baseURL}/students/secretary/${id}`, {
+          method: 'GET',
+          headers: this.getAuthHeaders()
+        });
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.data,
+          metadata: result.metadata,
+          message: result.metadata?.message || 'Estudiante obtenido exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('Error al obtener estudiante por ID:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener el estudiante',
+        data: null
+      };
+    }
+  }
+
+  /**
+   * Actualiza un estudiante existente
+   * PUT /students/secretary/update/{id}
+   */
+  async updateStudent(id, studentData) {
+    try {
       // Validar los datos antes de enviar
       const validation = validateStudent(studentData);
       if (!validation.isValid) {
@@ -381,41 +285,44 @@ class StudentService {
         };
       }
 
-      // Crear el payload sin el ID
+      // Crear el payload con la nueva estructura
       const payload = {
-        firstName: studentData.firstName,
-        lastName: studentData.lastName,
-        documentType: studentData.documentType,
-        documentNumber: studentData.documentNumber,
+        firstName: studentData.firstName || '',
+        lastName: studentData.lastName || '',
+        documentType: studentData.documentType || 'DNI',
+        documentNumber: studentData.documentNumber || '',
         birthDate: formatDateForBackend(studentData.birthDate),
-        gender: studentData.gender,
-        address: studentData.address,
-        district: studentData.district,
-        province: studentData.province,
-        department: studentData.department,
+        gender: studentData.gender || 'MALE',
+        address: studentData.address || '',
         phone: studentData.phone || '',
-        email: studentData.email || '',
-        guardianName: studentData.guardianName,
-        guardianLastName: studentData.guardianLastName,
-        guardianDocumentType: studentData.guardianDocumentType,
-        guardianDocumentNumber: studentData.guardianDocumentNumber,
-        guardianPhone: studentData.guardianPhone || '',
-        guardianEmail: studentData.guardianEmail || '',
-        guardianRelationship: studentData.guardianRelationship
+        parentName: studentData.parentName || '',
+        parentPhone: studentData.parentPhone || '',
+        parentEmail: studentData.parentEmail || ''
       };
 
       return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/${id}`, {
+        const response = await fetch(`${this.baseURL}/students/secretary/update/${id}`, {
           method: 'PUT',
           headers: this.getAuthHeaders(),
           body: JSON.stringify(payload)
         });
 
+        if (!response.ok) {
+          const errorText = await response.text();
+          try {
+            const errorJson = JSON.parse(errorText);
+            const errorMessage = errorJson.metadata?.message || errorText;
+            throw new Error(errorMessage);
+          } catch (parseError) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+        }
+
         const result = await this.handleResponse(response);
         
         return {
           success: true,
-          data: result.data?.[0] || null,
+          data: result.data,
           metadata: result.metadata,
           message: result.metadata?.message || 'Estudiante actualizado exitosamente'
         };
@@ -430,119 +337,17 @@ class StudentService {
   }
 
   /**
-   * Elimina un estudiante (lógico)
-   * DELETE /api/v1/students/{id}
+   * Obtiene estudiantes por aula
+   * GET /students/secretary/by-classroom/{classroomId}
    */
-  async deleteStudent(id) {
+  async getStudentsByClassroom(classroomId) {
     try {
-      if (!id) {
-        throw new Error('ID de estudiante requerido');
+      if (!classroomId) {
+        throw new Error('ID de aula requerido');
       }
 
       return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/${id}`, {
-          method: 'DELETE',
-          headers: this.getAuthHeaders()
-        });
-
-        const result = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: result.data || [],
-          metadata: result.metadata,
-          message: result.metadata?.message || 'Estudiante eliminado exitosamente'
-        };
-      });
-    } catch (error) {
-      console.error('Error al eliminar estudiante:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al eliminar el estudiante'
-      };
-    }
-  }
-
-  /**
-   * Desactiva un estudiante (equivalente a eliminación lógica)
-   * DELETE /api/v1/students/{id}
-   */
-  async deactivateStudent(id) {
-    try {
-      if (!id) {
-        throw new Error('ID de estudiante requerido');
-      }
-
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/${id}`, {
-          method: 'DELETE',
-          headers: this.getAuthHeaders()
-        });
-
-        const result = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: result.data || [],
-          metadata: result.metadata,
-          message: result.metadata?.message || 'Estudiante desactivado exitosamente'
-        };
-      });
-    } catch (error) {
-      console.error('Error al desactivar estudiante:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al desactivar el estudiante'
-      };
-    }
-  }
-
-  /**
-   * Restaura un estudiante eliminado
-   * PUT /api/v1/students/{id}/restore
-   */
-  async restoreStudent(id) {
-    try {
-      if (!id) {
-        throw new Error('ID de estudiante requerido');
-      }
-
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/${id}/restore`, {
-          method: 'PUT',
-          headers: this.getAuthHeaders()
-        });
-
-        const result = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: result.data || [],
-          metadata: result.metadata,
-          message: result.metadata?.message || 'Estudiante restaurado exitosamente'
-        };
-      });
-    } catch (error) {
-      console.error('Error al restaurar estudiante:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al restaurar el estudiante'
-      };
-    }
-  }
-
-  /**
-   * Busca estudiante por número de documento
-   * GET /api/v1/students/document/{documentNumber}
-   */
-  async getStudentByDocument(documentNumber) {
-    try {
-      if (!documentNumber) {
-        throw new Error('Número de documento requerido');
-      }
-
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/document/${documentNumber}`, {
+        const response = await fetch(`${process.env.REACT_APP_STUDENTS_API_URL}/students/secretary/by-classroom/${classroomId}`, {
           method: 'GET',
           headers: this.getAuthHeaders()
         });
@@ -553,22 +358,268 @@ class StudentService {
           success: true,
           data: result.data || [],
           metadata: result.metadata,
-          message: result.metadata?.message || 'Búsqueda completada'
+          message: result.metadata?.message || 'Estudiantes obtenidos exitosamente'
         };
       });
     } catch (error) {
-      console.error('Error al buscar estudiante por documento:', error);
+      console.error('Error al obtener estudiantes por aula:', error);
       return {
         success: false,
-        error: error.message || 'Error al buscar el estudiante',
+        error: error.message || 'Error al obtener los estudiantes',
         data: []
       };
     }
   }
 
   /**
-   * Filtra estudiantes por estado
-   * GET /api/v1/students/status/{status}
+   * Obtiene todos los estudiantes de la institución del usuario
+   * GET /students/secretary
+   */
+  async getStudentsByInstitution() {
+    try {
+      return await this.executeWithRetry(async () => {
+        const url = `${this.baseURL}/students/secretary`;
+        console.log('[DEBUG] Requesting students from URL:', url);
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: this.getAuthHeaders()
+        });
+
+        const result = await this.handleResponse(response);
+        // Normalizar estructuras posibles de respuesta:
+        // - { success: true, data: [...] }
+        // - { success: true, data: { data: [...] , total } }
+        let data = [];
+        if (Array.isArray(result.data)) {
+          data = result.data;
+        } else if (result.data && Array.isArray(result.data.data)) {
+          data = result.data.data;
+        } else if (Array.isArray(result)) {
+          data = result;
+        }
+
+        return {
+          success: true,
+          data,
+          metadata: result.metadata,
+          message: result.metadata?.message || result.message || 'Estudiantes obtenidos exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('Error al obtener estudiantes por institución:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener los estudiantes',
+        data: []
+      };
+    }
+  }
+
+  /**
+   * Obtiene las aulas usando el endpoint de academics
+   * GET /academics/classrooms/secretary/classrooms
+   */
+  async getClassrooms() {
+    try {
+      return await this.executeWithRetry(async () => {
+        const url = `${process.env.REACT_APP_ACADEMICS_API_URL}/academics/classrooms/secretary/classrooms`;
+        console.log('[DEBUG] Requesting classrooms from URL (via studentService):', url);
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: this.getAuthHeaders()
+        });
+
+        const result = await this.handleResponse(response);
+
+        // Normalizar estructuras posibles: { total, data: [...] } o { data: { data: [...] } }
+        let data = [];
+        if (Array.isArray(result.data)) {
+          data = result.data;
+        } else if (result.data && Array.isArray(result.data.data)) {
+          data = result.data.data;
+        } else if (Array.isArray(result)) {
+          data = result;
+        }
+
+        return {
+          success: true,
+          data,
+          metadata: result.metadata || { total: result.total },
+          message: result.metadata?.message || result.message || 'Aulas obtenidas exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('Error al obtener aulas (studentService):', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener las aulas',
+        data: []
+      };
+    }
+  }
+
+  /**
+   * Obtiene estudiantes no matriculados
+   * GET /students/secretary/unenrolled
+   */
+  async getUnenrolledStudents() {
+    try {
+      return await this.executeWithRetry(async () => {
+        const url = `${this.baseURL}/students/secretary/unenrolled`;
+        console.log('[DEBUG] Requesting unenrolled students from URL:', url);
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: this.getAuthHeaders()
+        });
+
+        const result = await this.handleResponse(response);
+        
+        let data = [];
+        if (Array.isArray(result.data)) {
+          data = result.data;
+        } else if (result.data && Array.isArray(result.data.data)) {
+          data = result.data.data;
+        } else if (Array.isArray(result)) {
+          data = result;
+        }
+
+        return {
+          success: true,
+          data,
+          metadata: result.metadata,
+          message: result.message || 'Estudiantes no matriculados obtenidos exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('Error al obtener estudiantes no matriculados:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener los estudiantes no matriculados',
+        data: []
+      };
+    }
+  }
+
+  /**
+   * Crea múltiples estudiantes de forma masiva
+   * POST /students/secretary/bulk-create
+   */
+  async bulkCreateStudents(studentsData) {
+    try {
+      if (!Array.isArray(studentsData) || studentsData.length === 0) {
+        return {
+          success: false,
+          error: 'Se requiere un array de estudiantes válido'
+        };
+      }
+
+      // Validar cada estudiante
+      const validationErrors = [];
+      const validStudents = [];
+
+      studentsData.forEach((student, index) => {
+        const validation = validateStudent(student);
+        if (!validation.isValid) {
+          validationErrors.push(`Estudiante ${index + 1}: ${validation.errors.join(', ')}`);
+        } else {
+          // Construir objeto de estudiante en el formato exacto del backend
+          const studentPayload = {
+            firstName: student.firstName?.trim(),
+            lastName: student.lastName?.trim(),
+            documentType: student.documentType || 'DNI',
+            documentNumber: student.documentNumber?.trim(),
+            birthDate: student.birthDate, // Formato yyyy-mm-dd esperado
+            gender: student.gender,
+            address: student.address?.trim(),
+            parentName: student.parentName?.trim()
+          };
+
+          // Agregar campos opcionales solo si tienen valor
+          if (student.phone?.trim()) {
+            studentPayload.phone = student.phone.trim();
+          }
+          if (student.parentPhone?.trim()) {
+            studentPayload.parentPhone = student.parentPhone.trim();
+          }
+          if (student.parentEmail?.trim()) {
+            studentPayload.parentEmail = student.parentEmail.trim();
+          }
+
+          // Si no hay parentName pero hay guardianName/guardianLastName, usar esos
+          if (!studentPayload.parentName && (student.guardianName || student.guardianLastName)) {
+            studentPayload.parentName = `${student.guardianName || ''} ${student.guardianLastName || ''}`.trim();
+          }
+          
+          // Si no hay parentPhone pero hay guardianPhone, usar ese
+          if (!studentPayload.parentPhone && student.guardianPhone) {
+            studentPayload.parentPhone = student.guardianPhone.trim();
+          }
+          
+          // Si no hay parentEmail pero hay guardianEmail, usar ese
+          if (!studentPayload.parentEmail && student.guardianEmail) {
+            studentPayload.parentEmail = student.guardianEmail.trim();
+          }
+
+          validStudents.push(studentPayload);
+        }
+      });
+
+      if (validationErrors.length > 0) {
+        return {
+          success: false,
+          error: 'Errores de validación encontrados',
+          validationErrors
+        };
+      }
+
+      const payload = {
+        students: validStudents
+      };
+
+      console.log('Payload enviado al servidor:', payload); // Debug
+      console.log('URL completa:', `${this.baseURL}/students/secretary/bulk-create`); // Debug
+
+      return await this.executeWithRetry(async () => {
+        const response = await fetch(`${this.baseURL}/students/secretary/bulk-create`, {
+          method: 'POST',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify(payload)
+        });
+
+        console.log('Status de respuesta:', response.status); // Debug
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          try {
+            const errorJson = JSON.parse(errorText);
+            const errorMessage = errorJson.metadata?.message || errorJson.message || errorText;
+            throw new Error(errorMessage);
+          } catch (parseError) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+        }
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.data,
+          metadata: result.metadata,
+          message: result.metadata?.message || result.message || 'Estudiantes creados exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('Error al crear estudiantes masivamente:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al crear los estudiantes'
+      };
+    }
+  }
+
+  /**
+   * Obtiene estudiantes por estado
+   * GET /students/secretary/by-status/{status}
    */
   async getStudentsByStatus(status) {
     try {
@@ -577,42 +628,51 @@ class StudentService {
       }
 
       return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/status/${status}`, {
+        const url = `${this.baseURL}/students/secretary/by-status/${status}`;
+        console.log('[DEBUG] Requesting students by status from URL:', url);
+        const response = await fetch(url, {
           method: 'GET',
           headers: this.getAuthHeaders()
         });
 
         const result = await this.handleResponse(response);
         
+        let data = [];
+        if (Array.isArray(result.data)) {
+          data = result.data;
+        } else if (result.data && Array.isArray(result.data.data)) {
+          data = result.data.data;
+        } else if (Array.isArray(result)) {
+          data = result;
+        }
+
         return {
           success: true,
-          data: result.data || [],
+          data,
           metadata: result.metadata,
-          message: result.metadata?.message || 'Estudiantes filtrados exitosamente'
+          message: result.message || `Estudiantes con estado ${status} obtenidos exitosamente`
         };
       });
     } catch (error) {
-      console.error('Error al filtrar estudiantes por estado:', error);
+      console.error('Error al obtener estudiantes por estado:', error);
       return {
         success: false,
-        error: error.message || 'Error al filtrar estudiantes',
+        error: error.message || 'Error al obtener los estudiantes por estado',
         data: []
       };
     }
   }
 
   /**
-   * Filtra estudiantes por género
-   * GET /api/v1/students/gender/{gender}
+   * Obtiene estadísticas de estudiantes
+   * GET /students/secretary/statistics
    */
-  async getStudentsByGender(gender) {
+  async getStudentStatistics() {
     try {
-      if (!gender) {
-        throw new Error('Género requerido');
-      }
-
       return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/gender/${gender}`, {
+        const url = `${this.baseURL}/students/secretary/statistics`;
+        console.log('[DEBUG] Requesting student statistics from URL:', url);
+        const response = await fetch(url, {
           method: 'GET',
           headers: this.getAuthHeaders()
         });
@@ -621,410 +681,107 @@ class StudentService {
         
         return {
           success: true,
-          data: result.data || [],
+          data: result.data || result,
           metadata: result.metadata,
-          message: result.metadata?.message || 'Estudiantes filtrados exitosamente'
+          message: result.message || 'Estadísticas de estudiantes obtenidas exitosamente'
         };
       });
     } catch (error) {
-      console.error('Error al filtrar estudiantes por género:', error);
+      console.error('Error al obtener estadísticas de estudiantes:', error);
       return {
         success: false,
-        error: error.message || 'Error al filtrar estudiantes',
-        data: []
-      };
-    }
-  }
-
-  /**
-   * Busca estudiantes por nombre
-   * GET /api/v1/students/search/firstname/{firstName}
-   */
-  async searchStudentsByFirstName(firstName) {
-    try {
-      if (!firstName) {
-        throw new Error('Nombre requerido');
-      }
-
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/search/firstname/${encodeURIComponent(firstName)}`, {
-          method: 'GET',
-          headers: this.getAuthHeaders()
-        });
-
-        const result = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: result.data || [],
-          metadata: result.metadata,
-          message: result.metadata?.message || 'Búsqueda completada'
-        };
-      });
-    } catch (error) {
-      console.error('Error al buscar estudiantes por nombre:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al buscar estudiantes',
-        data: []
-      };
-    }
-  }
-
-  /**
-   * Busca estudiantes por apellido
-   * GET /api/v1/students/search/lastname/{lastName}
-   */
-  async searchStudentsByLastName(lastName) {
-    try {
-      if (!lastName) {
-        throw new Error('Apellido requerido');
-      }
-
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/search/lastname/${encodeURIComponent(lastName)}`, {
-          method: 'GET',
-          headers: this.getAuthHeaders()
-        });
-
-        const result = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: result.data || [],
-          metadata: result.metadata,
-          message: result.metadata?.message || 'Búsqueda completada'
-        };
-      });
-    } catch (error) {
-      console.error('Error al buscar estudiantes por apellido:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al buscar estudiantes',
-        data: []
-      };
-    }
-  }
-
-  /**
-   * Obtiene estudiantes no matriculados
-   * GET /api/v1/students/not-enrolled
-   */
-  async getStudentsNotEnrolled() {
-    try {
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/not-enrolled`, {
-          method: 'GET',
-          headers: this.getAuthHeaders()
-        });
-
-        const result = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: result.data || [],
-          metadata: result.metadata,
-          message: result.metadata?.message || 'Estudiantes no matriculados obtenidos exitosamente'
-        };
-      });
-    } catch (error) {
-      console.error('Error al obtener estudiantes no matriculados:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener estudiantes no matriculados',
-        data: []
-      };
-    }
-  }
-
-  /**
-   * Obtiene estudiantes no matriculados en un aula específica
-   * GET /api/v1/students/not-enrolled/classroom/{classroomId}
-   */
-  async getStudentsNotEnrolledInClassroom(classroomId) {
-    try {
-      if (!classroomId) {
-        throw new Error('ID de aula requerido');
-      }
-
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/not-enrolled/classroom/${classroomId}`, {
-          method: 'GET',
-          headers: this.getAuthHeaders()
-        });
-
-        const result = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: result.data || [],
-          metadata: result.metadata,
-          message: result.metadata?.message || 'Estudiantes no matriculados en el aula obtenidos exitosamente'
-        };
-      });
-    } catch (error) {
-      console.error('Error al obtener estudiantes no matriculados en aula:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener estudiantes no matriculados en el aula',
-        data: []
-      };
-    }
-  }
-
-  /**
-   * Obtiene estadísticas de matrícula
-   * GET /api/v1/students/enrollment-stats
-   */
-  async getEnrollmentStats() {
-    try {
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/enrollment-stats`, {
-          method: 'GET',
-          headers: this.getAuthHeaders()
-        });
-
-        const result = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: result.data || {},
-          metadata: result.metadata,
-          message: result.metadata?.message || 'Estadísticas obtenidas exitosamente'
-        };
-      });
-    } catch (error) {
-      console.error('Error al obtener estadísticas:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener las estadísticas',
+        error: error.message || 'Error al obtener las estadísticas de estudiantes',
         data: {}
       };
     }
   }
 
   /**
-   * Carga masiva de estudiantes
-   * POST /api/v1/students/bulk
+   * Activa un estudiante
+   * PUT /students/secretary/activate/{id}
    */
-  async bulkCreateStudents(studentsData) {
+  async activateStudent(id) {
     try {
-      if (!Array.isArray(studentsData) || studentsData.length === 0) {
-        throw new Error('Se requiere un array de estudiantes');
-      }
-
-      // Validar cada estudiante
-      const validationErrors = [];
-      studentsData.forEach((student, index) => {
-        const validation = validateStudent(student);
-        if (!validation.isValid) {
-          validationErrors.push(`Estudiante ${index + 1}: ${validation.errors.join(', ')}`);
-        }
-      });
-
-      if (validationErrors.length > 0) {
-        return {
-          success: false,
-          error: 'Errores de validación en los datos',
-          validationErrors
-        };
-      }
-
-      // Preparar payload
-      const payload = studentsData.map(student => ({
-        firstName: student.firstName,
-        lastName: student.lastName,
-        documentType: student.documentType,
-        documentNumber: student.documentNumber,
-        birthDate: formatDateForBackend(student.birthDate),
-        gender: student.gender,
-        address: student.address,
-        district: student.district,
-        province: student.province,
-        department: student.department,
-        phone: student.phone || '',
-        email: student.email || '',
-        guardianName: student.guardianName,
-        guardianLastName: student.guardianLastName,
-        guardianDocumentType: student.guardianDocumentType,
-        guardianDocumentNumber: student.guardianDocumentNumber,
-        guardianPhone: student.guardianPhone || '',
-        guardianEmail: student.guardianEmail || '',
-        guardianRelationship: student.guardianRelationship
-      }));
-
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/bulk`, {
-          method: 'POST',
-          headers: this.getAuthHeaders(),
-          body: JSON.stringify(payload)
-        });
-
-        const result = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: result.data || [],
-          metadata: result.metadata,
-          message: result.metadata?.message || 'Estudiantes creados exitosamente'
-        };
-      });
-    } catch (error) {
-      console.error('Error en carga masiva de estudiantes:', error);
-      return {
-        success: false,
-        error: error.message || 'Error en la carga masiva de estudiantes'
-      };
-    }
-  }
-
-  /**
-   * Eliminación masiva de estudiantes
-   * DELETE /api/v1/students/bulk
-   */
-  async bulkDeleteStudents(studentIds) {
-    try {
-      if (!Array.isArray(studentIds) || studentIds.length === 0) {
-        throw new Error('Se requiere un array de IDs de estudiantes');
+      if (!id) {
+        throw new Error('ID de estudiante requerido');
       }
 
       return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/bulk`, {
-          method: 'DELETE',
-          headers: this.getAuthHeaders(),
-          body: JSON.stringify({ ids: studentIds })
-        });
-
-        const result = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: result.data || [],
-          metadata: result.metadata,
-          message: result.metadata?.message || 'Estudiantes eliminados exitosamente'
-        };
-      });
-    } catch (error) {
-      console.error('Error en eliminación masiva de estudiantes:', error);
-      return {
-        success: false,
-        error: error.message || 'Error en la eliminación masiva de estudiantes'
-      };
-    }
-  }
-
-  /**
-   * Obtiene estudiantes no matriculados
-   * GET /api/v1/students/not-enrolled
-   */
-  async getNotEnrolledStudents() {
-    try {
-      const response = await fetch(`${this.baseURL}/not-enrolled`, {
-        method: 'GET',
-        headers: this.getAuthHeaders()
-      });
-
-      const result = await this.handleResponse(response);
-      return result;
-    } catch (error) {
-      if (error.message === 'TOKEN_REFRESHED') {
-        // Reintentar después del refresh del token
-        return this.getNotEnrolledStudents();
-      }
-      console.error('Error al obtener estudiantes no matriculados:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener estudiantes no matriculados'
-      };
-    }
-  }
-
-  /**
-   * Obtiene estudiantes no matriculados para un aula específica
-   * GET /api/v1/students/not-enrolled/classroom/{classroomId}
-   */
-  async getNotEnrolledStudentsForClassroom(classroomId) {
-    try {
-      const response = await fetch(`${this.baseURL}/not-enrolled/classroom/${classroomId}`, {
-        method: 'GET',
-        headers: this.getAuthHeaders()
-      });
-
-      const result = await this.handleResponse(response);
-      return result;
-    } catch (error) {
-      if (error.message === 'TOKEN_REFRESHED') {
-        // Reintentar después del refresh del token
-        return this.getNotEnrolledStudentsForClassroom(classroomId);
-      }
-      console.error('Error al obtener estudiantes no matriculados para el aula:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener estudiantes no matriculados para el aula'
-      };
-    }
-  }
-
-  /**
-   * Obtiene estudiantes que no están matriculados (para matrícula masiva)
-   * GET /api/v1/students/not-enrolled
-   */
-  async getUnEnrolledStudents() {
-    try {
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/not-enrolled`, {
-          method: 'GET',
+        const response = await fetch(`${this.baseURL}/students/secretary/activate/${id}`, {
+          method: 'PUT',
           headers: this.getAuthHeaders()
         });
 
+        if (!response.ok) {
+          const errorText = await response.text();
+          try {
+            const errorJson = JSON.parse(errorText);
+            const errorMessage = errorJson.metadata?.message || errorJson.message || errorText;
+            throw new Error(errorMessage);
+          } catch (parseError) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+        }
+
         const result = await this.handleResponse(response);
         
         return {
           success: true,
-          data: result.data || [],
+          data: result.data,
           metadata: result.metadata,
-          message: 'Estudiantes no matriculados obtenidos exitosamente'
+          message: result.metadata?.message || result.message || 'Estudiante activado exitosamente'
         };
       });
     } catch (error) {
-      if (error.message === 'TOKEN_REFRESHED') {
-        // Reintentar después del refresh del token
-        return this.getUnEnrolledStudents();
-      }
-      
-      // Método alternativo si falla el endpoint principal
-      console.warn('⚠️ Endpoint /not-enrolled falló, intentando método alternativo:', error.message);
-      
-      try {
-        console.log('🔄 Intentando obtener estudiantes no matriculados desde todos los estudiantes...');
-        const allStudentsResult = await this.getAllStudents();
-        
-        if (allStudentsResult.success) {
-          console.log(`📊 Procesando ${allStudentsResult.data.length} estudiantes para filtrar no matriculados...`);
-          const unEnrolledStudents = allStudentsResult.data.filter(student => 
-            student.status === 'ACTIVE' && (!student.isEnrolled || student.isEnrolled === false)
-          );
-          
-          console.log(`✅ Encontrados ${unEnrolledStudents.length} estudiantes no matriculados (de ${allStudentsResult.data.length} totales) usando filtro alternativo`);
-          
-          return {
-            success: true,
-            data: unEnrolledStudents,
-            metadata: { total: unEnrolledStudents.length },
-            message: 'Estudiantes no matriculados obtenidos exitosamente (método alternativo)'
-          };
-        } else {
-          console.error('❌ Falló también el método alternativo para obtener todos los estudiantes');
-        }
-      } catch (alternativeError) {
-        console.error('❌ También falló el método alternativo:', alternativeError);
-      }
-      
-      console.error('❌ Error al obtener estudiantes no matriculados:', error);
+      console.error('Error al activar estudiante:', error);
       return {
         success: false,
-        error: error.message || 'Error al obtener estudiantes no matriculados',
-        data: []
+        error: error.message || 'Error al activar el estudiante'
+      };
+    }
+  }
+
+  /**
+   * Desactiva un estudiante
+   * PUT /students/secretary/deactivate/{id}
+   */
+  async deactivateStudent(id) {
+    try {
+      if (!id) {
+        throw new Error('ID de estudiante requerido');
+      }
+
+      return await this.executeWithRetry(async () => {
+        const response = await fetch(`${this.baseURL}/students/secretary/deactivate/${id}`, {
+          method: 'PUT',
+          headers: this.getAuthHeaders()
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          try {
+            const errorJson = JSON.parse(errorText);
+            const errorMessage = errorJson.metadata?.message || errorJson.message || errorText;
+            throw new Error(errorMessage);
+          } catch (parseError) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+        }
+
+        const result = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: result.data,
+          metadata: result.metadata,
+          message: result.metadata?.message || result.message || 'Estudiante desactivado exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('Error al desactivar estudiante:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al desactivar el estudiante'
       };
     }
   }

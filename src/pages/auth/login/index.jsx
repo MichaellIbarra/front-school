@@ -10,7 +10,7 @@ import { useState } from "react";
 import { Eye, EyeOff } from "feather-icons-react/build/IconComponents";
 import useTitle from "../../../hooks/useTitle";
 import useAuth from "../../../hooks/useAuth";
-import { handleDirectorLogin, handlePersonalLogin, hasAnyRole, isDirector, loginKeycloak } from "../../../auth/authService";
+import { handleDirectorLogin, handlePersonalLogin, hasAnyRole, isDirector, loginKeycloak } from "../../../services/auth/authService";
 
 // import ReactPasswordToggleIcon from 'react-password-toggle-icon';
 

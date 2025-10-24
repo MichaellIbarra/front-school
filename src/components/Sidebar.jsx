@@ -3,9 +3,8 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from "react-router-dom";
 import { blog, dashboard, doctor, doctorschedule, logout, menuicon04, menuicon06, menuicon08, menuicon09, menuicon10, menuicon11, menuicon12, menuicon14, menuicon15, menuicon16, patients, sidemenu } from './imagepath';
-import Scrollbars from "react-custom-scrollbars-2";
 import useAuth from "../hooks/useAuth";
-import { hasRole, isAdmin, isDirector, isTeacher, isAuxiliary, isSecretary, getUserInstitution, hasAnyRole } from "../auth/authService";
+import { hasRole, isAdmin, isDirector, isTeacher, isAuxiliary, isSecretary, getUserInstitution, hasAnyRole } from "../services/auth/authService";
 
 
 const Sidebar = (props) => {
@@ -138,22 +137,11 @@ const Sidebar = (props) => {
   return (
     <>
       <div className="sidebar" id="sidebar" style={getSidebarStyles()}>
-        <Scrollbars
-          autoHide
-          autoHideTimeout={1000}
-          autoHideDuration={200}
-          autoHeight
-          autoHeightMin={0}
-          autoHeightMax="95vh"
-          thumbMinSize={30}
-          universal={false}
-          hideTracksWhenNotNeeded={true}
-        >
-          <div className="sidebar-inner slimscroll">
-            <div id="sidebar-menu" className="sidebar-menu"
-              onMouseLeave={expandMenu}
-              onMouseOver={expandMenuOpen}
-            >
+        <div className="sidebar-inner slimscroll">
+          <div id="sidebar-menu" className="sidebar-menu"
+            onMouseLeave={expandMenu}
+            onMouseOver={expandMenuOpen}
+          >
               <ul>
                 <li className="menu-title">Main</li>
                 <li>
@@ -214,26 +202,37 @@ const Sidebar = (props) => {
                 )}
 
                 {(isAuxiliary()) && (
-                  <li className="submenu">
-                    <Link to="#" id="menu-item-attendance" onClick={(e) => handleClick(e, "menu-item-attendance", "menu-items-attendance")}>
-                      <span className="menu-side">
-                        <img src={menuicon09} alt="" />
-                      </span>{" "}
-                      <span> Asistencias </span> <span className="menu-arrow" />
-                    </Link>
-                    <ul style={{ display: "none" }} className="menu-items-attendance">
-                      <li>
-                        <Link className={props?.activeClassName === 'attendance-list' ? 'active' : ''} to="/auxiliary/attendance">
-                          🔍 Buscar Estudiantes
-                        </Link>
-                      </li>
-                      <li>
-                        <Link className={props?.activeClassName === 'justification-management' ? 'active' : ''} to="/auxiliary/justifications">
-                          📋 Justificaciones
-                        </Link>
-                      </li>
-                    </ul>
-                  </li>
+                  <>
+                    <li className="menu-title">Main</li>
+                    <li>
+                      <Link className={props?.activeClassName === 'my-classrooms' ? 'active' : ''} to="/auxiliary/my-classrooms">
+                        <span className="menu-side">
+                          <img src={menuicon08} alt="" />
+                        </span>
+                        <span>Mis Aulas</span>
+                      </Link>
+                    </li>
+                    <li className="submenu">
+                      <Link to="#" id="menu-item-attendance" onClick={(e) => handleClick(e, "menu-item-attendance", "menu-items-attendance")}>
+                        <span className="menu-side">
+                          <img src={menuicon09} alt="" />
+                        </span>{" "}
+                        <span> Asistencias </span> <span className="menu-arrow" />
+                      </Link>
+                      <ul style={{ display: "none" }} className="menu-items-attendance">
+                        <li>
+                          <Link className={props?.activeClassName === 'attendance-list' ? 'active' : ''} to="/auxiliary/attendance">
+                            🔍 Buscar Estudiantes
+                          </Link>
+                        </li>
+                        <li>
+                          <Link className={props?.activeClassName === 'justification-management' ? 'active' : ''} to="/auxiliary/justifications">
+                            📋 Justificaciones
+                          </Link>
+                        </li>
+                      </ul>
+                    </li>
+                  </>
                 )}
 
                 {/* Sección para Teachers - Calificaciones y Notificaciones */}
@@ -271,6 +270,28 @@ const Sidebar = (props) => {
                     </Link>
                   </li>
                 )}
+                {isDirector() && (
+                  <li>
+                    <Link to="/director/assignments">
+                      <span className="menu-side">
+                        <img src={blog} alt="" />
+                      </span>{" "}
+                      <span>Asignación del Personal</span>
+                    </Link>
+                  </li>
+                )}
+                {/* Sección para Teachers - Mis Asignaciones */}
+                {isTeacher() && (
+                  <li>
+                    <Link className={props?.activeClassName === 'my-assignments' ? 'active' : ''} to="/teacher/my-assignments">
+                      <span className="menu-side">
+                        <img src={menuicon06} alt="" />
+                      </span>{" "}
+                      <span>Mis Asignaciones</span>
+                    </Link>
+                  </li>
+                )}
+
 
                 {/* Ejemplo - Solo isDirector */}
                 {isDirector() && (
@@ -351,40 +372,35 @@ const Sidebar = (props) => {
                   </li>
                 )}
 
-                {/* Ejemplo - Solo isSecretary */}
-                {/* Menú de Gestión Académica - Solo Secretary */}
+                {/* Gestión Académica - Solo Secretary */}
                 {isSecretary() && (
                   <li className="submenu">
-                    <Link to="#" id="menu-item-courses" onClick={(e) => handleClick(e, "menu-item-courses", "menu-items-courses")}>
+                    <Link to="#" id="menu-item-academic" onClick={(e) => handleClick(e, "menu-item-academic", "menu-items-academic")}>
                       <span className="menu-side">
                         <i className="fa fa-graduation-cap"></i>
                       </span>{" "}
-                      <span> Académico </span> <span className="menu-arrow" />
+                      <span>Gestión Académica</span> <span className="menu-arrow" />
                     </Link>
-                    <ul style={{ display: "none" }} className="menu-items-courses">
+                    <ul style={{ display: "none" }} className="menu-items-academic">
                       <li>
-                        <Link className={props?.activeClassName === 'course-list' ? 'active' : ''} to="/secretary/courses">Gestión de Cursos</Link>
+                        <Link className={props?.activeClassName === 'course-list' ? 'active' : ''} to="/secretary/courses">
+                          Gestión de Cursos
+                        </Link>
                       </li>
                       <li>
-                        <Link className={props?.activeClassName === 'course-add' ? 'active' : ''} to="/secretary/courses/add">Agregar Curso</Link>
+                        <Link className={props?.activeClassName === 'period-list' ? 'active' : ''} to="/secretary/periods">
+                          Gestión de Períodos
+                        </Link>
                       </li>
                       <li>
-                        <Link className={props?.activeClassName === 'period-list' ? 'active' : ''} to="/secretary/periods">Gestión de Períodos</Link>
+                        <Link className={props?.activeClassName === 'classroom-list' ? 'active' : ''} to="/secretary/classrooms">
+                          Gestión de Aulas
+                        </Link>
                       </li>
                       <li>
-                        <Link className={props?.activeClassName === 'period-add' ? 'active' : ''} to="/secretary/periods/add">Agregar Período</Link>
-                      </li>
-                      <li>
-                        <Link className={props?.activeClassName === 'classroom-list' ? 'active' : ''} to="/secretary/classrooms">Gestión de Aulas</Link>
-                      </li>
-                      <li>
-                        <Link className={props?.activeClassName === 'classroom-add' ? 'active' : ''} to="/secretary/classrooms/add">Agregar Aula</Link>
-                      </li>
-                      <li>
-                        <Link className={props?.activeClassName === 'teacher-assignment-list' ? 'active' : ''} to="/secretary/teacher-assignments">Asignaciones de Profesores</Link>
-                      </li>
-                      <li>
-                        <Link className={props?.activeClassName === 'teacher-assignment-add' ? 'active' : ''} to="/secretary/teacher-assignments/add">Agregar Asignación</Link>
+                        <Link className={props?.activeClassName === 'teacher-assignment-list' ? 'active' : ''} to="/secretary/teacher-assignments">
+                          Asignaciones de Profesores
+                        </Link>
                       </li>
                     </ul>
                   </li>
@@ -395,7 +411,6 @@ const Sidebar = (props) => {
 
             </div>
           </div>
-        </Scrollbars>
       </div>
     </>
   )

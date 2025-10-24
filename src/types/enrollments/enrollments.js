@@ -2,26 +2,29 @@
 
 // Enums para matrículas
 export const EnrollmentStatus = {
-  ACTIVE: "ACTIVE",
-  INACTIVE: "INACTIVE", 
-  COMPLETED: "COMPLETED",
-  TRANSFERRED: "TRANSFERRED",
-  WITHDRAWN: "WITHDRAWN",
-  SUSPENDED: "SUSPENDED",
+  ACTIVE: "A",
+  COMPLETED: "C",
+  TRANSFER: "T",
+  RETIRED: "R",
 };
 
-// Estructura base de una matrícula
+export const EnrollmentType = {
+  REGULAR: "REGULAR",
+  TRANSFER: "TRANSFER",
+  REPEAT: "REPEAT",
+};
+
+// Estructura base de una matrícula (nueva estructura simplificada)
 export const Enrollment = {
   id: "",
   studentId: "",
   classroomId: "",
-  enrollmentNumber: "",
   enrollmentDate: "",
+  enrollmentType: EnrollmentType.REGULAR,
   status: EnrollmentStatus.ACTIVE,
+  qrCode: "",
   createdAt: null,
-  updatedAt: null,
-  // Datos del estudiante (cuando se incluye en la respuesta)
-  student: null,
+  updatedAt: null
 };
 
 /**
@@ -41,12 +44,12 @@ export const validateEnrollment = (enrollment) => {
     errors.push("El ID del aula es requerido");
   }
 
-  if (!enrollment.enrollmentNumber?.trim()) {
-    errors.push("El número de matrícula es requerido");
-  }
-
   if (!enrollment.enrollmentDate) {
     errors.push("La fecha de matrícula es requerida");
+  }
+
+  if (!enrollment.enrollmentType) {
+    errors.push("El tipo de matrícula es requerido");
   }
 
   return {
@@ -156,11 +159,9 @@ export const formatDateForBackend = (dateString) => {
 export const getEnrollmentStatusText = (status) => {
   const statusTexts = {
     [EnrollmentStatus.ACTIVE]: "Activa",
-    [EnrollmentStatus.INACTIVE]: "Inactiva",
     [EnrollmentStatus.COMPLETED]: "Completada",
-    [EnrollmentStatus.TRANSFERRED]: "Transferida",
-    [EnrollmentStatus.WITHDRAWN]: "Retirada",
-    [EnrollmentStatus.SUSPENDED]: "Suspendida",
+    [EnrollmentStatus.TRANSFER]: "Transferida",
+    [EnrollmentStatus.RETIRED]: "Retirada",
   };
 
   return statusTexts[status] || status;
@@ -174,44 +175,12 @@ export const getEnrollmentStatusText = (status) => {
 export const getEnrollmentStatusColor = (status) => {
   const statusColors = {
     [EnrollmentStatus.ACTIVE]: "green",
-    [EnrollmentStatus.INACTIVE]: "red",
     [EnrollmentStatus.COMPLETED]: "blue",
-    [EnrollmentStatus.TRANSFERRED]: "purple",
-    [EnrollmentStatus.WITHDRAWN]: "orange",
-    [EnrollmentStatus.SUSPENDED]: "volcano",
+    [EnrollmentStatus.TRANSFER]: "purple",
+    [EnrollmentStatus.RETIRED]: "orange",
   };
 
   return statusColors[status] || "default";
-};
-
-/**
- * Genera un número de matrícula automático basado en el año y correlativo
- * @param {Array} existingEnrollments - Lista de matrículas existentes para calcular el correlativo
- * @returns {string} - Número de matrícula generado (ej: MAT-2025-001)
- */
-export const generateEnrollmentNumber = (existingEnrollments = []) => {
-  const currentYear = new Date().getFullYear();
-  
-  // Filtrar matrículas del año actual
-  const currentYearEnrollments = existingEnrollments.filter(enrollment => {
-    if (!enrollment.enrollmentNumber) return false;
-    
-    // Extraer el año del número de matrícula (formato: MAT-YYYY-XXX)
-    const parts = enrollment.enrollmentNumber.split('-');
-    if (parts.length >= 2) {
-      const year = parseInt(parts[1]);
-      return year === currentYear;
-    }
-    return false;
-  });
-  
-  // Calcular el próximo número correlativo
-  const nextCorrelative = currentYearEnrollments.length + 1;
-  
-  // Formatear con ceros a la izquierda (4 dígitos)
-  const correlativeFormatted = nextCorrelative.toString().padStart(4, "0");
-  
-  return `MAT-${currentYear}-${correlativeFormatted}`;
 };
 
 /**
