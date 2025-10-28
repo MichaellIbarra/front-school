@@ -184,14 +184,14 @@ const ClassroomList = () => {
               'ANNUAL': 'Anual'
             };
             const periodTypeName = periodTypeMap[period.periodType] || period.periodType;
-            periodName = `${period.period} ${periodTypeName} - ${period.academicYear} (${period.level})`;
+            periodName = `${period.periodName} ${periodTypeName} - ${period.academicYear} (${period.level})`;
           }
           
           // Normalizar el headquarterId - COMPARACIÓN EXACTA
           const normalizedHeadquarterId = classroom.headquarterId ? String(classroom.headquarterId).trim() : null;
           const headquarterName = normalizedHeadquarterId ? (sedesMap[normalizedHeadquarterId] || 'Sede Desconocida') : 'Sede Desconocida';
           
-          console.log(`🔍 Enriqueciendo aula ${classroom.grade}° ${classroom.section}:`, {
+          console.log(`🔍 Enriqueciendo aula sección ${classroom.section}:`, {
             headquarterIdOriginal: classroom.headquarterId,
             normalizedHeadquarterId: normalizedHeadquarterId,
             headquarterName: headquarterName,
@@ -231,7 +231,7 @@ const ClassroomList = () => {
 
     // Filtro por texto de búsqueda
     if (searchTerm) {
-      filtered = searchItems(filtered, searchTerm, ['section', 'headquarterName', 'periodName']);
+      filtered = searchItems(filtered, searchTerm, ['section', 'classroomName', 'headquarterName', 'periodName']);
     }
 
     setFilteredClassrooms(filtered);
@@ -339,17 +339,23 @@ const ClassroomList = () => {
   // Configuración de columnas de la tabla
   const columns = [
     {
-      title: 'Grado y Sección',
-      key: 'gradeSection',
-      render: (_, record) => (
-        <strong>{record.grade}° {record.section}</strong>
+      title: 'Sección',
+      dataIndex: 'section',
+      key: 'section',
+      render: (section) => (
+        <strong>Sección {section}</strong>
       ),
-      sorter: (a, b) => {
-        const gradeCompare = a.grade - b.grade;
-        if (gradeCompare !== 0) return gradeCompare;
-        return (a.section || '').localeCompare(b.section || '');
-      },
-      width: 140,
+      sorter: (a, b) => (a.section || '').localeCompare(b.section || ''),
+      width: 100,
+    },
+    {
+      title: 'Nombre del Aula',
+      dataIndex: 'classroomName',
+      key: 'classroomName',
+      render: (text) => text || <span style={{color: '#999', fontStyle: 'italic'}}>Sin nombre</span>,
+      sorter: (a, b) => (a.classroomName || '').localeCompare(b.classroomName || ''),
+      width: 150,
+      ellipsis: true,
     },
     {
       title: 'Período',
@@ -360,7 +366,6 @@ const ClassroomList = () => {
         if (!text) {
           console.log('⚠️ Período no encontrado para aula:', {
             classroomId: record.id,
-            grade: record.grade,
             section: record.section,
             periodId: record.periodId,
             periodName: record.periodName,
@@ -442,7 +447,7 @@ const ClassroomList = () => {
             label: 'Eliminar',
             icon: <DeleteOutlined />,
             danger: true,
-            onClick: () => handleDeleteClassroom(record.id, `${record.grade}° ${record.section}`),
+            onClick: () => handleDeleteClassroom(record.id, `Sección ${record.section}`),
           },
         ];
 
@@ -495,7 +500,7 @@ const ClassroomList = () => {
                     <div className="col-lg-5 col-md-6 col-sm-12 mb-2">
                       <div className="top-nav-search">
                         <Input
-                          placeholder="Buscar por sección, período o sede..."
+                          placeholder="Buscar por sección, nombre, período o sede..."
                           prefix={<SearchOutlined />}
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}

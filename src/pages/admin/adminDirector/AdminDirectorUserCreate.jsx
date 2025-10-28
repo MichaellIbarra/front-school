@@ -55,25 +55,19 @@ const AdminDirectorUserCreate = () => {
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     
-    if (type === 'checkbox') {
-      // Manejar roles como checkboxes
-      if (name === 'roles') {
-        const updatedRoles = checked 
-          ? [...formData.roles, value]
-          : formData.roles.filter(role => role !== value);
-        
-        setFormData(prev => ({
-          ...prev,
-          roles: updatedRoles,
-          // Si se deselecciona Director, limpiar institutionId
-          institutionId: updatedRoles.includes(UserRoles.DIRECTOR) ? prev.institutionId : null
-        }));
-      } else {
-        setFormData(prev => ({
-          ...prev,
-          [name]: checked
-        }));
-      }
+    if (type === 'radio' && name === 'role') {
+      // Manejar rol único como radio button
+      setFormData(prev => ({
+        ...prev,
+        roles: [value], // Solo un rol seleccionado
+        // Si se selecciona un rol diferente a Director, limpiar institutionId
+        institutionId: value === UserRoles.DIRECTOR ? prev.institutionId : null
+      }));
+    } else if (type === 'checkbox') {
+      setFormData(prev => ({
+        ...prev,
+        [name]: checked
+      }));
     } else {
       setFormData(prev => ({
         ...prev,
@@ -154,9 +148,9 @@ const AdminDirectorUserCreate = () => {
       newErrors.phone = userValidationRules.phone.message;
     }
 
-    // Validar roles
+    // Validar rol
     if (!formData.roles || formData.roles.length === 0) {
-      newErrors.roles = 'Debe seleccionar al menos un rol';
+      newErrors.roles = 'Debe seleccionar un rol';
     }
 
     // Validar institutionId si el rol es Director
@@ -448,14 +442,14 @@ const AdminDirectorUserCreate = () => {
                       {/* Roles */}
                       <div className="col-md-12">
                         <div className="form-group">
-                          <label>Roles <span className="text-danger">*</span></label>
+                          <label>Rol <span className="text-danger">*</span></label>
                           <div className="row">
                             {Object.entries(UserRoles).map(([key, value]) => (
                               <div key={key} className="col-md-6">
                                 <div className="form-check">
                                   <input
-                                    type="checkbox"
-                                    name="roles"
+                                    type="radio"
+                                    name="role"
                                     value={value}
                                     checked={formData.roles.includes(value)}
                                     onChange={handleInputChange}

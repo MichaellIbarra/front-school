@@ -23,7 +23,7 @@ export const formatCourseName = (course) => {
  */
 export const formatPeriodName = (period) => {
   if (!period) return '';
-  return `${period.period}° ${period.periodType} - ${period.academicYear}`;
+  return `${period.periodName} ${period.periodType} - ${period.academicYear}`;
 };
 
 /**

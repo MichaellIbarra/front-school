@@ -67,10 +67,10 @@ const PeriodDetailModal = ({ visible, onCancel, periodData }) => {
           <Card className="bg-light">
             <div className="d-flex justify-content-between align-items-center">
               <div>
-                <h4 className="mb-1">{periodData.name}</h4>
+                <h4 className="mb-1">{periodData.periodName} Grado</h4>
                 <p className="text-muted mb-0">
                   <CalendarOutlined className="me-1" />
-                  {getLevelText(periodData.level)} - {getPeriodTypeText(periodData.periodType)}
+                  {getLevelText(periodData.level)} - {getPeriodTypeText(periodData.periodType)} - Grado {periodData.grade}
                 </p>
               </div>
               <Tag color={statusColor} style={{ fontSize: '14px', padding: '4px 12px' }}>
@@ -83,14 +83,19 @@ const PeriodDetailModal = ({ visible, onCancel, periodData }) => {
         {/* Información Principal */}
         <Col span={24}>
           <Card title={<><InfoCircleOutlined className="me-2" />Información General</>} size="small">
-            <Descriptions column={2} bordered size="small">
-              <Descriptions.Item label="Nombre del Período" span={2}>
-                <strong>{periodData.name}</strong>
+            <Descriptions column={3} bordered size="small">
+              <Descriptions.Item label="Nombre del Período" span={1}>
+                <strong>{periodData.periodName}</strong>
+              </Descriptions.Item>
+              <Descriptions.Item label="Grado" span={1}>
+                <Tag color="orange" style={{ fontSize: '16px', padding: '6px 16px' }}>
+                  {periodData.grade}°
+                </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="Nivel" span={1}>
                 <Tag color="blue">{getLevelText(periodData.level)}</Tag>
               </Descriptions.Item>
-              <Descriptions.Item label="Tipo de Período" span={1}>
+              <Descriptions.Item label="Tipo de Período" span={2}>
                 <Tag color="purple">{getPeriodTypeText(periodData.periodType)}</Tag>
               </Descriptions.Item>
               <Descriptions.Item label="Estado" span={2}>

@@ -11,8 +11,9 @@ export class Classroom {
         this.headquarterId = data.headquarterId || '';
         this.periodId = data.periodId || '';
         this.section = data.section || '';
-        this.grade = data.grade || null;
+        this.classroomName = data.classroomName || null;
         this.shift = data.shift || '';
+        this.shiftName = data.shiftName || '';
         this.status = data.status || 'A';
         this.createdAt = data.createdAt || null;
         this.updatedAt = data.updatedAt || null;
@@ -30,7 +31,7 @@ export class ClassroomRequest {
         this.headquarterId = data.headquarterId || '';
         this.periodId = data.periodId || '';
         this.section = data.section || '';
-        this.grade = data.grade || null;
+        this.classroomName = data.classroomName || ''; // Usar cadena vacía en lugar de null
         this.shift = data.shift || '';
         this.status = data.status || 'A';
     }
@@ -115,10 +116,6 @@ export const validateClassroom = (classroom) => {
 
     if (!/^[A-Z]$/.test(classroom.section)) {
         return 'La sección debe ser una letra mayúscula (A, B, C, etc.)';
-    }
-
-    if (!classroom.grade || classroom.grade < 1 || classroom.grade > 6) {
-        return 'El grado debe estar entre 1 y 6';
     }
 
     if (!classroom.shift || !/^(M|T|N)$/.test(classroom.shift)) {

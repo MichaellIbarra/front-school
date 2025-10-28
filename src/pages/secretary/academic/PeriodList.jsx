@@ -160,11 +160,24 @@ const PeriodList = () => {
       width: 120,
     },
     {
-      title: 'Período',
-      dataIndex: 'period',
-      key: 'period',
-      width: 80,
+      title: 'Nombre Período',
+      dataIndex: 'periodName',
+      key: 'periodName',
+      width: 100,
       align: 'center',
+    },
+    {
+      title: 'Grado',
+      dataIndex: 'grade',
+      key: 'grade',
+      width: 70,
+      align: 'center',
+      render: (grade) => (
+        <Tag color="blue" style={{ fontSize: '12px' }}>
+          {grade}°
+        </Tag>
+      ),
+      sorter: (a, b) => a.grade - b.grade,
     },
     {
       title: 'Tipo',

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { Form, Input, Select, InputNumber, Button, Modal, Row, Col } from 'antd';
+import { Form, Input, Select, Button, Modal, Row, Col } from 'antd';
 import { SaveOutlined } from '@ant-design/icons';
 import classroomService from '../../../services/academic/classroomService';
 import periodService from '../../../services/academic/periodService';
@@ -142,7 +142,7 @@ const ClassroomFormModal = ({
       headquarterId: classroom.headquarterId,
       periodId: classroom.periodId,
       section: classroom.section,
-      grade: classroom.grade,
+      classroomName: classroom.classroomName,
       shift: classroom.shift,
     });
   };
@@ -154,7 +154,7 @@ const ClassroomFormModal = ({
         headquarterId: values.headquarterId,
         periodId: values.periodId,
         section: values.section.toUpperCase(),
-        grade: values.grade,
+        classroomName: values.classroomName || '', // Incluir classroomName del formulario
         shift: values.shift,
       });
 
@@ -193,7 +193,7 @@ const ClassroomFormModal = ({
           headquarterId: classroomPayload.headquarterId,
           periodId: classroomPayload.periodId,
           section: classroomPayload.section,
-          grade: classroomPayload.grade,
+          classroomName: classroomPayload.classroomName,
           shift: classroomPayload.shift,
           status: classroomPayload.status
         };
@@ -284,31 +284,14 @@ const ClassroomFormModal = ({
                 >
                   {periods.map(period => (
                     <Option key={period.id} value={period.id}>
-                      {period.name}
+                      {`${period.periodName} - ${period.level} (${period.academicYear})`}
                     </Option>
                   ))}
                 </Select>
               </Form.Item>
             </Col>
 
-            <Col xs={24} sm={8}>
-              <Form.Item
-                label="Grado"
-                name="grade"
-                rules={[
-                  { required: true, message: 'El grado es obligatorio' }
-                ]}
-              >
-                <InputNumber
-                  placeholder="1-6"
-                  min={1}
-                  max={6}
-                  className="w-100"
-                />
-              </Form.Item>
-            </Col>
-
-            <Col xs={24} sm={8}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 label="Sección"
                 name="section"
@@ -325,7 +308,22 @@ const ClassroomFormModal = ({
               </Form.Item>
             </Col>
 
-            <Col xs={24} sm={8}>
+            <Col xs={24} sm={12}>
+              <Form.Item
+                label="Nombre del Aula"
+                name="classroomName"
+                rules={[
+                  { max: 100, message: 'El nombre no puede exceder 100 caracteres' }
+                ]}
+              >
+                <Input
+                  placeholder="Ej: Aula de Matemáticas, Laboratorio..."
+                  maxLength={100}
+                />
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} sm={12}>
               <Form.Item
                 label="Turno"
                 name="shift"

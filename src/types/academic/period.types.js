@@ -3,7 +3,8 @@
  * @property {string} id - ID único del período
  * @property {string} institutionId - ID de la institución
  * @property {string} level - Nivel educativo (INICIAL, PRIMARIA, SECUNDARIA, SUPERIOR)
- * @property {string} period - Período (1-5 para primaria, 1-6 para secundaria)
+ * @property {string} periodName - Nombre del período (1ro, 2do, 3ro, etc.)
+ * @property {number} grade - Grado numérico (1-6)
  * @property {string} academicYear - Año académico
  * @property {string} periodType - Tipo de período en frontend: BIMESTRE, TRIMESTRE, SEMESTRE, ANUAL (convertido al backend)
  * @property {string} startDate - Fecha de inicio
@@ -16,7 +17,8 @@
 /**
  * @typedef {Object} PeriodRequest
  * @property {string} level - Nivel educativo
- * @property {string} period - Período
+ * @property {string} periodName - Nombre del período (1ro, 2do, 3ro, etc.)
+ * @property {number} grade - Grado numérico (1-6)
  * @property {string} academicYear - Año académico
  * @property {string} periodType - Tipo de período
  * @property {string} startDate - Fecha de inicio
@@ -35,7 +37,8 @@ export class Period {
         this.id = data.id;
         this.institutionId = data.institutionId;
         this.level = data.level;
-        this.period = data.period;
+        this.periodName = data.periodName;
+        this.grade = data.grade;
         this.academicYear = data.academicYear;
         this.periodType = data.periodType;
         this.startDate = data.startDate;
@@ -50,7 +53,7 @@ export class Period {
      * @returns {string} Formato: "Período X - Año YYYY"
      */
     get displayName() {
-        return `${this.period}° ${this.periodType} - ${this.academicYear}`;
+        return `${this.periodName} ${this.periodType} - ${this.academicYear}`;
     }
 
     /**
@@ -69,7 +72,8 @@ export class Period {
         return {
             id: this.id,
             level: this.level,
-            period: this.period,
+            periodName: this.periodName,
+            grade: this.grade,
             academicYear: this.academicYear,
             periodType: this.periodType,
             startDate: this.startDate,
@@ -103,7 +107,8 @@ export class PeriodRequest {
         // institutionId se envía en headers, NO en el body
         // Removido según PeriodRequestDto.java del backend
         this.level = data.level;
-        this.period = data.period;
+        this.periodName = data.periodName;
+        this.grade = data.grade;
         this.academicYear = data.academicYear;
         this.periodType = data.periodType;
         this.startDate = data.startDate;
@@ -122,8 +127,12 @@ export class PeriodRequest {
             errors.push('El nivel educativo es obligatorio');
         }
 
-        if (!this.period?.trim()) {
-            errors.push('El período es obligatorio');
+        if (!this.periodName?.trim()) {
+            errors.push('El nombre del período es obligatorio');
+        }
+
+        if (!this.grade || this.grade < 1 || this.grade > 6) {
+            errors.push('El grado debe estar entre 1 y 6');
         }
 
         if (!this.academicYear?.trim()) {
@@ -206,7 +215,9 @@ export const periodTypeFromBackend = {
 export const PeriodValidationMessages = {
     INSTITUTION_ID_REQUIRED: 'El ID de la institución es obligatorio',
     LEVEL_REQUIRED: 'El nivel educativo es obligatorio',
-    PERIOD_REQUIRED: 'El período es obligatorio',
+    PERIOD_NAME_REQUIRED: 'El nombre del período es obligatorio',
+    GRADE_REQUIRED: 'El grado es obligatorio',
+    GRADE_RANGE: 'El grado debe estar entre 1 y 6',
     ACADEMIC_YEAR_REQUIRED: 'El año académico es obligatorio',
     PERIOD_TYPE_REQUIRED: 'El tipo de período es obligatorio',
     START_DATE_REQUIRED: 'La fecha de inicio es obligatoria',
@@ -223,7 +234,8 @@ export const createEmptyPeriod = () => {
     const currentYear = new Date().getFullYear();
     return new PeriodRequest({
         level: '',
-        period: '',
+        periodName: '',
+        grade: 1,
         academicYear: currentYear.toString(),
         periodType: '',
         startDate: '',
@@ -283,8 +295,8 @@ export const sortPeriodsByAcademicYear = (periods) => {
         const yearCompare = b.academicYear.localeCompare(a.academicYear);
         if (yearCompare !== 0) return yearCompare;
         
-        // Luego por período ascendente
-        return a.period.localeCompare(b.period);
+        // Luego por grado ascendente
+        return a.grade - b.grade;
     });
 };
 

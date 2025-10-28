@@ -58,9 +58,12 @@ const ClassroomDetailModal = ({ visible, onCancel, classroomData }) => {
               <div>
                 <h4 className="mb-1">
                   <HomeOutlined className="me-2" />
-                  {classroomData.grade}° Grado - Sección {classroomData.section}
+                  {classroomData.classroomName ? classroomData.classroomName : `Aula - Sección ${classroomData.section}`}
                 </h4>
                 <p className="text-muted mb-0">
+                  {classroomData.classroomName && (
+                    <>Sección: <strong>{classroomData.section}</strong> • </>
+                  )}
                   Turno: <strong>{getShiftText(classroomData.shift)}</strong>
                 </p>
               </div>
@@ -75,11 +78,6 @@ const ClassroomDetailModal = ({ visible, onCancel, classroomData }) => {
         <Col span={24}>
           <Card title={<><InfoCircleOutlined className="me-2" />Información General</>} size="small">
             <Descriptions column={2} bordered size="small">
-              <Descriptions.Item label="Grado" span={1}>
-                <Tag color="blue" style={{ fontSize: '16px', padding: '6px 16px' }}>
-                  {classroomData.grade}°
-                </Tag>
-              </Descriptions.Item>
               <Descriptions.Item label="Sección" span={1}>
                 <Tag color="green" style={{ fontSize: '16px', padding: '6px 16px' }}>
                   {classroomData.section}
@@ -87,6 +85,9 @@ const ClassroomDetailModal = ({ visible, onCancel, classroomData }) => {
               </Descriptions.Item>
               <Descriptions.Item label="Turno" span={1}>
                 <Tag color="orange">{getShiftText(classroomData.shift)}</Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="Nombre del Aula" span={2}>
+                {classroomData.classroomName || <span style={{color: '#999', fontStyle: 'italic'}}>Sin nombre asignado</span>}
               </Descriptions.Item>
               <Descriptions.Item label="Estado" span={1}>
                 <Tag color={statusColor}>

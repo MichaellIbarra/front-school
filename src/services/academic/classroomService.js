@@ -256,45 +256,6 @@ class ClassroomService {
   }
 
   /**
-   * Obtener aulas por grado
-   * GET /secretary/classrooms/grade/{grade}
-   */
-  async getClassroomsByGrade(grade) {
-    try {
-      if (!grade) {
-        throw new Error('Grado requerido');
-      }
-
-      return await this.executeWithRetry(async () => {
-        console.log('📋 Obteniendo aulas por grado:', grade);
-        const fullURL = `${this.baseURL}/secretary/classrooms/grade/${grade}`;
-        
-        const response = await fetch(fullURL, {
-          method: 'GET',
-          headers: this.getAuthHeaders()
-        });
-
-        const result = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: result.data || [],
-          total: result.total || 0,
-          message: result.message || 'Aulas obtenidas exitosamente'
-        };
-      });
-    } catch (error) {
-      console.error('❌ Error al obtener aulas por grado:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener aulas por grado',
-        data: [],
-        total: 0
-      };
-    }
-  }
-
-  /**
    * Actualizar un aula
    * PUT /{id}
    */
@@ -377,14 +338,14 @@ class ClassroomService {
   /**
    * Validar disponibilidad de aula
    * GET /validate-classroom
+   * NOTA: El grado se obtiene del período, no se pasa como parámetro separado
    */
-  async validateClassroom(periodId, grade, section) {
+  async validateClassroom(periodId, section) {
     try {
       return await this.executeWithRetry(async () => {
         console.log('🔍 Validando disponibilidad de aula');
         const params = new URLSearchParams({
           periodId,
-          grade: grade.toString(),
           section
         });
         const fullURL = `${this.baseURL}/validate-classroom?${params}`;

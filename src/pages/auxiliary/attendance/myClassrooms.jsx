@@ -47,7 +47,7 @@ const MyClassrooms = () => {
    * Renderizar tarjeta de aula estilo Google Classroom
    */
   const renderClassroomCard = (classroom) => {
-    const backgroundColor = classroomService.getGradeColor(classroom.grade);
+    const backgroundColor = classroomService.getRandomClassroomColor();
     
     return (
       <Col xs={24} sm={12} md={8} lg={6} key={classroom.id}>
@@ -92,7 +92,7 @@ const MyClassrooms = () => {
               fontSize: '20px',
               fontWeight: '500'
             }}>
-              {classroom.classroomName}
+              {classroom.classroomName || `Aula ${classroom.section}`}
             </h3>
             <p style={{ 
               color: 'rgba(255, 255, 255, 0.9)', 
@@ -108,9 +108,6 @@ const MyClassrooms = () => {
             <div style={{ marginBottom: '12px' }}>
               <HomeOutlined style={{ marginRight: '8px', color: '#6b7280' }} />
               <span style={{ fontSize: '14px', color: '#374151' }}>
-                Grado: <strong>{classroom.grade}°</strong>
-              </span>
-              <span style={{ marginLeft: '8px', fontSize: '14px', color: '#374151' }}>
                 Sección: <strong>{classroom.section}</strong>
               </span>
             </div>
@@ -124,7 +121,7 @@ const MyClassrooms = () => {
 
             <div>
               <Tag color={classroom.status === 'A' ? 'green' : 'red'}>
-                {classroom.statusName}
+                {classroom.status === 'A' ? 'Activo' : 'Inactivo'}
               </Tag>
             </div>
           </div>

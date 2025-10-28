@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { Form, Select, Button, DatePicker, Modal, Row, Col } from 'antd';
+import { Form, Select, Button, DatePicker, Modal, Row, Col, InputNumber } from 'antd';
 import { SaveOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import locale from 'antd/es/date-picker/locale/es_ES';
 import periodService from '../../../services/academic/periodService';
 import AlertModal from '../../../components/AlertModal';
 import useAlert from '../../../hooks/useAlert';
-import { PeriodRequest, periodTypeToBackend, periodTypeFromBackend, getPeriodsForLevel, generateAcademicYears } from '../../../types/academic/period.types';
+import { PeriodRequest, periodTypeToBackend, periodTypeFromBackend, generateAcademicYears } from '../../../types/academic/period.types';
 
 const { Option } = Select;
 
@@ -23,8 +23,6 @@ const PeriodFormModal = ({
   
   const [loading, setLoading] = useState(false);
   const [isEdit, setIsEdit] = useState(mode === 'edit');
-  const [selectedLevel, setSelectedLevel] = useState('');
-  const [availablePeriods, setAvailablePeriods] = useState([]);
 
   useEffect(() => {
     if (visible) {
@@ -40,22 +38,21 @@ const PeriodFormModal = ({
 
   const resetForm = () => {
     form.resetFields();
-    // Establecer "ANUAL" como valor por defecto
+    // Establecer valores por defecto
     form.setFieldsValue({
-      periodType: 'ANUAL'
+      periodType: 'ANUAL',
+      grade: 1
     });
-    setSelectedLevel('');
-    setAvailablePeriods([]);
   };
 
   const populateForm = (period) => {
     const convertedPeriodType = periodTypeFromBackend[period.periodType] || period.periodType;
-    setSelectedLevel(period.level);
-    setAvailablePeriods(getPeriodsForLevel(period.level));
+
     
     form.setFieldsValue({
       level: period.level,
-      period: [period.period], // Envolver en array para el modo tags
+      periodName: period.periodName,
+      grade: period.grade,
       academicYear: period.academicYear,
       periodType: convertedPeriodType,
       startDate: period.startDate ? dayjs(period.startDate) : null,
@@ -63,10 +60,11 @@ const PeriodFormModal = ({
     });
   };
 
-  const handleLevelChange = (level) => {
-    setSelectedLevel(level);
-    setAvailablePeriods(getPeriodsForLevel(level));
-    form.setFieldsValue({ period: undefined });
+  const handleLevelChange = () => {
+    form.setFieldsValue({ 
+      periodName: undefined,
+      grade: undefined 
+    });
   };
 
   const handleSubmit = async (values) => {
@@ -78,12 +76,10 @@ const PeriodFormModal = ({
       // Convertir el tipo de período al formato del backend
       const backendPeriodType = periodTypeToBackend[values.periodType] || values.periodType;
       
-      // Si el período viene como array (modo tags), tomar el primer elemento
-      const periodValue = Array.isArray(values.period) ? values.period[0] : values.period;
-      
       const periodPayload = new PeriodRequest({
         level: values.level,
-        period: periodValue,
+        periodName: values.periodName,
+        grade: values.grade,
         academicYear: values.academicYear,
         periodType: backendPeriodType,
         startDate: values.startDate ? values.startDate.format('YYYY-MM-DD') : '',
@@ -121,8 +117,6 @@ const PeriodFormModal = ({
 
   const handleModalCancel = () => {
     form.resetFields();
-    setSelectedLevel('');
-    setAvailablePeriods([]);
     onCancel();
   };
 
@@ -160,25 +154,35 @@ const PeriodFormModal = ({
               </Form.Item>
             </Col>
 
-            <Col xs={24} sm={12}>
+            <Col xs={24} sm={8}>
               <Form.Item
-                label="Período"
-                name="period"
-                rules={[{ required: true, message: 'El período es obligatorio' }]}
+                label="Nombre del Período"
+                name="periodName"
+                rules={[{ required: true, message: 'El nombre del período es obligatorio' }]}
               >
-                <Select 
-                  placeholder="Seleccione un período" 
-                  disabled={!selectedLevel}
-                  showSearch
-                  mode="tags"
-                  maxCount={1}
-                  tokenSeparators={[]}
-                  dropdownStyle={{ display: selectedLevel ? 'block' : 'none' }}
-                >
-                  {availablePeriods.map(p => (
-                    <Option key={p} value={p}>{p}</Option>
-                  ))}
+                <Select placeholder="Seleccione un período">
+                  <Option value="1ro">1ro</Option>
+                  <Option value="2do">2do</Option>
+                  <Option value="3ro">3ro</Option>
+                  <Option value="4to">4to</Option>
+                  <Option value="5to">5to</Option>
+                  <Option value="6to">6to</Option>
                 </Select>
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} sm={4}>
+              <Form.Item
+                label="Grado"
+                name="grade"
+                rules={[{ required: true, message: 'El grado es obligatorio' }]}
+              >
+                <InputNumber
+                  placeholder="1-6"
+                  min={1}
+                  max={6}
+                  className="w-100"
+                />
               </Form.Item>
             </Col>
 

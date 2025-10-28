@@ -84,11 +84,17 @@ import DirectorHeadquarterAdd from "./pages/director/institutions/directorHeadqu
 import AcademicDashboard from "./pages/secretary/academic/AcademicDashboard";
 import ClassroomList from "./pages/secretary/academic/ClassroomList";
 import TeacherAssignmentList from "./pages/secretary/academic/TeacherAssignmentList";
+
+// Secretary Notifications WhatsApp
+import AssignmentList from "./pages/secretary/notifications/AssignmentList";
 import MyClassrooms from "./pages/auxiliary/attendance/myClassrooms";
 import AttendanceRegister from "./pages/auxiliary/attendance/AttendanceRegister";
 
 import DirectorAssignmentList from "./pages/director/institutions/directorAssignments";
 import DirectorAssignmentAdd from "./pages/director/institutions/directorAssignmentAdd";
+
+// Director Notifications WhatsApp
+import WhatsAppInstances from "./pages/director/notifications/WhatsAppInstances";
 
 //Accounts
 const Approuter = () => {
@@ -270,6 +276,17 @@ const Approuter = () => {
             element={
               <DirectorRoute>
                 <DirectorAssignmentAdd />
+              </DirectorRoute>
+            }
+          />
+
+          {/* Rutas de Notificaciones WhatsApp */}
+
+          <Route
+            path="/director/notifications/whatsapp"
+            element={
+              <DirectorRoute>
+                <WhatsAppInstances />
               </DirectorRoute>
             }
           />
@@ -610,6 +627,16 @@ const Approuter = () => {
             element={
               <SecretaryRoute>
                 <TeacherAssignmentList />
+              </SecretaryRoute>
+            }
+          />
+
+          {/* Rutas de Notificaciones WhatsApp */}
+          <Route
+            path="/secretary/notifications/assignments"
+            element={
+              <SecretaryRoute>
+                <AssignmentList />
               </SecretaryRoute>
             }
           />

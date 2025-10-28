@@ -152,6 +152,17 @@ const Sidebar = (props) => {
                     <span>Dashboard</span>
                   </Link>
                 </li>
+   
+                {isSecretary() && (
+                <li>
+                  <Link className={props?.activeClassName === 'activity' ? 'active' : ''} to="/secretary/notifications/assignments">
+                    <span className="menu-side">
+                      <img src={dashboard} alt="" />
+                    </span>{" "}
+                    <span>Asignaciones WhatsApp</span>
+                  </Link>
+                </li>
+                )}
 
                 {/* Gestión de FUTS - Solo Secretary */}
                 {isSecretary() && (
@@ -212,26 +223,6 @@ const Sidebar = (props) => {
                         <span>Mis Aulas</span>
                       </Link>
                     </li>
-                    <li className="submenu">
-                      <Link to="#" id="menu-item-attendance" onClick={(e) => handleClick(e, "menu-item-attendance", "menu-items-attendance")}>
-                        <span className="menu-side">
-                          <img src={menuicon09} alt="" />
-                        </span>{" "}
-                        <span> Asistencias </span> <span className="menu-arrow" />
-                      </Link>
-                      <ul style={{ display: "none" }} className="menu-items-attendance">
-                        <li>
-                          <Link className={props?.activeClassName === 'attendance-list' ? 'active' : ''} to="/auxiliary/attendance">
-                            🔍 Buscar Estudiantes
-                          </Link>
-                        </li>
-                        <li>
-                          <Link className={props?.activeClassName === 'justification-management' ? 'active' : ''} to="/auxiliary/justifications">
-                            📋 Justificaciones
-                          </Link>
-                        </li>
-                      </ul>
-                    </li>
                   </>
                 )}
 
@@ -277,6 +268,16 @@ const Sidebar = (props) => {
                         <img src={blog} alt="" />
                       </span>{" "}
                       <span>Asignación del Personal</span>
+                    </Link>
+                  </li>
+                )}
+                {isDirector() && (
+                  <li>
+                    <Link to="/director/notifications/whatsapp">
+                      <span className="menu-side">
+                        <img src={blog} alt="" />
+                      </span>{" "}
+                      <span>Notificaciones WhatsApp</span>
                     </Link>
                   </li>
                 )}

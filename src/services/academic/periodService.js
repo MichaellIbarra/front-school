@@ -331,14 +331,16 @@ class PeriodService {
   /**
    * Validar disponibilidad de período
    * GET /validate-period
+   * Actualizado para usar los nuevos campos: periodName y grade
    */
-  async validatePeriod(level, period, academicYear) {
+  async validatePeriod(level, periodName, grade, academicYear) {
     try {
       return await this.executeWithRetry(async () => {
         console.log('🔍 Validando disponibilidad de período');
         const params = new URLSearchParams({
           level,
-          period,
+          periodName,
+          grade: grade.toString(),
           academicYear
         });
         const fullURL = `${this.baseURL}/validate-period?${params}`;
