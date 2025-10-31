@@ -14,7 +14,8 @@ import {
   Col,
   Typography,
   Dropdown,
-  Menu
+  Menu,
+  Form
 } from 'antd';
 import { 
   PlusOutlined, 
@@ -42,6 +43,7 @@ import AlertModal from '../../../components/AlertModal';
 // Servicios
 import assignmentsService from '../../../services/institutions/assignmentsService';
 import headquarterDirectorService from '../../../services/institutions/headquarterDirectorService';
+import institutionDirectorService from '../../../services/institutions/institutionDirectorService';
 
 // Hooks y helpers
 import useAlert from "../../../hooks/useAlert";
@@ -54,6 +56,7 @@ import {
 import { 
   formatModularCodesDisplay 
 } from '../../../types/institutions/headquarter';
+import AssignmentsReportExporter from '../../../utils/institutions/assignmentsReportExporter';
 
 const { Option } = Select;
 
@@ -65,6 +68,7 @@ const DirectorAssignmentList = () => {
   const [assignments, setAssignments] = useState([]);
   const [users, setUsers] = useState([]);
   const [headquarters, setHeadquarters] = useState([]);
+  const [institution, setInstitution] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   
@@ -73,6 +77,11 @@ const DirectorAssignmentList = () => {
   const [headquarterFilter, setHeadquarterFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
   const [filteredAssignments, setFilteredAssignments] = useState([]);
+
+  // Estados para el modal de edición
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState(null);
+  const [editForm] = Form.useForm();
 
   // Cargar datos al montar el componente
   useEffect(() => {
@@ -91,6 +100,7 @@ const DirectorAssignmentList = () => {
     setLoading(true);
     try {
       await Promise.all([
+        loadInstitution(),
         loadAssignments(),
         loadUsers(),
         loadHeadquarters()
@@ -154,6 +164,24 @@ const DirectorAssignmentList = () => {
     } catch (error) {
       console.error('Error al cargar sedes:', error);
       showError('Error al cargar las sedes');
+    }
+  };
+
+  /**
+   * Carga la información de la institución del director
+   */
+  const loadInstitution = async () => {
+    try {
+      const result = await institutionDirectorService.getDirectorInstitution();
+      if (result.success) {
+        setInstitution(result.data);
+        console.log('🏫 Institución cargada:', result.data?.name || 'Sin nombre');
+      } else {
+        showError(result.error || 'Error al cargar la institución');
+      }
+    } catch (error) {
+      console.error('Error al cargar institución:', error);
+      showError('Error al cargar la institución');
     }
   };
 
@@ -250,6 +278,55 @@ const DirectorAssignmentList = () => {
   };
 
   /**
+   * Abre el modal de edición para cambiar la sede asignada
+   */
+  const handleEdit = (assignment) => {
+    setEditingAssignment(assignment);
+    editForm.setFieldsValue({
+      headquarterId: assignment.headquarterId
+    });
+    setEditModalVisible(true);
+  };
+
+  /**
+   * Maneja el envío del formulario de edición
+   */
+  const handleUpdateSubmit = async () => {
+    try {
+      const values = await editForm.validateFields();
+      
+      if (!editingAssignment) {
+        showError('No hay asignación seleccionada para editar');
+        return;
+      }
+
+      setLoading(true);
+      
+      const result = await assignmentsService.updateAssignment(
+        editingAssignment.id, 
+        values.headquarterId
+      );
+      
+      if (result.success) {
+        showSuccess(result.message || 'Asignación actualizada exitosamente');
+        setEditModalVisible(false);
+        setEditingAssignment(null);
+        editForm.resetFields();
+        
+        // Recargar las asignaciones para reflejar los cambios
+        await loadAssignments();
+      } else {
+        showError('Ya se encuentra registrado, verifique');
+      }
+    } catch (error) {
+      console.error('Error en handleUpdateSubmit:', error);
+      showError('Error al procesar la actualización');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
    * Elimina una asignación
    */
   const handleDelete = async (assignment) => {
@@ -336,24 +413,48 @@ const DirectorAssignmentList = () => {
    * Exportar reporte completo de asignaciones a PDF
    */
   const handleExportPDF = () => {
-    showSuccess('Exportando asignaciones a PDF...');
-    // TODO: Implementar exportación PDF
+    try {
+      const result = AssignmentsReportExporter.exportAssignmentsToPDF(filteredAssignments, users, institution?.name);
+      if (result.success) {
+        showSuccess('Exportación exitosa', result.message);
+      } else {
+        showError('Error al exportar', result.error);
+      }
+    } catch (error) {
+      showError('Error al exportar', 'No se pudo generar el reporte PDF');
+    }
   };
 
   /**
    * Exportar reporte completo de asignaciones a CSV
    */
   const handleExportCSV = () => {
-    showSuccess('Exportando asignaciones a CSV...');
-    // TODO: Implementar exportación CSV
+    try {
+      const result = AssignmentsReportExporter.exportAssignmentsToCSV(filteredAssignments, users, institution?.name);
+      if (result.success) {
+        showSuccess('Exportación exitosa', result.message);
+      } else {
+        showError('Error al exportar', result.error);
+      }
+    } catch (error) {
+      showError('Error al exportar', 'No se pudo generar el archivo CSV');
+    }
   };
 
   /**
    * Exportar solo asignaciones activas
    */
   const handleExportActiveAssignments = () => {
-    showSuccess('Exportando asignaciones activas...');
-    // TODO: Implementar exportación de asignaciones activas
+    try {
+      const result = AssignmentsReportExporter.exportActiveAssignments(filteredAssignments, users, institution?.name);
+      if (result.success) {
+        showSuccess('Exportación exitosa', result.message);
+      } else {
+        showError('Error al exportar', result.error);
+      }
+    } catch (error) {
+      showError('Error al exportar', 'No se pudo generar el reporte de asignaciones activas');
+    }
   };
 
   // Configuración de selección de filas
@@ -439,14 +540,21 @@ const DirectorAssignmentList = () => {
               onClick={() => handleView(record)}
             />
           </Tooltip>
-          <Tooltip title="Eliminar asignación">
+          <Tooltip title="Editar sede asignada">
+            <Button 
+              type="text" 
+              icon={<EditOutlined />} 
+              onClick={() => handleEdit(record)}
+            />
+          </Tooltip>
+          {/* <Tooltip title="Eliminar asignación">
             <Button 
               type="text" 
               danger 
               icon={<DeleteOutlined />} 
               onClick={() => handleDelete(record)}
             />
-          </Tooltip>
+          </Tooltip> */}
         </Space>
       ),
     },
@@ -642,6 +750,60 @@ const DirectorAssignmentList = () => {
       {/* Sidebar y Header */}
       <Sidebar />
       <Header />
+      
+      {/* Modal de edición de asignación */}
+      <Modal
+        title="Editar Asignación de Sede"
+        open={editModalVisible}
+        onCancel={() => setEditModalVisible(false)}
+        footer={[
+          <Button key="cancel" onClick={() => setEditModalVisible(false)}>
+            Cancelar
+          </Button>,
+          <Button 
+            key="submit" 
+            type="primary" 
+            loading={loading}
+            onClick={handleUpdateSubmit}
+          >
+            Actualizar Asignación
+          </Button>,
+        ]}
+      >
+        <Form
+          form={editForm}
+          layout="vertical"
+        >
+          {editingAssignment && (
+            <div style={{ marginBottom: 16 }}>
+              <strong>Usuario:</strong> {(() => {
+                const user = users.find(u => u.keycloakId === editingAssignment.userId);
+                return user ? getUserFullName(user) : 'Usuario no encontrado';
+              })()}
+            </div>
+          )}
+          
+          <Form.Item
+            label="Seleccionar Nueva Sede"
+            name="headquarterId"
+            rules={[{ required: true, message: 'Debe seleccionar una sede' }]}
+          >
+            <Select
+              placeholder="Seleccione una sede"
+              showSearch
+              filterOption={(input, option) => 
+                option.children.toLowerCase().includes(input.toLowerCase())
+              }
+            >
+              {headquarters.map(hq => (
+                <Select.Option key={hq.id} value={hq.id}>
+                  {hq.name} - {hq.address}
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+        </Form>
+      </Modal>
       
       {/* AlertModal para notificaciones */}
       <AlertModal 

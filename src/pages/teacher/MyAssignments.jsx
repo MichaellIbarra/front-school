@@ -26,6 +26,8 @@ import AlertModal from '../../components/AlertModal';
 import useAlert from '../../hooks/useAlert';
 import useTitle from '../../hooks/useTitle';
 import GradeFormModal from './grades/GradeFormModal';
+// eslint-disable-next-line
+import GradeReportExporter from '../../utils/grades/gradeReportExporter';
 
 const { TabPane } = Tabs;
 
@@ -107,7 +109,7 @@ const MyAssignments = () => {
   /**
    * Cargar estudiantes de un aula específica
    */
-  const loadStudentsByClassroom = async (classroomId) => {
+  const loadStudentsByClassroom = async (classroomId, assignment) => {
     if (!classroomId) {
       console.warn('⚠️ No se proporcionó classroomId');
       return;
@@ -165,8 +167,8 @@ const MyAssignments = () => {
         setStudents(activeStudents);
         
         // Cargar calificaciones de todos los estudiantes
-        if (activeStudents.length > 0) {
-          await loadAllStudentsGrades(activeStudents);
+        if (activeStudents.length > 0 && assignment) {
+          await loadAllStudentsGrades(activeStudents, assignment);
         }
       } else {
         console.error('❌ Error al cargar estudiantes:', response.status);
@@ -194,16 +196,17 @@ const MyAssignments = () => {
     console.log('   📅 Period ID:', assignment.periodId);
     
     setSelectedAssignment(assignment);
-    loadStudentsByClassroom(assignment.classroomId);
+    loadStudentsByClassroom(assignment.classroomId, assignment);
   };
 
   /**
    * Cargar calificaciones de todos los estudiantes del aula
    */
-  const loadAllStudentsGrades = async (studentsList) => {
+  const loadAllStudentsGrades = async (studentsList, assignment) => {
     setLoadingGrades(true);
     try {
       console.log('📊 Cargando calificaciones del teacher...');
+      console.log('📋 Assignment recibido:', assignment);
       
       // Obtener TODAS las calificaciones del teacher
       const response = await gradeService.getMyGrades();
@@ -211,13 +214,27 @@ const MyAssignments = () => {
       if (response.success) {
         const allGrades = response.data || [];
         console.log('✅ Total de calificaciones del teacher:', allGrades.length);
+        console.log('🔍 Filtrando por classroomId:', assignment?.classroomId);
+        console.log('🔍 Filtrando por courseId:', assignment?.courseId);
         
         // Filtrar calificaciones por aula, curso y solo activas
-        const filteredGrades = allGrades.filter(grade => 
-          grade.classroomId === selectedAssignment?.classroomId &&
-          grade.courseId === selectedAssignment?.courseId &&
-          grade.status === 'A' // Solo calificaciones activas
-        );
+        const filteredGrades = allGrades.filter(grade => {
+          const matchClassroom = grade.classroomId === assignment?.classroomId;
+          const matchCourse = grade.courseId === assignment?.courseId;
+          const isActive = grade.status === 'A';
+          
+          if (matchClassroom && matchCourse && isActive) {
+            console.log(`✅ Calificación válida:`, {
+              gradeId: grade.id,
+              studentId: grade.studentId,
+              competence: grade.competenceName,
+              classroomId: grade.classroomId,
+              courseId: grade.courseId
+            });
+          }
+          
+          return matchClassroom && matchCourse && isActive;
+        });
         
         console.log('📋 Calificaciones filtradas para esta aula/curso:', filteredGrades.length);
         
@@ -396,35 +413,17 @@ const MyAssignments = () => {
       return;
     }
 
-    const headers = ['#', 'Estudiante', 'DNI', 'Competencia', 'Capacidad', 'Tipo', 'Calificación', 'Nota Numérica', 'Fecha', 'Observaciones'];
-    const rows = filteredGrades.map((grade, index) => {
-      const student = students.find(s => s.id === grade.studentId);
-      return [
-        index + 1,
-        student ? student.fullName : 'N/A',
-        student ? student.documentNumber : 'N/A',
-        grade.competenceName,
-        grade.capacityEvaluated || 'N/A',
-        grade.evaluationType,
-        grade.gradeScale,
-        grade.numericGrade || 'N/A',
-        new Date(grade.evaluationDate).toLocaleDateString('es-PE'),
-        grade.observations || 'N/A'
-      ];
-    });
+    const result = GradeReportExporter.exportGradesToCSV(
+      filteredGrades,
+      students,
+      selectedAssignment
+    );
 
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n');
-
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `calificaciones_${selectedAssignment.courseName}_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-    
-    showSuccess('Archivo CSV descargado exitosamente');
+    if (result.success) {
+      showSuccess(result.message);
+    } else {
+      showError(result.error);
+    }
   };
 
   /**
@@ -437,72 +436,21 @@ const MyAssignments = () => {
       return;
     }
 
-    const htmlContent = `
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <style>
-            table { border-collapse: collapse; width: 100%; }
-            th, td { border: 1px solid black; padding: 8px; text-align: left; }
-            th { background-color: #4CAF50; color: white; }
-          </style>
-        </head>
-        <body>
-          <h2>Reporte de Calificaciones</h2>
-          <p><strong>Curso:</strong> ${selectedAssignment.courseName}</p>
-          <p><strong>Aula:</strong> ${selectedAssignment.classroomName}</p>
-          <p><strong>Período:</strong> ${selectedAssignment.periodName}</p>
-          <p><strong>Fecha de generación:</strong> ${new Date().toLocaleDateString('es-PE')}</p>
-          <table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Estudiante</th>
-                <th>DNI</th>
-                <th>Competencia</th>
-                <th>Capacidad</th>
-                <th>Tipo</th>
-                <th>Calificación</th>
-                <th>Nota Numérica</th>
-                <th>Fecha</th>
-                <th>Observaciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${filteredGrades.map((grade, index) => {
-                const student = students.find(s => s.id === grade.studentId);
-                return `
-                  <tr>
-                    <td>${index + 1}</td>
-                    <td>${student ? student.fullName : 'N/A'}</td>
-                    <td>${student ? student.documentNumber : 'N/A'}</td>
-                    <td>${grade.competenceName}</td>
-                    <td>${grade.capacityEvaluated || 'N/A'}</td>
-                    <td>${grade.evaluationType}</td>
-                    <td>${grade.gradeScale}</td>
-                    <td>${grade.numericGrade || 'N/A'}</td>
-                    <td>${new Date(grade.evaluationDate).toLocaleDateString('es-PE')}</td>
-                    <td>${grade.observations || 'N/A'}</td>
-                  </tr>
-                `;
-              }).join('')}
-            </tbody>
-          </table>
-        </body>
-      </html>
-    `;
+    const result = GradeReportExporter.exportGradesToExcel(
+      filteredGrades,
+      students,
+      selectedAssignment
+    );
 
-    const blob = new Blob([htmlContent], { type: 'application/vnd.ms-excel' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `calificaciones_${selectedAssignment.courseName}_${new Date().toISOString().split('T')[0]}.xls`;
-    link.click();
-    
-    showSuccess('Archivo Excel descargado exitosamente');
+    if (result.success) {
+      showSuccess(result.message);
+    } else {
+      showError(result.error);
+    }
   };
 
   /**
-   * Exportar a PDF (usando window.print con estilos)
+   * Exportar a PDF (usando window.print con estilos estandarizados)
    */
   const exportToPDF = () => {
     const filteredGrades = getFilteredGrades();
@@ -511,81 +459,17 @@ const MyAssignments = () => {
       return;
     }
 
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(`
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Reporte de Calificaciones</title>
-          <style>
-            @media print {
-              body { margin: 0; }
-              @page { size: A4 landscape; margin: 1cm; }
-            }
-            body { font-family: Arial, sans-serif; padding: 20px; }
-            h2 { color: #333; text-align: center; }
-            .info { margin-bottom: 20px; }
-            .info p { margin: 5px 0; }
-            table { border-collapse: collapse; width: 100%; font-size: 12px; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #4CAF50; color: white; }
-            tr:nth-child(even) { background-color: #f2f2f2; }
-          </style>
-        </head>
-        <body>
-          <h2>Reporte de Calificaciones</h2>
-          <div class="info">
-            <p><strong>Institución:</strong> Institución Educativa 20188 - Centro de Mujeres</p>
-            <p><strong>Curso:</strong> ${selectedAssignment.courseName}</p>
-            <p><strong>Aula:</strong> ${selectedAssignment.classroomName}</p>
-            <p><strong>Período:</strong> ${selectedAssignment.periodName}</p>
-            <p><strong>Fecha de generación:</strong> ${new Date().toLocaleDateString('es-PE', { 
-              year: 'numeric', month: 'long', day: 'numeric' 
-            })}</p>
-            <p><strong>Total de calificaciones:</strong> ${filteredGrades.length}</p>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th style="width: 30px;">#</th>
-                <th>Estudiante</th>
-                <th style="width: 80px;">DNI</th>
-                <th>Competencia</th>
-                <th>Tipo</th>
-                <th style="width: 60px;">Calif.</th>
-                <th style="width: 60px;">Nota</th>
-                <th style="width: 80px;">Fecha</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${filteredGrades.map((grade, index) => {
-                const student = students.find(s => s.id === grade.studentId);
-                return `
-                  <tr>
-                    <td>${index + 1}</td>
-                    <td>${student ? student.fullName : 'N/A'}</td>
-                    <td>${student ? student.documentNumber : 'N/A'}</td>
-                    <td>${grade.competenceName}</td>
-                    <td>${grade.evaluationType}</td>
-                    <td style="text-align: center; font-weight: bold;">${grade.gradeScale}</td>
-                    <td style="text-align: center;">${grade.numericGrade || '-'}</td>
-                    <td>${new Date(grade.evaluationDate).toLocaleDateString('es-PE')}</td>
-                  </tr>
-                `;
-              }).join('')}
-            </tbody>
-          </table>
-        </body>
-      </html>
-    `);
-    
-    printWindow.document.close();
-    printWindow.focus();
-    
-    setTimeout(() => {
-      printWindow.print();
-      showSuccess('Generando PDF... Use "Guardar como PDF" en la ventana de impresión');
-    }, 250);
+    const result = GradeReportExporter.exportGradesToPDF(
+      filteredGrades,
+      students,
+      selectedAssignment
+    );
+
+    if (result.success) {
+      showSuccess(result.message);
+    } else {
+      showError(result.error);
+    }
   };
 
   /**

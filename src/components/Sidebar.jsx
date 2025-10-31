@@ -243,7 +243,8 @@ const Sidebar = (props) => {
                 )}
 
                 {/* Sección para Teachers - Calificaciones y Notificaciones */}
-                {isTeacher() && (
+                {/* TEMPORALMENTE OCULTO - Solo se usa Mis Asignaciones */}
+                {/* {isTeacher() && (
                   <li className="submenu">
                     <Link to="#" id="menu-item-grades" onClick={(e) => handleClick(e, "menu-item-grades", "menu-items-grades")}>
                       <span className="menu-side">
@@ -264,7 +265,7 @@ const Sidebar = (props) => {
                       </li>
                     </ul>
                   </li>
-                )}
+                )} */}
 
                {/* Settings - Solo Admin */}
                 {isDirector() && (

@@ -354,13 +354,7 @@ Creado: ${new Date(institution.createdAt).toLocaleDateString()}${scheduleInfo}
                             Exportar
                           </Button>
                         </Dropdown>
-                        <Button
-                          icon={<FileTextOutlined />}
-                          onClick={() => navigate('/admin/institution/reports')}
-                          className="btn-sm"
-                        >
-                          Reportes
-                        </Button>
+                       
                         <Button
                           type="primary"
                           icon={<PlusOutlined />}

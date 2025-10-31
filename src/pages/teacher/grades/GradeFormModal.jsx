@@ -1,8 +1,8 @@
 /* eslint-disable no-unused-vars */
 import React, { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import { Form, Input, Button, Select, DatePicker, Card, Row, Col, Modal } from "antd";
-import { SaveOutlined } from "@ant-design/icons";
+import { Form, Input, Button, Select, DatePicker, Card, Row, Col, Modal, Tooltip, Tag, Divider } from "antd";
+import { SaveOutlined, QuestionCircleOutlined, BulbOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import locale from 'antd/es/date-picker/locale/es_ES';
 import useAlert from "../../../hooks/useAlert";
@@ -51,6 +51,7 @@ const GradeFormModal = ({
   const [students, setStudents] = useState([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [selectedClassroomId, setSelectedClassroomId] = useState(null);
+  const [suggestionsModalVisible, setSuggestionsModalVisible] = useState(false);
 
   // Efectos
   useEffect(() => {
@@ -312,9 +313,167 @@ const GradeFormModal = ({
     }
   };
 
+  /**
+   * Renderiza el modal de sugerencias
+   */
+  const renderSuggestionsModal = () => (
+    <Modal
+      title={
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <BulbOutlined style={{ fontSize: '20px', color: '#faad14' }} />
+          <span>Guía para Calificar Correctamente</span>
+        </div>
+      }
+      open={suggestionsModalVisible}
+      onCancel={() => setSuggestionsModalVisible(false)}
+      width={800}
+      footer={[
+        <Button key="close" type="primary" onClick={() => setSuggestionsModalVisible(false)}>
+          Entendido
+        </Button>
+      ]}
+    >
+      <div style={{ maxHeight: '70vh', overflowY: 'auto', padding: '10px' }}>
+        {/* Sección 1: Escalas de Calificación */}
+        <Card size="small" className="mb-3" style={{ border: '1px solid #e8e8e8' }}>
+          <h4 style={{ color: '#1890ff', marginBottom: '12px' }}>
+            <InfoCircleOutlined /> Escalas de Calificación (CNEB)
+          </h4>
+          <div style={{ lineHeight: '1.8' }}>
+            {Object.values(GradeScale).map((scale) => (
+              <div key={scale.code} style={{ marginBottom: '12px', paddingLeft: '10px', borderLeft: `3px solid ${scale.color}` }}>
+                <div>
+                  <Tag color={scale.color} style={{ fontWeight: 'bold', fontSize: '12px' }}>
+                    {scale.code}
+                  </Tag>
+                  <strong>{scale.name}</strong>
+                </div>
+                <div style={{ fontSize: '13px', color: '#666', marginTop: '4px' }}>
+                  {scale.description}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* Sección 2: Campos Obligatorios */}
+        <Card size="small" className="mb-3" style={{ border: '1px solid #e8e8e8' }}>
+          <h4 style={{ color: '#52c41a', marginBottom: '12px' }}>
+            <InfoCircleOutlined /> Campos Obligatorios
+          </h4>
+          <ul style={{ marginBottom: 0, paddingLeft: '20px', lineHeight: '1.8' }}>
+            <li><strong>Tipo de Período:</strong> Seleccione el bimestre o trimestre correspondiente (I, II, III, IV)</li>
+            <li><strong>Tipo de Evaluación:</strong> Indique si es Formativa, Sumativa o Diagnóstica</li>
+            <li><strong>Competencia:</strong> Mínimo 5 caracteres. Ejemplo: &quot;Resuelve problemas de cantidad&quot;</li>
+            <li><strong>Capacidad Evaluada:</strong> Mínimo 3 caracteres. Ejemplo: &quot;Traduce cantidades a expresiones numéricas&quot;</li>
+            <li><strong>Escala de Calificación:</strong> Seleccione AD, A, B o C según el desempeño del estudiante</li>
+            <li><strong>Fecha de Evaluación:</strong> Debe ser una fecha válida dentro del período académico</li>
+          </ul>
+        </Card>
+
+        {/* Sección 3: Ejemplos de Competencias por Área */}
+        <Card size="small" className="mb-3" style={{ border: '1px solid #e8e8e8' }}>
+          <h4 style={{ color: '#722ed1', marginBottom: '12px' }}>
+            <InfoCircleOutlined /> Ejemplos de Competencias por Área
+          </h4>
+          
+          <Divider orientation="left" style={{ fontSize: '13px', margin: '8px 0' }}>Matemática</Divider>
+          <ul style={{ marginBottom: '8px', paddingLeft: '20px', fontSize: '13px' }}>
+            <li>Resuelve problemas de cantidad</li>
+            <li>Resuelve problemas de regularidad, equivalencia y cambio</li>
+            <li>Resuelve problemas de forma, movimiento y localización</li>
+            <li>Resuelve problemas de gestión de datos e incertidumbre</li>
+          </ul>
+
+          <Divider orientation="left" style={{ fontSize: '13px', margin: '8px 0' }}>Comunicación</Divider>
+          <ul style={{ marginBottom: '8px', paddingLeft: '20px', fontSize: '13px' }}>
+            <li>Se comunica oralmente en su lengua materna</li>
+            <li>Lee diversos tipos de textos escritos en su lengua materna</li>
+            <li>Escribe diversos tipos de textos en su lengua materna</li>
+          </ul>
+
+          <Divider orientation="left" style={{ fontSize: '13px', margin: '8px 0' }}>Ciencia y Tecnología</Divider>
+          <ul style={{ marginBottom: '8px', paddingLeft: '20px', fontSize: '13px' }}>
+            <li>Indaga mediante métodos científicos para construir conocimientos</li>
+            <li>Explica el mundo físico basándose en conocimientos sobre seres vivos</li>
+            <li>Diseña y construye soluciones tecnológicas para resolver problemas</li>
+          </ul>
+
+          <Divider orientation="left" style={{ fontSize: '13px', margin: '8px 0' }}>Personal Social</Divider>
+          <ul style={{ marginBottom: 0, paddingLeft: '20px', fontSize: '13px' }}>
+            <li>Construye su identidad</li>
+            <li>Convive y participa democráticamente</li>
+            <li>Construye interpretaciones históricas</li>
+            <li>Gestiona responsablemente el espacio y el ambiente</li>
+          </ul>
+        </Card>
+
+        {/* Sección 4: Ejemplos de Capacidades */}
+        <Card size="small" className="mb-3" style={{ border: '1px solid #e8e8e8' }}>
+          <h4 style={{ color: '#fa541c', marginBottom: '12px' }}>
+            <InfoCircleOutlined /> Ejemplos de Capacidades Evaluadas
+          </h4>
+          <ul style={{ marginBottom: 0, paddingLeft: '20px', fontSize: '13px', lineHeight: '1.8' }}>
+            <li>Traduce cantidades a expresiones numéricas</li>
+            <li>Comunica su comprensión sobre los números y las operaciones</li>
+            <li>Usa estrategias y procedimientos de estimación y cálculo</li>
+            <li>Argumenta afirmaciones sobre las relaciones numéricas</li>
+            <li>Obtiene información del texto escrito</li>
+            <li>Infiere e interpreta información del texto</li>
+            <li>Reflexiona y evalúa la forma, el contenido y contexto del texto</li>
+            <li>Problematiza situaciones para hacer indagación</li>
+            <li>Diseña estrategias para hacer indagación</li>
+            <li>Genera y registra datos o información</li>
+          </ul>
+        </Card>
+
+        {/* Sección 5: Buenas Prácticas */}
+        <Card size="small" style={{ border: '1px solid #e8e8e8', backgroundColor: '#f6ffed' }}>
+          <h4 style={{ color: '#52c41a', marginBottom: '12px' }}>
+            <BulbOutlined /> Buenas Prácticas al Calificar
+          </h4>
+          <ol style={{ marginBottom: 0, paddingLeft: '20px', lineHeight: '1.8', fontSize: '13px' }}>
+            <li>
+              <strong>Sea específico:</strong> Indique claramente qué competencia y capacidad está evaluando
+            </li>
+            <li>
+              <strong>Use evidencias:</strong> Base su calificación en evidencias concretas del desempeño del estudiante
+            </li>
+            <li>
+              <strong>Sea coherente:</strong> La calificación debe reflejar el nivel de logro descrito en la escala
+            </li>
+            <li>
+              <strong>Retroalimente:</strong> Use las observaciones para brindar retroalimentación constructiva
+            </li>
+            <li>
+              <strong>Registre oportunamente:</strong> Califique dentro del período correspondiente
+            </li>
+            <li>
+              <strong>Revise antes de guardar:</strong> Verifique que todos los datos sean correctos
+            </li>
+          </ol>
+        </Card>
+      </div>
+    </Modal>
+  );
+
   return (
     <Modal
-      title={isEdit ? 'Editar Calificación' : 'Nueva Calificación'}
+      title={
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>{isEdit ? 'Editar Calificación' : 'Nueva Calificación'}</span>
+          <Tooltip title="Ver guía de calificación">
+            <Button
+              type="dashed"
+              icon={<BulbOutlined />}
+              onClick={() => setSuggestionsModalVisible(true)}
+              style={{ marginLeft: 'auto' }}
+            >
+              Sugerencias
+            </Button>
+          </Tooltip>
+        </div>
+      }
       open={visible}
       onCancel={handleCancel}
       width={1000}
@@ -470,12 +629,33 @@ const GradeFormModal = ({
             <Col xs={24} sm={12}>
               <Form.Item
                 name="typePeriod"
-                label="Tipo de Período"
-                rules={[{ required: true, message: 'El tipo de período es obligatorio' }]}
+                label={
+                  <span>
+                    Tipo de Período <span style={{ color: 'red' }}>*</span>
+                    <Tooltip title="Seleccione el bimestre o trimestre en el que se realizó la evaluación">
+                      <QuestionCircleOutlined style={{ marginLeft: '4px', color: '#1890ff' }} />
+                    </Tooltip>
+                  </span>
+                }
+                rules={[
+                  { required: true, message: 'El tipo de período es obligatorio' },
+                  { 
+                    validator: (_, value) => {
+                      if (!value) return Promise.reject();
+                      const validPeriods = Object.keys(TypePeriod);
+                      if (!validPeriods.includes(value)) {
+                        return Promise.reject('Seleccione un tipo de período válido');
+                      }
+                      return Promise.resolve();
+                    }
+                  }
+                ]}
               >
                 <Select 
                   placeholder="Seleccione el tipo de período"
                   disabled={isEdit}
+                  showSearch
+                  optionFilterProp="children"
                 >
                   {Object.values(TypePeriod).map(period => (
                     <Option key={period.code} value={period.code}>{period.name}</Option>
@@ -487,10 +667,33 @@ const GradeFormModal = ({
             <Col xs={24} sm={12}>
               <Form.Item
                 name="evaluationType"
-                label="Tipo de Evaluación"
-                rules={[{ required: true, message: 'El tipo de evaluación es obligatorio' }]}
+                label={
+                  <span>
+                    Tipo de Evaluación <span style={{ color: 'red' }}>*</span>
+                    <Tooltip title="Formativa: Durante el proceso de aprendizaje. Sumativa: Al final. Diagnóstica: Al inicio">
+                      <QuestionCircleOutlined style={{ marginLeft: '4px', color: '#1890ff' }} />
+                    </Tooltip>
+                  </span>
+                }
+                rules={[
+                  { required: true, message: 'El tipo de evaluación es obligatorio' },
+                  { 
+                    validator: (_, value) => {
+                      if (!value) return Promise.reject();
+                      const validTypes = Object.keys(EvaluationType);
+                      if (!validTypes.includes(value)) {
+                        return Promise.reject('Seleccione un tipo de evaluación válido');
+                      }
+                      return Promise.resolve();
+                    }
+                  }
+                ]}
               >
-                <Select placeholder="Seleccione el tipo de evaluación">
+                <Select 
+                  placeholder="Seleccione el tipo de evaluación"
+                  showSearch
+                  optionFilterProp="children"
+                >
                   {Object.values(EvaluationType).map(type => (
                     <Option key={type.code} value={type.code}>{type.name}</Option>
                   ))}
@@ -501,15 +704,48 @@ const GradeFormModal = ({
             <Col xs={24}>
               <Form.Item
                 name="competenceName"
-                label="Nombre de la Competencia"
+                label={
+                  <span>
+                    Nombre de la Competencia <span style={{ color: 'red' }}>*</span>
+                    <Tooltip title="Escriba la competencia del CNEB que está evaluando. Mínimo 5 caracteres">
+                      <QuestionCircleOutlined style={{ marginLeft: '4px', color: '#1890ff' }} />
+                    </Tooltip>
+                  </span>
+                }
                 rules={[
                   { required: true, message: 'El nombre de la competencia es obligatorio' },
-                  { min: 5, message: 'El nombre debe tener al menos 5 caracteres' }
+                  { 
+                    min: 5, 
+                    message: 'El nombre debe tener al menos 5 caracteres' 
+                  },
+                  { 
+                    max: 200, 
+                    message: 'El nombre no puede exceder 200 caracteres' 
+                  },
+                  {
+                    whitespace: true,
+                    message: 'El nombre no puede estar vacío'
+                  },
+                  {
+                    validator: (_, value) => {
+                      if (!value) return Promise.reject();
+                      const trimmed = value.trim();
+                      if (trimmed.length < 5) {
+                        return Promise.reject('La competencia debe tener al menos 5 caracteres (sin contar espacios)');
+                      }
+                      // Validar que no sean solo números
+                      if (/^\d+$/.test(trimmed)) {
+                        return Promise.reject('La competencia no puede ser solo números');
+                      }
+                      return Promise.resolve();
+                    }
+                  }
                 ]}
               >
                 <Input 
                   placeholder="Ej: Resuelve problemas de cantidad" 
                   maxLength={200}
+                  showCount
                 />
               </Form.Item>
             </Col>
@@ -517,15 +753,48 @@ const GradeFormModal = ({
             <Col xs={24}>
               <Form.Item
                 name="capacityEvaluated"
-                label="Capacidad Evaluada"
+                label={
+                  <span>
+                    Capacidad Evaluada <span style={{ color: 'red' }}>*</span>
+                    <Tooltip title="Especifique qué capacidad de la competencia está evaluando. Mínimo 3 caracteres">
+                      <QuestionCircleOutlined style={{ marginLeft: '4px', color: '#1890ff' }} />
+                    </Tooltip>
+                  </span>
+                }
                 rules={[
                   { required: true, message: 'La capacidad evaluada es obligatoria' },
-                  { min: 3, message: 'La capacidad debe tener al menos 3 caracteres' }
+                  { 
+                    min: 3, 
+                    message: 'La capacidad debe tener al menos 3 caracteres' 
+                  },
+                  { 
+                    max: 200, 
+                    message: 'La capacidad no puede exceder 200 caracteres' 
+                  },
+                  {
+                    whitespace: true,
+                    message: 'La capacidad no puede estar vacía'
+                  },
+                  {
+                    validator: (_, value) => {
+                      if (!value) return Promise.reject();
+                      const trimmed = value.trim();
+                      if (trimmed.length < 3) {
+                        return Promise.reject('La capacidad debe tener al menos 3 caracteres (sin contar espacios)');
+                      }
+                      // Validar que no sean solo números
+                      if (/^\d+$/.test(trimmed)) {
+                        return Promise.reject('La capacidad no puede ser solo números');
+                      }
+                      return Promise.resolve();
+                    }
+                  }
                 ]}
               >
                 <Input 
                   placeholder="Ej: Traduce cantidades a expresiones numéricas" 
                   maxLength={200}
+                  showCount
                 />
               </Form.Item>
             </Col>
@@ -538,18 +807,40 @@ const GradeFormModal = ({
             <Col xs={24} sm={12}>
               <Form.Item
                 name="gradeScale"
-                label="Escala de Calificación"
-                rules={[{ required: true, message: 'La escala de calificación es obligatoria' }]}
+                label={
+                  <span>
+                    Escala de Calificación <span style={{ color: 'red' }}>*</span>
+                    <Tooltip title="Seleccione la calificación según el nivel de logro del estudiante (AD, A, B, C)">
+                      <QuestionCircleOutlined style={{ marginLeft: '4px', color: '#1890ff' }} />
+                    </Tooltip>
+                  </span>
+                }
+                rules={[
+                  { required: true, message: 'La escala de calificación es obligatoria' },
+                  {
+                    validator: (_, value) => {
+                      if (!value) return Promise.reject();
+                      const validGrades = Object.keys(GradeScale);
+                      if (!validGrades.includes(value)) {
+                        return Promise.reject('Seleccione una escala de calificación válida');
+                      }
+                      return Promise.resolve();
+                    }
+                  }
+                ]}
               >
                 <Select 
                   placeholder="Seleccione la escala de calificación"
                   onChange={handleGradeScaleChange}
+                  showSearch
+                  optionFilterProp="children"
                 >
                   {Object.values(GradeScale).map(level => (
                     <Option key={level.code} value={level.code}>
                       <div>
-                        <strong>{level.code} - {level.name}</strong>
-                        <div style={{ fontSize: '12px', color: '#666' }}>
+                        <Tag color={level.color} style={{ marginRight: '8px' }}>{level.code}</Tag>
+                        <strong>{level.name}</strong>
+                        <div style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>
                           {level.description}
                         </div>
                       </div>
@@ -562,14 +853,42 @@ const GradeFormModal = ({
             <Col xs={24} sm={12}>
               <Form.Item
                 name="numericGrade"
-                label="Calificación Numérica (Opcional)"
+                label={
+                  <span>
+                    Calificación Numérica (Opcional)
+                    <Tooltip title="Para nivel secundaria. Ingrese una nota entre 0 y 20">
+                      <QuestionCircleOutlined style={{ marginLeft: '4px', color: '#1890ff' }} />
+                    </Tooltip>
+                  </span>
+                }
+                rules={[
+                  {
+                    validator: (_, value) => {
+                      if (value === null || value === undefined || value === '') {
+                        return Promise.resolve();
+                      }
+                      const numValue = parseFloat(value);
+                      if (isNaN(numValue)) {
+                        return Promise.reject('Debe ingresar un número válido');
+                      }
+                      if (numValue < 0) {
+                        return Promise.reject('La nota no puede ser negativa');
+                      }
+                      if (numValue > 20) {
+                        return Promise.reject('La nota no puede ser mayor a 20');
+                      }
+                      return Promise.resolve();
+                    }
+                  }
+                ]}
               >
                 <Input 
                   type="number"
                   min={0}
                   max={20}
                   step={0.5}
-                  placeholder="Ej: 16.5" 
+                  placeholder="Ej: 16.5"
+                  addonAfter="/20"
                 />
               </Form.Item>
             </Col>
@@ -577,14 +896,49 @@ const GradeFormModal = ({
             <Col xs={24} sm={12}>
               <Form.Item
                 name="evaluationDate"
-                label="Fecha de Evaluación"
-                rules={[{ required: true, message: 'La fecha de evaluación es obligatoria' }]}
+                label={
+                  <span>
+                    Fecha de Evaluación <span style={{ color: 'red' }}>*</span>
+                    <Tooltip title="Seleccione la fecha en que se realizó la evaluación">
+                      <QuestionCircleOutlined style={{ marginLeft: '4px', color: '#1890ff' }} />
+                    </Tooltip>
+                  </span>
+                }
+                rules={[
+                  { required: true, message: 'La fecha de evaluación es obligatoria' },
+                  {
+                    validator: (_, value) => {
+                      if (!value) return Promise.reject();
+                      const selectedDate = value.toDate();
+                      const today = new Date();
+                      today.setHours(23, 59, 59, 999);
+                      
+                      if (selectedDate > today) {
+                        return Promise.reject('La fecha no puede ser futura');
+                      }
+                      
+                      // Validar que no sea demasiado antigua (más de 2 años)
+                      const twoYearsAgo = new Date();
+                      twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+                      
+                      if (selectedDate < twoYearsAgo) {
+                        return Promise.reject('La fecha no puede ser mayor a 2 años atrás');
+                      }
+                      
+                      return Promise.resolve();
+                    }
+                  }
+                ]}
               >
                 <DatePicker 
                   format="DD/MM/YYYY"
                   placeholder="Seleccione la fecha de evaluación"
                   style={{ width: '100%' }}
                   locale={locale}
+                  disabledDate={(current) => {
+                    // No permitir fechas futuras
+                    return current && current > dayjs().endOf('day');
+                  }}
                 />
               </Form.Item>
             </Col>
@@ -617,14 +971,36 @@ const GradeFormModal = ({
             <Col xs={24}>
               <Form.Item
                 name="observations"
-                label="Observaciones"
+                label={
+                  <span>
+                    Observaciones
+                    <Tooltip title="Agregue comentarios sobre el desempeño del estudiante, fortalezas y aspectos a mejorar">
+                      <QuestionCircleOutlined style={{ marginLeft: '4px', color: '#1890ff' }} />
+                    </Tooltip>
+                  </span>
+                }
                 rules={[
-                  { max: 500, message: 'Las observaciones no pueden exceder 500 caracteres' }
+                  { 
+                    max: 500, 
+                    message: 'Las observaciones no pueden exceder 500 caracteres' 
+                  },
+                  {
+                    validator: (_, value) => {
+                      if (!value || value.trim() === '') {
+                        return Promise.resolve();
+                      }
+                      const trimmed = value.trim();
+                      if (trimmed.length < 10) {
+                        return Promise.reject('Si ingresa observaciones, debe tener al menos 10 caracteres');
+                      }
+                      return Promise.resolve();
+                    }
+                  }
                 ]}
               >
                 <TextArea 
                   rows={4}
-                  placeholder="Ingrese observaciones adicionales (opcional)"
+                  placeholder="Ingrese observaciones adicionales sobre el desempeño del estudiante, fortalezas identificadas y aspectos por mejorar (opcional, mínimo 10 caracteres)"
                   maxLength={500}
                   showCount
                 />
@@ -658,6 +1034,9 @@ const GradeFormModal = ({
         onConfirm={alertConfirm} 
         onCancel={alertCancel} 
       />
+
+      {/* Modal de sugerencias */}
+      {renderSuggestionsModal()}
     </Modal>
   );
 };

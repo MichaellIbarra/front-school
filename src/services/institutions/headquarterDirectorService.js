@@ -326,7 +326,7 @@ class HeadquarterDirectorService {
         console.log('📤 Restaurando sede:', this.baseURL + '/restore/' + headquarterId);
         
         const response = await fetch(this.baseURL + '/restore/' + headquarterId, {
-          method: 'PATCH',
+          method: 'PUT',
           headers: this.getAuthHeaders()
         });
 

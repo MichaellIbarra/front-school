@@ -247,6 +247,59 @@ class AssignmentsService {
   }
 
   /**
+   * Actualiza la sede de una asignación existente
+   * PUT /api/v1/assignments/director/update/{assignmentId}
+   */
+  async updateAssignment(assignmentId, headquarterId) {
+    try {
+      if (!assignmentId || !headquarterId) {
+        return {
+          success: false,
+          error: 'El ID de asignación y el ID de sede son obligatorios',
+          data: null
+        };
+      }
+
+      return await this.executeWithRetry(async () => {
+        console.log('📤 Actualizando asignación:', this.baseURL + '/update/' + assignmentId);
+        console.log('📦 Nuevo headquarterId:', headquarterId);
+        
+        const response = await fetch(this.baseURL + '/update/' + assignmentId, {
+          method: 'PUT',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify({ headquarterId })
+        });
+
+        console.log('📥 Respuesta recibida:', {
+          status: response.status,
+          statusText: response.statusText,
+          headers: Object.fromEntries(response.headers.entries())
+        });
+
+        const result = await this.handleResponse(response);
+        
+        // Mapear la asignación actualizada usando el helper del tipo
+        const mappedAssignment = result.assignment 
+          ? mapApiAssignmentToModel(result.assignment)
+          : null;
+        
+        return {
+          success: true,
+          data: mappedAssignment,
+          message: result.message || 'Asignación actualizada exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('Error al actualizar asignación:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al actualizar la asignación',
+        data: null
+      };
+    }
+  }
+
+  /**
    * Obtiene la lista del personal (staff) de la institución del director
    * GET /api/v1/users/director/staff
    */
