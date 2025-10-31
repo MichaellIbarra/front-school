@@ -72,6 +72,10 @@ const AlertModal = ({
 
   const config = getAlertConfig(type);
 
+  // Determinar el ancho del modal
+  // Si el mensaje es un elemento React (JSX), usar un ancho mayor para detalles
+  const modalWidth = typeof message === 'object' && React.isValidElement(message) ? 800 : 400;
+
   return (
     <Modal
       open={visible}
@@ -79,34 +83,40 @@ const AlertModal = ({
       footer={null}
       closable={false}
       centered
-      width={400}
+      width={modalWidth}
       onCancel={onCancel}
     >
-      <div style={{ textAlign: 'center', padding: '20px 0' }}>
-        {/* Icono */}
-        <div style={{ marginBottom: '16px' }}>
-          {config.icon}
-        </div>
+      <div style={{ 
+        textAlign: typeof message === 'object' && React.isValidElement(message) ? 'left' : 'center', 
+        padding: '20px 0' 
+      }}>
+        {/* Icono - solo mostrar si no es JSX */}
+        {!(typeof message === 'object' && React.isValidElement(message)) && (
+          <div style={{ marginBottom: '16px' }}>
+            {config.icon}
+          </div>
+        )}
         
         {/* Título */}
         <h3 style={{ 
           fontSize: '18px', 
           fontWeight: '600', 
           marginBottom: '12px',
-          color: '#262626'
+          color: '#262626',
+          textAlign: 'center'
         }}>
           {title}
         </h3>
         
         {/* Mensaje */}
-        <p style={{ 
+        <div style={{ 
           fontSize: '14px', 
           color: '#595959', 
           marginBottom: '24px',
           lineHeight: '1.5'
         }}>
           {message}
-        </p>
+        </div>
         
         {/* Botones */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>

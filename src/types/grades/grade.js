@@ -1,87 +1,142 @@
 /**
- * Modelo de datos para Grade
+ * Modelo de datos para Grade según estándar MINEDU v8.0
  * Representa una calificación del sistema educativo peruano
  */
 export const Grade = {
   id: null,
   studentId: '',
   courseId: '',
-  academicPeriod: '', // "Bimestre", "Trimestre", "Anual"
-  evaluationType: '', // "Evaluación Formativa", "Evaluación Sumativa", etc.
-  achievementLevel: '', // AD, A, B, C
+  classroomId: '',
+  periodId: '',
+  typePeriod: '', // Enum: I_BIMESTRE, II_BIMESTRE, etc.
+  teacherId: '',
+  competenceName: '',
+  capacityEvaluated: '',
+  gradeScale: '', // Enum: AD, A, B, C, LOGRADO, PROCESO, INICIO
+  numericGrade: null, // Opcional para secundaria (0-20)
+  evaluationType: '', // Enum: FORMATIVA, SUMATIVA, DIAGNOSTICA
   evaluationDate: null,
-  remarks: '',
-  deleted: false
+  observations: '',
+  status: 'A', // A = Active, I = Inactive
+  createdAt: null,
+  updatedAt: null
 };
 
 /**
- * Niveles de logro según el sistema educativo peruano
+ * Escalas de calificación según el sistema MINEDU
+ * INICIAL (3-5 años): INICIO, PROCESO, LOGRADO
+ * PRIMARIA (1ro-6to): C, B, A, AD
+ * SECUNDARIA (1ro-5to): 0-20 + Descriptivas
  */
-export const AchievementLevel = {
+export const GradeScale = {
+  // Primaria y Secundaria
   AD: {
     code: 'AD',
-    name: 'Destacado',
-    description: 'El estudiante demuestra un aprendizaje superior al esperado para su grado o edad.',
+    name: 'Logro destacado',
+    description: 'El estudiante demuestra un aprendizaje superior al esperado',
     color: '#2ECC71', // Verde
     requiresParentNotification: false
   },
   A: {
     code: 'A',
-    name: 'Satisfactorio',
-    description: 'El estudiante ha alcanzado el nivel de aprendizaje esperado para su grado.',
+    name: 'Logro esperado',
+    description: 'El estudiante ha alcanzado el nivel de aprendizaje esperado',
     color: '#3498DB', // Azul
     requiresParentNotification: false
   },
   B: {
     code: 'B',
-    name: 'En Proceso',
-    description: 'El estudiante está cerca de alcanzar el nivel esperado, pero requiere acompañamiento para lograrlo.',
+    name: 'En proceso',
+    description: 'El estudiante está cerca de alcanzar el nivel esperado',
     color: '#F39C12', // Naranja
     requiresParentNotification: true
   },
   C: {
     code: 'C',
-    name: 'En Inicio',
-    description: 'El estudiante muestra un progreso mínimo y necesita mayor apoyo y tiempo para desarrollar la competencia.',
+    name: 'En inicio',
+    description: 'El estudiante muestra un progreso mínimo',
     color: '#E74C3C', // Rojo
+    requiresParentNotification: true
+  },
+  // Inicial
+  LOGRADO: {
+    code: 'LOGRADO',
+    name: 'Logrado',
+    description: 'Logro esperado',
+    color: '#2ECC71',
+    requiresParentNotification: false
+  },
+  PROCESO: {
+    code: 'PROCESO',
+    name: 'En proceso',
+    description: 'En camino al logro',
+    color: '#F39C12',
+    requiresParentNotification: true
+  },
+  INICIO: {
+    code: 'INICIO',
+    name: 'En inicio',
+    description: 'En proceso de desarrollo',
+    color: '#E74C3C',
     requiresParentNotification: true
   }
 };
 
 /**
- * Períodos académicos disponibles
+ * Tipos de período evaluativo según el sistema educativo peruano
  */
-export const AcademicPeriod = {
-  BIMESTRE: 'Bimestre',
-  TRIMESTRE: 'Trimestre',
-  ANUAL: 'Anual'
+export const TypePeriod = {
+  I_TRIMESTRE: { code: 'I_TRIMESTRE', name: 'I Trimestre' },
+  II_TRIMESTRE: { code: 'II_TRIMESTRE', name: 'II Trimestre' },
+  III_TRIMESTRE: { code: 'III_TRIMESTRE', name: 'III Trimestre' },
+  I_BIMESTRE: { code: 'I_BIMESTRE', name: 'I Bimestre' },
+  II_BIMESTRE: { code: 'II_BIMESTRE', name: 'II Bimestre' },
+  III_BIMESTRE: { code: 'III_BIMESTRE', name: 'III Bimestre' },
+  IV_BIMESTRE: { code: 'IV_BIMESTRE', name: 'IV Bimestre' },
+  I_SEMESTRE: { code: 'I_SEMESTRE', name: 'I Semestre' },
+  II_SEMESTRE: { code: 'II_SEMESTRE', name: 'II Semestre' }
 };
 
 /**
  * Tipos de evaluación disponibles
  */
 export const EvaluationType = {
-  FORMATIVA: 'Evaluación Formativa',
-  SUMATIVA: 'Evaluación Sumativa',
-  DIAGNOSTICA: 'Evaluación Diagnóstica',
-  INTEGRAL: 'Evaluación Integral'
+  FORMATIVA: { code: 'FORMATIVA', name: 'Formativa' },
+  SUMATIVA: { code: 'SUMATIVA', name: 'Sumativa' },
+  DIAGNOSTICA: { code: 'DIAGNOSTICA', name: 'Diagnóstica' }
 };
 
 /**
- * Obtiene la información completa de un nivel de logro
- * @param {string} code - Código del nivel (AD, A, B, C)
- * @returns {object} - Información del nivel de logro
+ * Obtiene la información completa de una escala de calificación
+ * @param {string} code - Código de la escala (AD, A, B, C, LOGRADO, etc.)
+ * @returns {object} - Información de la escala
  */
-export const getAchievementLevelInfo = (code) => {
-  return AchievementLevel[code] || null;
+export const getGradeScaleInfo = (code) => {
+  return GradeScale[code] || null;
 };
 
 /**
- * Obtiene todos los niveles de logro como array
- * @returns {array} - Array de niveles de logro
+ * Obtiene todas las escalas de calificación como array
+ * @returns {array} - Array de escalas de calificación
  */
-export const getAchievementLevels = () => {
-  return Object.values(AchievementLevel);
+export const getGradeScales = () => {
+  return Object.values(GradeScale);
+};
+
+/**
+ * Obtiene los tipos de período como array
+ * @returns {array} - Array de tipos de período
+ */
+export const getTypePeriods = () => {
+  return Object.values(TypePeriod);
+};
+
+/**
+ * Obtiene los tipos de evaluación como array
+ * @returns {array} - Array de tipos de evaluación
+ */
+export const getEvaluationTypes = () => {
+  return Object.values(EvaluationType);
 };
 
 /**
@@ -100,21 +155,45 @@ export const validateGrade = (grade) => {
     errors.courseId = 'El ID del curso es obligatorio';
   }
   
-  // Validación del período académico
-  if (!grade.academicPeriod || grade.academicPeriod.trim() === '') {
-    errors.academicPeriod = 'El período académico es obligatorio';
+  // Validación del ID del aula
+  if (!grade.classroomId || grade.classroomId.trim() === '') {
+    errors.classroomId = 'El ID del aula es obligatorio';
+  }
+  
+  // Validación del ID del período
+  if (!grade.periodId || grade.periodId.trim() === '') {
+    errors.periodId = 'El ID del período es obligatorio';
+  }
+  
+  // Validación del tipo de período
+  if (!grade.typePeriod || grade.typePeriod.trim() === '') {
+    errors.typePeriod = 'El tipo de período es obligatorio';
+  } else if (!TypePeriod[grade.typePeriod]) {
+    errors.typePeriod = 'Tipo de período inválido';
+  }
+  
+  // Validación del nombre de la competencia
+  if (!grade.competenceName || grade.competenceName.trim() === '') {
+    errors.competenceName = 'El nombre de la competencia es obligatorio';
+  }
+  
+  // Validación de la capacidad evaluada
+  if (!grade.capacityEvaluated || grade.capacityEvaluated.trim() === '') {
+    errors.capacityEvaluated = 'La capacidad evaluada es obligatoria';
+  }
+  
+  // Validación de la escala de calificación
+  if (!grade.gradeScale || grade.gradeScale.trim() === '') {
+    errors.gradeScale = 'La escala de calificación es obligatoria';
+  } else if (!GradeScale[grade.gradeScale]) {
+    errors.gradeScale = 'Escala de calificación inválida';
   }
   
   // Validación del tipo de evaluación
   if (!grade.evaluationType || grade.evaluationType.trim() === '') {
     errors.evaluationType = 'El tipo de evaluación es obligatorio';
-  }
-  
-  // Validación del nivel de logro
-  if (!grade.achievementLevel || grade.achievementLevel.trim() === '') {
-    errors.achievementLevel = 'El nivel de logro es obligatorio';
-  } else if (!AchievementLevel[grade.achievementLevel]) {
-    errors.achievementLevel = 'El nivel de logro debe ser AD, A, B o C';
+  } else if (!EvaluationType[grade.evaluationType]) {
+    errors.evaluationType = 'Tipo de evaluación inválido';
   }
   
   // Validación de la fecha de evaluación
@@ -144,29 +223,32 @@ export const formatDate = (date) => {
 };
 
 /**
- * Obtiene el color del badge según el nivel de logro
- * @param {string} achievementLevel - Nivel de logro
+ * Obtiene el color del badge según la escala de calificación
+ * @param {string} gradeScale - Escala de calificación
  * @returns {string} - Color CSS
  */
-export const getAchievementLevelColor = (achievementLevel) => {
-  const level = AchievementLevel[achievementLevel];
-  return level ? level.color : '#6C757D';
+export const getGradeScaleColor = (gradeScale) => {
+  const scale = GradeScale[gradeScale];
+  return scale ? scale.color : '#6C757D';
 };
 
 /**
- * Obtiene la clase CSS del badge según el nivel de logro
- * @param {string} achievementLevel - Nivel de logro
+ * Obtiene la clase CSS del badge según la escala de calificación
+ * @param {string} gradeScale - Escala de calificación
  * @returns {string} - Clase CSS
  */
-export const getAchievementLevelBadgeClass = (achievementLevel) => {
-  switch (achievementLevel) {
+export const getGradeScaleBadgeClass = (gradeScale) => {
+  switch (gradeScale) {
     case 'AD':
+    case 'LOGRADO':
       return 'badge-success';
     case 'A':
       return 'badge-primary';
     case 'B':
+    case 'PROCESO':
       return 'badge-warning';
     case 'C':
+    case 'INICIO':
       return 'badge-danger';
     default:
       return 'badge-secondary';

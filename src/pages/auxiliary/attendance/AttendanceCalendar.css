@@ -1,0 +1,397 @@
+/* ===================================
+   ATTENDANCE CALENDAR - ESTILOS
+   =================================== */
+
+.attendance-calendar-page {
+  padding: 20px;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+/* ===================================
+   ENCABEZADO
+   =================================== */
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.calendar-header h1 {
+  margin: 0;
+  color: #262626;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.classroom-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.classroom-selector label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #595959;
+}
+
+.classroom-selector select {
+  padding: 8px 16px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  font-size: 14px;
+  min-width: 250px;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.3s;
+}
+
+.classroom-selector select:focus {
+  outline: none;
+  border-color: #40a9ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+}
+
+/* ===================================
+   CONTROLES DEL MES
+   =================================== */
+
+.month-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.current-month {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #262626;
+  min-width: 250px;
+  text-align: center;
+}
+
+.btn-month {
+  padding: 10px 20px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #595959;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-month:hover {
+  border-color: #40a9ff;
+  color: #40a9ff;
+  background: #f0f8ff;
+}
+
+/* ===================================
+   LEYENDA
+   =================================== */
+
+.calendar-legend {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #fafafa;
+  border-radius: 12px;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 14px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.legend-item span:last-child {
+  font-size: 14px;
+  font-weight: 500;
+  color: #595959;
+}
+
+/* ===================================
+   TABLA CALENDARIO
+   =================================== */
+
+.calendar-container {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - 350px);
+}
+
+.calendar-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 1200px;
+}
+
+/* Encabezado de la tabla */
+.calendar-table thead {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.calendar-table th {
+  padding: 12px 8px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  border-bottom: 2px solid #5568d3;
+}
+
+.student-column {
+  min-width: 200px;
+  max-width: 250px;
+  text-align: left !important;
+  padding-left: 20px !important;
+  position: sticky;
+  left: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  z-index: 11;
+}
+
+.day-column {
+  min-width: 40px;
+  width: 40px;
+}
+
+/* Celdas del cuerpo */
+.calendar-table tbody tr {
+  border-bottom: 1px solid #f0f0f0;
+  transition: background-color 0.2s;
+}
+
+.calendar-table tbody tr:hover {
+  background-color: #f5f5f5;
+}
+
+.student-cell {
+  min-width: 200px;
+  max-width: 250px;
+  padding: 16px 20px;
+  border-right: 2px solid #e0e0e0;
+  position: sticky;
+  left: 0;
+  background: #ffffff;
+  z-index: 5;
+  transition: background-color 0.2s;
+}
+
+.calendar-table tbody tr:hover .student-cell {
+  background-color: #f5f5f5;
+}
+
+.student-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #262626;
+  margin-bottom: 4px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.student-id {
+  font-size: 12px;
+  color: #8c8c8c;
+  font-family: 'Courier New', monospace;
+}
+
+.day-cell {
+  text-align: center;
+  padding: 12px 8px;
+  border-right: 1px solid #f0f0f0;
+  min-width: 40px;
+  transition: all 0.2s;
+}
+
+.day-cell:hover {
+  background-color: #f0f8ff !important;
+}
+
+.status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 13px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.status-icon:hover {
+  transform: scale(1.15);
+}
+
+/* ===================================
+   LOADING
+   =================================== */
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  background: #ffffff;
+  border-radius: 12px;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid #f0f0f0;
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-container p {
+  color: #8c8c8c;
+  font-size: 14px;
+  margin: 0;
+}
+
+/* ===================================
+   EMPTY STATE
+   =================================== */
+
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+  color: #8c8c8c;
+}
+
+.empty-icon {
+  font-size: 72px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.empty-state h3 {
+  margin: 0 0 8px 0;
+  font-size: 20px;
+  font-weight: 500;
+  color: #595959;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 14px;
+  color: #8c8c8c;
+}
+
+/* ===================================
+   RESPONSIVE
+   =================================== */
+
+@media (max-width: 768px) {
+  .attendance-calendar-page {
+    padding: 16px;
+  }
+
+  .calendar-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .calendar-header h1 {
+    font-size: 24px;
+  }
+
+  .classroom-selector {
+    width: 100%;
+  }
+
+  .classroom-selector select {
+    width: 100%;
+    min-width: unset;
+  }
+
+  .month-controls {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .current-month {
+    font-size: 20px;
+    min-width: unset;
+  }
+
+  .calendar-legend {
+    gap: 12px;
+  }
+
+  .legend-icon {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+
+  .legend-item span:last-child {
+    font-size: 13px;
+  }
+
+  .calendar-container {
+    max-height: calc(100vh - 450px);
+  }
+
+  .student-column {
+    min-width: 150px;
+  }
+
+  .student-cell {
+    min-width: 150px;
+    padding: 12px 16px;
+  }
+}

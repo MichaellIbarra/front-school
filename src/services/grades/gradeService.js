@@ -3,7 +3,9 @@ import { refreshTokenKeycloak } from '../auth/authService';
 
 class GradeService {
   constructor() {
-    this.baseURL = `${process.env.REACT_APP_DOMAIN}/api/v1/grades`;
+    // URL del gateway
+    const gatewayURL = 'https://lab.vallegrande.edu.pe/school/gateway';
+    this.baseURL = `${gatewayURL}/api/v1/grades`;
   }
 
   /**
@@ -18,10 +20,26 @@ class GradeService {
    */
   getAuthHeaders() {
     const token = this.getAuthToken();
-    return {
+    const userId = localStorage.getItem('user_id');
+    const userRoles = localStorage.getItem('user_roles') || 'teacher';
+    const institutionId = localStorage.getItem('institution_id');
+
+    const headers = {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
+      'Authorization': `Bearer ${token}`,
+      'X-User-Id': userId || '',
+      'X-User-Roles': userRoles,
+      'X-Institution-Id': institutionId || ''
     };
+
+    console.log('🔑 Headers enviados:', {
+      'X-User-Id': userId,
+      'X-User-Roles': userRoles,
+      'X-Institution-Id': institutionId,
+      'Authorization': token ? 'Bearer ***' : 'No token'
+    });
+
+    return headers;
   }
 
   /**
@@ -114,214 +132,17 @@ class GradeService {
   }
 
   /**
-   * Obtiene todas las calificaciones
-   * GET /api/v1/grades
+   * Registra una calificación individual por competencia MINEDU
+   * POST /api/v1/grades/teacher/register-grade
    */
-  async getAllGrades() {
+  async registerGrade(gradeData) {
     try {
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(this.baseURL, {
-          method: 'GET',
-          headers: this.getAuthHeaders()
-        });
-
-        const data = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: Array.isArray(data) ? data : [],
-          message: 'Calificaciones obtenidas exitosamente'
-        };
-      });
-    } catch (error) {
-      console.error('Error al obtener calificaciones:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener las calificaciones',
-        data: []
-      };
-    }
-  }
-
-  /**
-   * Obtiene una calificación por ID
-   * GET /api/v1/grades/{id}
-   */
-  async getGradeById(id) {
-    try {
-      if (!id) {
-        throw new Error('ID de calificación requerido');
-      }
-
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/${id}`, {
-          method: 'GET',
-          headers: this.getAuthHeaders()
-        });
-
-        const data = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: data || null,
-          message: 'Calificación encontrada'
-        };
-      });
-    } catch (error) {
-      console.error('Error al obtener calificación:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener la calificación',
-        data: null
-      };
-    }
-  }
-
-  /**
-   * Obtiene calificaciones por ID de estudiante
-   * GET /api/v1/grades/student/{studentId}
-   */
-  async getGradesByStudentId(studentId) {
-    try {
-      if (!studentId) {
-        throw new Error('ID de estudiante requerido');
-      }
-
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/student/${studentId}`, {
-          method: 'GET',
-          headers: this.getAuthHeaders()
-        });
-
-        const data = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: Array.isArray(data) ? data : [],
-          message: 'Calificaciones del estudiante obtenidas exitosamente'
-        };
-      });
-    } catch (error) {
-      console.error('Error al obtener calificaciones del estudiante:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener las calificaciones del estudiante',
-        data: []
-      };
-    }
-  }
-
-  /**
-   * Obtiene calificaciones por ID de curso
-   * GET /api/v1/grades/course/{courseId}
-   */
-  async getGradesByCourseId(courseId) {
-    try {
-      if (!courseId) {
-        throw new Error('ID de curso requerido');
-      }
-
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/course/${courseId}`, {
-          method: 'GET',
-          headers: this.getAuthHeaders()
-        });
-
-        const data = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: Array.isArray(data) ? data : [],
-          message: 'Calificaciones del curso obtenidas exitosamente'
-        };
-      });
-    } catch (error) {
-      console.error('Error al obtener calificaciones del curso:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener las calificaciones del curso',
-        data: []
-      };
-    }
-  }
-
-  /**
-   * Obtiene calificaciones por estudiante y curso
-   * GET /api/v1/grades/student/{studentId}/course/{courseId}
-   */
-  async getGradesByStudentIdAndCourseId(studentId, courseId) {
-    try {
-      if (!studentId || !courseId) {
-        throw new Error('ID de estudiante y curso requeridos');
-      }
-
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/student/${studentId}/course/${courseId}`, {
-          method: 'GET',
-          headers: this.getAuthHeaders()
-        });
-
-        const data = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: Array.isArray(data) ? data : [],
-          message: 'Calificaciones específicas obtenidas exitosamente'
-        };
-      });
-    } catch (error) {
-      console.error('Error al obtener calificaciones específicas:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener las calificaciones específicas',
-        data: []
-      };
-    }
-  }
-
-  /**
-   * Obtiene notificaciones relacionadas con una calificación
-   * GET /api/v1/grades/{id}/notifications
-   */
-  async getGradeNotifications(id) {
-    try {
-      if (!id) {
-        throw new Error('ID de calificación requerido');
-      }
-
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/${id}/notifications`, {
-          method: 'GET',
-          headers: this.getAuthHeaders()
-        });
-
-        const data = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: Array.isArray(data) ? data : [],
-          message: 'Notificaciones de calificación obtenidas exitosamente'
-        };
-      });
-    } catch (error) {
-      console.error('Error al obtener notificaciones de calificación:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener las notificaciones de la calificación',
-        data: []
-      };
-    }
-  }
-
-  /**
-   * Crea una nueva calificación
-   * POST /api/v1/grades
-   */
-  async createGrade(gradeData) {
-    try {
+      console.log('📝 Intentando registrar calificación con datos:', gradeData);
+      
       // Validar los datos antes de enviar
       const validation = validateGrade(gradeData);
       if (!validation.isValid) {
+        console.error('❌ Validación fallida:', validation.errors);
         return {
           success: false,
           error: 'Datos de calificación inválidos',
@@ -332,15 +153,64 @@ class GradeService {
       const payload = {
         studentId: gradeData.studentId,
         courseId: gradeData.courseId,
-        academicPeriod: gradeData.academicPeriod,
+        classroomId: gradeData.classroomId,
+        periodId: gradeData.periodId,
+        typePeriod: gradeData.typePeriod,
+        competenceName: gradeData.competenceName,
+        capacityEvaluated: gradeData.capacityEvaluated || '',
+        gradeScale: gradeData.gradeScale,
+        numericGrade: gradeData.numericGrade || null,
         evaluationType: gradeData.evaluationType,
-        achievementLevel: gradeData.achievementLevel,
         evaluationDate: gradeData.evaluationDate,
-        remarks: gradeData.remarks || ''
+        observations: gradeData.observations || ''
       };
 
+      console.log('📤 Payload a enviar:', payload);
+      console.log('🌐 URL:', `${this.baseURL}/teacher/register-grade`);
+
       return await this.executeWithRetry(async () => {
-        const response = await fetch(this.baseURL, {
+        const response = await fetch(`${this.baseURL}/teacher/register-grade`, {
+          method: 'POST',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify(payload)
+        });
+
+        const data = await this.handleResponse(response);
+        
+        console.log('✅ Respuesta del backend (register-grade):', data);
+        
+        return {
+          success: true,
+          data: data.grade || data,
+          message: data.message || 'Calificación registrada exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('Error al registrar calificación:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al registrar la calificación'
+      };
+    }
+  }
+
+  /**
+   * Registra calificaciones en lote por aula y período
+   * POST /api/v1/grades/teacher/register-batch-grades
+   */
+  async registerBatchGrades(grades) {
+    try {
+      if (!Array.isArray(grades) || grades.length === 0) {
+        return {
+          success: false,
+          error: 'Debe proporcionar al menos una calificación'
+        };
+      }
+
+      const payload = { grades };
+
+      return await this.executeWithRetry(async () => {
+        const response = await fetch(`${this.baseURL}/teacher/register-batch-grades`, {
           method: 'POST',
           headers: this.getAuthHeaders(),
           body: JSON.stringify(payload)
@@ -351,50 +221,49 @@ class GradeService {
         return {
           success: true,
           data: data,
-          message: 'Calificación creada exitosamente'
+          message: data.message || 'Calificaciones en lote registradas exitosamente'
         };
       });
     } catch (error) {
-      console.error('Error al crear calificación:', error);
+      console.error('Error al registrar calificaciones en lote:', error);
       return {
         success: false,
-        error: error.message || 'Error al crear la calificación'
+        error: error.message || 'Error al registrar las calificaciones en lote'
       };
     }
   }
 
   /**
    * Actualiza una calificación existente
-   * PUT /api/v1/grades/{id}
+   * PUT /api/v1/grades/teacher/update-grade/{gradeId}
    */
-  async updateGrade(id, gradeData) {
+  async updateGrade(gradeId, gradeData) {
     try {
-      if (!id) {
+      if (!gradeId) {
         throw new Error('ID de calificación requerido');
       }
 
-      // Validar los datos antes de enviar
-      const validation = validateGrade(gradeData);
-      if (!validation.isValid) {
-        return {
-          success: false,
-          error: 'Datos de calificación inválidos',
-          validationErrors: validation.errors
-        };
-      }
+      console.log('📝 Intentando actualizar calificación con ID:', gradeId);
+      console.log('📤 Datos a actualizar:', gradeData);
 
+      // Para actualización, solo enviar los 7 campos editables
+      // NO enviar IDs de referencia (studentId, courseId, classroomId, periodId, typePeriod)
+      // ya que estos definen la identidad de la calificación y no deben cambiar
       const payload = {
-        studentId: gradeData.studentId,
-        courseId: gradeData.courseId,
-        academicPeriod: gradeData.academicPeriod,
+        competenceName: gradeData.competenceName,
+        capacityEvaluated: gradeData.capacityEvaluated || 'Capacidad no especificada',
+        gradeScale: gradeData.gradeScale,
+        numericGrade: gradeData.numericGrade || null,
         evaluationType: gradeData.evaluationType,
-        achievementLevel: gradeData.achievementLevel,
         evaluationDate: gradeData.evaluationDate,
-        remarks: gradeData.remarks || ''
+        observations: gradeData.observations || ''
       };
 
+      console.log('📤 Payload a enviar (solo campos editables):', payload);
+      console.log('🌐 URL:', `${this.baseURL}/teacher/update-grade/${gradeId}`);
+
       return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/${id}`, {
+        const response = await fetch(`${this.baseURL}/teacher/update-grade/${gradeId}`, {
           method: 'PUT',
           headers: this.getAuthHeaders(),
           body: JSON.stringify(payload)
@@ -402,14 +271,16 @@ class GradeService {
 
         const data = await this.handleResponse(response);
         
+        console.log('✅ Respuesta del backend (update-grade):', data);
+        
         return {
           success: true,
-          data: data,
-          message: 'Calificación actualizada exitosamente'
+          data: data.grade || data,
+          message: data.message || 'Calificación actualizada exitosamente'
         };
       });
     } catch (error) {
-      console.error('Error al actualizar calificación:', error);
+      console.error('❌ Error al actualizar calificación:', error);
       return {
         success: false,
         error: error.message || 'Error al actualizar la calificación'
@@ -418,18 +289,121 @@ class GradeService {
   }
 
   /**
-   * Elimina una calificación (eliminación lógica)
-   * DELETE /api/v1/grades/{id}
+   * Obtiene todas las calificaciones del teacher actual
+   * GET /api/v1/grades/teacher/my-grades
    */
-  async deleteGrade(id) {
+  async getMyGrades() {
     try {
-      if (!id) {
-        throw new Error('ID de calificación requerido');
+      console.log('📊 Cargando calificaciones del teacher...');
+      console.log('🌐 URL completa:', `${this.baseURL}/teacher/my-grades`);
+      
+      const headers = this.getAuthHeaders();
+      console.log('🔑 Headers que se enviarán:', headers);
+      
+      return await this.executeWithRetry(async () => {
+        const response = await fetch(`${this.baseURL}/teacher/my-grades`, {
+          method: 'GET',
+          headers: headers
+        });
+
+        console.log('📡 Response status:', response.status);
+        console.log('📡 Response ok:', response.ok);
+        
+        const data = await this.handleResponse(response);
+        
+        console.log('📊 RAW Respuesta del backend (my-grades):', JSON.stringify(data, null, 2));
+        console.log('📊 Tipo de data:', typeof data);
+        console.log('📊 data.grades existe?', data.grades !== undefined);
+        console.log('📊 data es array?', Array.isArray(data));
+        
+        // Manejar diferentes formatos de respuesta
+        let grades = [];
+        if (data.grades && Array.isArray(data.grades)) {
+          grades = data.grades;
+          console.log('✅ Extrayendo grades de data.grades');
+        } else if (Array.isArray(data)) {
+          grades = data;
+          console.log('✅ data es directamente un array');
+        } else {
+          console.warn('⚠️ Formato de respuesta no reconocido');
+        }
+        
+        console.log('✅ Total de calificaciones extraídas:', grades.length);
+        if (grades.length > 0) {
+          console.log('📋 Primera calificación:', grades[0]);
+        } else {
+          console.warn('⚠️ No se encontraron calificaciones para este teacher');
+        }
+        
+        return {
+          success: true,
+          data: grades,
+          message: data.message || 'Mis calificaciones obtenidas exitosamente',
+          total: data.total_grades || grades.length
+        };
+      });
+    } catch (error) {
+      console.error('❌ Error al obtener mis calificaciones:', error);
+      console.error('❌ Error completo:', JSON.stringify(error, null, 2));
+      console.error('❌ Stack trace:', error.stack);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener las calificaciones',
+        data: []
+      };
+    }
+  }
+
+  /**
+   * Obtiene reporte consolidado de aula por período evaluativo específico
+   * GET /api/v1/grades/teacher/classroom/{classroomId}/period/{periodId}/type/{typePeriod}/report
+   */
+  async getClassroomPeriodReport(classroomId, periodId, typePeriod) {
+    try {
+      if (!classroomId || !periodId || !typePeriod) {
+        throw new Error('ID de aula, período y tipo de período requeridos');
       }
 
       return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/${id}`, {
-          method: 'DELETE',
+        const response = await fetch(
+          `${this.baseURL}/teacher/classroom/${classroomId}/period/${periodId}/type/${typePeriod}/report`,
+          {
+            method: 'GET',
+            headers: this.getAuthHeaders()
+          }
+        );
+
+        const data = await this.handleResponse(response);
+        
+        return {
+          success: true,
+          data: data.courses_summary || data,
+          message: data.message || 'Reporte de aula obtenido exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('Error al obtener reporte de aula:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener el reporte de aula',
+        data: []
+      };
+    }
+  }
+
+  /**
+   * Obtiene historial de calificaciones de estudiante en aulas del teacher
+   * GET /api/v1/grades/teacher/student/{studentId}/grades
+   */
+  async getStudentGradesByTeacher(studentId) {
+    try {
+      if (!studentId) {
+        throw new Error('ID de estudiante requerido');
+      }
+
+      return await this.executeWithRetry(async () => {
+        const response = await fetch(`${this.baseURL}/teacher/student/${studentId}/grades`, {
+          method: 'GET',
           headers: this.getAuthHeaders()
         });
 
@@ -437,12 +411,51 @@ class GradeService {
         
         return {
           success: true,
-          data: data,
-          message: 'Calificación eliminada exitosamente'
+          data: data.grades || Array.isArray(data) ? data : [],
+          message: data.message || 'Historial de estudiante obtenido exitosamente',
+          total: data.total_grades || (Array.isArray(data) ? data.length : 0)
         };
       });
     } catch (error) {
-      console.error('Error al eliminar calificación:', error);
+      console.error('Error al obtener historial del estudiante:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al obtener el historial del estudiante',
+        data: []
+      };
+    }
+  }
+
+  /**
+   * Elimina lógicamente una calificación (cambia estado a I=Inactive)
+   * DELETE /api/v1/grades/teacher/delete-grade/{gradeId}
+   */
+  async deleteGrade(gradeId) {
+    try {
+      if (!gradeId) {
+        throw new Error('ID de calificación requerido');
+      }
+
+      console.log('🗑️ Intentando eliminar calificación con ID:', gradeId);
+
+      return await this.executeWithRetry(async () => {
+        const response = await fetch(`${this.baseURL}/teacher/delete-grade/${gradeId}`, {
+          method: 'DELETE',
+          headers: this.getAuthHeaders()
+        });
+
+        const data = await this.handleResponse(response);
+        
+        console.log('✅ Respuesta del backend (delete-grade):', data);
+        
+        return {
+          success: true,
+          data: data.grade || data,
+          message: data.message || 'Calificación eliminada lógicamente exitosamente'
+        };
+      });
+    } catch (error) {
+      console.error('❌ Error al eliminar calificación:', error);
       return {
         success: false,
         error: error.message || 'Error al eliminar la calificación'
@@ -451,94 +464,38 @@ class GradeService {
   }
 
   /**
-   * Restaura una calificación eliminada
-   * PUT /api/v1/grades/{id}/restore
+   * Restaura una calificación eliminada (cambia estado de I=Inactive a A=Active)
+   * PATCH /api/v1/grades/teacher/restore-grade/{gradeId}
    */
-  async restoreGrade(id) {
+  async restoreGrade(gradeId) {
     try {
-      if (!id) {
+      if (!gradeId) {
         throw new Error('ID de calificación requerido');
       }
 
+      console.log('♻️ Intentando restaurar calificación con ID:', gradeId);
+
       return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/${id}/restore`, {
-          method: 'PUT',
+        const response = await fetch(`${this.baseURL}/teacher/restore-grade/${gradeId}`, {
+          method: 'PATCH',
           headers: this.getAuthHeaders()
         });
 
         const data = await this.handleResponse(response);
         
+        console.log('✅ Respuesta del backend (restore-grade):', data);
+        
         return {
           success: true,
-          data: data,
-          message: 'Calificación restaurada exitosamente'
+          data: data.grade || data,
+          message: data.message || 'Calificación restaurada exitosamente'
         };
       });
     } catch (error) {
-      console.error('Error al restaurar calificación:', error);
+      console.error('❌ Error al restaurar calificación:', error);
       return {
         success: false,
         error: error.message || 'Error al restaurar la calificación'
-      };
-    }
-  }
-
-  /**
-   * Obtiene todas las calificaciones inactivas
-   * GET /api/v1/grades/inactive
-   */
-  async getAllInactiveGrades() {
-    try {
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/inactive`, {
-          method: 'GET',
-          headers: this.getAuthHeaders()
-        });
-
-        const data = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: Array.isArray(data) ? data : [],
-          message: 'Calificaciones inactivas obtenidas exitosamente'
-        };
-      });
-    } catch (error) {
-      console.error('Error al obtener calificaciones inactivas:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener las calificaciones inactivas',
-        data: []
-      };
-    }
-  }
-
-  /**
-   * Obtiene todas las calificaciones incluyendo activas e inactivas
-   * GET /api/v1/grades/all
-   */
-  async getAllGradesIncludingInactive() {
-    try {
-      return await this.executeWithRetry(async () => {
-        const response = await fetch(`${this.baseURL}/all`, {
-          method: 'GET',
-          headers: this.getAuthHeaders()
-        });
-
-        const data = await this.handleResponse(response);
-        
-        return {
-          success: true,
-          data: Array.isArray(data) ? data : [],
-          message: 'Todas las calificaciones obtenidas exitosamente'
-        };
-      });
-    } catch (error) {
-      console.error('Error al obtener todas las calificaciones:', error);
-      return {
-        success: false,
-        error: error.message || 'Error al obtener todas las calificaciones',
-        data: []
       };
     }
   }
@@ -549,7 +506,8 @@ class GradeService {
   createNewGrade() {
     return {
       ...Grade,
-      evaluationDate: new Date().toISOString().split('T')[0] // Fecha actual en formato YYYY-MM-DD
+      evaluationDate: new Date().toISOString().split('T')[0], // Fecha actual en formato YYYY-MM-DD
+      status: 'A'
     };
   }
 }

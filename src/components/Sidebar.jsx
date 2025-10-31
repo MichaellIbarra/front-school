@@ -223,6 +223,22 @@ const Sidebar = (props) => {
                         <span>Mis Aulas</span>
                       </Link>
                     </li>
+                    <li>
+                      <Link className={props?.activeClassName === 'attendance-calendar' ? 'active' : ''} to="/auxiliary/attendance/calendar">
+                        <span className="menu-side">
+                          <img src={menuicon08} alt="" />
+                        </span>
+                        <span>Calendario Asistencias</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link className={props?.activeClassName === 'justifications' ? 'active' : ''} to="/auxiliary/justifications">
+                        <span className="menu-side">
+                          <img src={menuicon16} alt="" />
+                        </span>
+                        <span>Justificaciones</span>
+                      </Link>
+                    </li>
                   </>
                 )}
 

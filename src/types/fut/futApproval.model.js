@@ -1,6 +1,6 @@
 /**
  * Modelo de datos para FutApproval
- * Representa la revisión y entrega de un FUT
+ * Representa la revisión y entrega de un FUTs
  */
 export const FutApproval = {
   id: null,

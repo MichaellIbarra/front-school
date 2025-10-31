@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Card, Button, Table, Tag, DatePicker, Modal, message, Badge, Space, Divider } from 'antd';
-import { CameraOutlined, ReloadOutlined, ArrowLeftOutlined, ClockCircleOutlined, SendOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Card, Button, Table, Tag, DatePicker, Modal, message, Badge, Space, Divider, Dropdown, Input, Form, Steps } from 'antd';
+import { CameraOutlined, ReloadOutlined, ArrowLeftOutlined, ClockCircleOutlined, SendOutlined, DeleteOutlined, MoreOutlined, FileTextOutlined, LogoutOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import QrScanner from 'qr-scanner';
 import dayjs from 'dayjs';
@@ -10,7 +10,11 @@ import useAlert from '../../../hooks/useAlert';
 import AlertModal from '../../../components/AlertModal';
 import { classroomService } from '../../../services/attendance';
 import attendanceService from '../../../services/attendance/attendanceService';
+import justificationsService from '../../../services/justifications/justificationsService';
 import { BatchAttendanceStatus, RegistrationMethod } from '../../../types/attendance';
+
+const { TextArea } = Input;
+const { Step } = Steps;
 
 const AttendanceRegister = () => {
   const { classroomId } = useParams();
@@ -34,6 +38,16 @@ const AttendanceRegister = () => {
   const [batchAttendances, setBatchAttendances] = useState([]); // Array de asistencias de entrada
   const [batchExits, setBatchExits] = useState([]); // Array de asistencias de salida
   const [isSendingBatch, setIsSendingBatch] = useState(false); // Estado de envío del lote
+  
+  // Estados para justificaciones
+  const [justificationModal, setJustificationModal] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [justificationForm] = Form.useForm();
+  const [submittingJustification, setSubmittingJustification] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0); // Paso actual del modal (0 o 1)
+  const [selectedJustificationType, setSelectedJustificationType] = useState(''); // Tipo seleccionado
+  const [selectedSubmittedBy, setSelectedSubmittedBy] = useState('STUDENT'); // Quien presenta
+  const [justificationReasonText, setJustificationReasonText] = useState(''); // Razón detallada
   
   // Estados para modal de confirmación eliminados (registro automático)
   const videoRef = useRef(null); // Ref para el elemento video
@@ -79,10 +93,8 @@ const AttendanceRegister = () => {
   const loadClassroomInfo = async () => {
     try {
       const classroomData = await classroomService.getClassroomById(classroomId);
-      console.log('✅ Aula cargada:', classroomData);
       setClassroom(classroomData);
     } catch (error) {
-      console.error('❌ Error al cargar información del aula:', error);
       showError('Error al cargar la información del aula');
     }
   };
@@ -92,12 +104,9 @@ const AttendanceRegister = () => {
    */
   const loadStudents = async () => {
     try {
-      console.log(`🎓 Cargando estudiantes del aula ${classroomId}`);
       const studentsData = await classroomService.getStudentsByClassroom(classroomId);
-      console.log('✅ Estudiantes cargados:', studentsData);
       setStudents(studentsData);
     } catch (error) {
-      console.error('❌ Error al cargar estudiantes:', error);
       showError('Error al cargar la lista de estudiantes');
       setStudents([]);
     }
@@ -112,8 +121,6 @@ const AttendanceRegister = () => {
       const response = await attendanceService.getAttendancesByClassroom(classroomId, attendanceDate);
       
       if (response.success) {
-        console.log('✅ Asistencias cargadas:', response.data);
-        
         // Combinar datos de asistencias con información de estudiantes
         const attendancesWithNames = response.data.map(attendance => {
           const student = students.find(s => s.studentId === attendance.studentId);
@@ -126,15 +133,21 @@ const AttendanceRegister = () => {
           };
         });
         
-        console.log('🎯 Asistencias con nombres:', attendancesWithNames);
+        console.log('📋 DEBUG - Asistencias cargadas:', attendancesWithNames.map(a => ({
+          id: a.id,
+          attendanceRecordId: a.attendanceRecordId,
+          studentId: a.studentId,
+          studentName: a.studentName,
+          status: a.status,
+          todosLosCampos: Object.keys(a)
+        })));
+        
         setAttendances(attendancesWithNames);
       } else {
-        console.error('❌ Error al cargar asistencias:', response.error);
         showError(response.error || 'Error al cargar las asistencias');
         setAttendances([]);
       }
     } catch (error) {
-      console.error('❌ Error al cargar asistencias:', error);
       showError('Error al cargar las asistencias');
       setAttendances([]);
     }
@@ -150,9 +163,7 @@ const AttendanceRegister = () => {
       const scheduleUtilsModule = await import('../../../utils/attendance/scheduleUtils');
       const currentShiftInfo = scheduleUtilsModule.getShiftDisplayInfo();
       setShiftInfo(currentShiftInfo);
-      console.log('📊 Información del turno:', currentShiftInfo);
     } catch (error) {
-      console.error('❌ Error al cargar información del turno:', error);
       setShiftInfo(null);
     }
   };
@@ -161,9 +172,6 @@ const AttendanceRegister = () => {
    * Abrir modal de scanner QR
    */
   const openQRScanner = async (mode = 'entry') => {
-    console.log('🎯 Abriendo scanner QR en modo:', mode);
-    console.log('🔄 Estado previo scanMode:', scanMode);
-    
     setLastScannedCode(''); // Resetear código anterior
     setLastScanTime(0); // Resetear timestamp
     setIsProcessingQR(false); // Resetear estado de procesamiento
@@ -171,14 +179,10 @@ const AttendanceRegister = () => {
     setScanMode(mode); // Establecer el modo de escaneo
     setScannerModal(true);
     
-    console.log('✅ Nuevo scanMode establecido:', mode);
-    
     // Esperar a que el modal se abra completamente
     setTimeout(async () => {
       if (videoRef.current) {
         try {
-          console.log('🎥 Iniciando cámara...');
-          
           // Crear nueva instancia del scanner
           qrScannerRef.current = new QrScanner(
             videoRef.current,
@@ -194,10 +198,8 @@ const AttendanceRegister = () => {
           
           // Iniciar el scanner
           await qrScannerRef.current.start();
-          console.log('✅ Scanner QR iniciado correctamente');
           
         } catch (error) {
-          console.error('❌ Error al iniciar scanner:', error);
           if (error.name === 'NotAllowedError') {
             message.error('Acceso a la cámara denegado. Por favor, permite el acceso a la cámara.');
           } else if (error.name === 'NotFoundError') {
@@ -232,7 +234,6 @@ const AttendanceRegister = () => {
       scannedText = (result.data || result.text || result.value || '').toString().trim();
     } else {
       // Si no es string ni objeto válido
-      console.warn('⚠️ Formato de QR desconocido:', result);
       return;
     }
     
@@ -246,12 +247,8 @@ const AttendanceRegister = () => {
     
     // Evitar procesar el mismo código QR múltiples veces en un período corto
     if (scannedText === lastScannedCode && (currentTime - lastScanTime) < 2000) {
-      console.log('🔄 QR duplicado ignorado (muy pronto):', scannedText);
       return;
     }
-
-    console.log('🔍 QR detectado:', scannedText);
-    console.log('🎯 Modo de escaneo activo:', currentScanMode);
     
     // Marcar que estamos procesando
     setIsProcessingQR(true);
@@ -268,7 +265,6 @@ const AttendanceRegister = () => {
       const qrData = attendanceService.validateQRCode(scannedText);
       
       if (qrData && qrData.student_id && qrData.classroom_id) {
-        console.log('✅ QR válido:', qrData);
         
         // Verificar que el classroomId del QR coincida con el aula actual
         if (qrData.classroom_id !== classroomId) {
@@ -828,6 +824,219 @@ const AttendanceRegister = () => {
   };
 
   /**
+   * Abrir modal de justificación
+   */
+  const handleOpenJustificationModal = (record) => {
+    console.log('🔍 DEBUG - Registro de asistencia seleccionado:', record);
+    console.log('🔍 DEBUG - ID del registro:', record.id);
+    console.log('🔍 DEBUG - Tipo de ID:', typeof record.id);
+    console.log('🔍 DEBUG - Registro completo:', JSON.stringify(record, null, 2));
+    
+    setSelectedStudent(record);
+    
+    // Determinar el tipo de justificación por defecto según el estado
+    let defaultType = 'OTHER'; // Por defecto
+    if (record.status === 'P') {
+      defaultType = 'OTHER'; // Salida anticipada → OTRO
+    } else if (record.status === 'L') {
+      defaultType = 'OTHER'; // Tardanza → OTRO
+    } else if (record.status === 'A') {
+      defaultType = 'MEDICAL'; // Enfermedad
+    }
+    
+    // Inicializar estados y formulario
+    setSelectedJustificationType(defaultType);
+    setSelectedSubmittedBy('STUDENT');
+    setJustificationReasonText(''); // Resetear razón
+    
+    justificationForm.setFieldsValue({
+      justificationType: defaultType,
+      submittedBy: 'STUDENT',
+      submitterName: record.studentName || '',
+      justificationReason: '' // Resetear campo
+    });
+    
+    setJustificationModal(true);
+  };
+
+  /**
+   * Cerrar modal de justificación
+   */
+  const handleCloseJustificationModal = () => {
+    setJustificationModal(false);
+    setSelectedStudent(null);
+    setCurrentStep(0); // Resetear al paso 1
+    setSelectedJustificationType('');
+    setSelectedSubmittedBy('STUDENT');
+    setJustificationReasonText(''); // Resetear razón
+    justificationForm.resetFields();
+  };
+
+  /**
+   * Ir al siguiente paso del formulario
+   */
+  const handleNextStep = async () => {
+    try {
+      // Obtener valores actuales del formulario
+      const values = justificationForm.getFieldsValue();
+      
+      // Validar que el tipo esté seleccionado
+      if (!selectedJustificationType) {
+        message.warning('Por favor selecciona un tipo de justificación');
+        return;
+      }
+      
+      // Validar que la razón esté completa
+      if (!values.justificationReason || values.justificationReason.trim().length < 10) {
+        message.warning('La descripción debe tener al menos 10 caracteres');
+        return;
+      }
+      
+      // Guardar la razón en el estado antes de cambiar de paso
+      setJustificationReasonText(values.justificationReason.trim());
+      
+      console.log('✅ DEBUG - Guardando razón antes de avanzar:', values.justificationReason.trim());
+      
+      // Avanzar al siguiente paso
+      setCurrentStep(1);
+    } catch (error) {
+      console.error('Error en handleNextStep:', error);
+      message.warning('Por favor completa todos los campos requeridos');
+    }
+  };
+
+  /**
+   * Volver al paso anterior
+   */
+  const handlePrevStep = () => {
+    setCurrentStep(0);
+  };
+
+  /**
+   * Enviar justificación
+   */
+  const handleSubmitJustification = async () => {
+    console.log('🚀 DEBUG - handleSubmitJustification INICIADO');
+    
+    try {
+      // Obtener todos los valores del formulario
+      const values = justificationForm.getFieldsValue();
+      
+      console.log('📝 DEBUG - Valores del formulario:', values);
+      console.log('📝 DEBUG - Estados:', {
+        selectedJustificationType,
+        selectedSubmittedBy,
+        justificationReasonText,
+        selectedStudent
+      });
+      
+      // Validación manual usando los estados
+      if (!selectedJustificationType) {
+        console.log('❌ DEBUG - Falta selectedJustificationType');
+        message.warning('Por favor selecciona un tipo de justificación');
+        return;
+      }
+      
+      if (!justificationReasonText || justificationReasonText.trim().length < 10) {
+        console.log('❌ DEBUG - Falta justificationReason o es muy corta:', justificationReasonText);
+        message.warning('La descripción debe tener al menos 10 caracteres');
+        return;
+      }
+      
+      if (!selectedSubmittedBy) {
+        console.log('❌ DEBUG - Falta selectedSubmittedBy');
+        message.warning('Por favor selecciona quién presenta la justificación');
+        return;
+      }
+      
+      if (!values.submitterName || values.submitterName.trim().length === 0) {
+        console.log('❌ DEBUG - Falta submitterName:', values.submitterName);
+        message.warning('Por favor ingresa el nombre de quien presenta');
+        return;
+      }
+
+      console.log('✅ DEBUG - Todas las validaciones pasaron, creando payload...');
+
+      setSubmittingJustification(true);
+
+      // Construir los datos según el formato CORRECTO del API (validado por backend)
+      const justificationData = {
+        attendanceRecordId: selectedStudent.id, // ID del registro de asistencia
+        justificationType: selectedJustificationType, // MEDICAL, PERSONAL, FAMILY_EMERGENCY, etc.
+        justificationReason: justificationReasonText.trim(), // Campo "justificationReason" (requerido)
+        submittedBy: selectedSubmittedBy, // STUDENT, PARENT, GUARDIAN
+        submitterName: values.submitterName.trim(), // Nombre de quien presenta (requerido)
+        submitterContact: values.submitterContact?.trim() || '', // Contacto (opcional)
+        submissionDate: dayjs().format('YYYY-MM-DD') // Fecha actual (requerido)
+      };
+
+      // DEBUG: Log para verificar datos enviados
+      console.log('� DEBUG - Datos de justificación a enviar:', {
+        justificationData,
+        selectedStudent,
+        attendanceRecordId: selectedStudent.id,
+        tipoDeId: typeof selectedStudent.id,
+        formatoValido: /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(selectedStudent.id),
+        attendanceDate,
+        formValues: values,
+        states: {
+          selectedJustificationType,
+          selectedSubmittedBy
+        }
+      });
+
+      console.log('🌐 DEBUG - Llamando a justificationsService.createJustification...');
+      const response = await justificationsService.createJustification(justificationData);
+
+      // DEBUG: Log de respuesta
+      console.log('🔍 DEBUG - Respuesta del servidor:', response);
+
+      if (response.success) {
+        message.success('Justificación enviada exitosamente');
+        handleCloseJustificationModal();
+        await loadAttendances(); // Recargar para actualizar estados
+      } else {
+        // Mostrar error más específico
+        const errorMsg = response.error || 'Error al enviar justificación';
+        
+        // Si es error 500, mostrar mensaje amigable
+        if (errorMsg.includes('500')) {
+          message.error(
+            'Error del servidor. Por favor contacta al administrador del sistema o intenta nuevamente más tarde.',
+            5
+          );
+          console.error('❌ Error del backend:', errorMsg);
+        } else {
+          message.error(errorMsg);
+        }
+      }
+    } catch (error) {
+      console.error('🔍 DEBUG - Error capturado:', error);
+      message.error('Error inesperado al enviar la justificación. Por favor intenta nuevamente.');
+    } finally {
+      setSubmittingJustification(false);
+    }
+  };
+
+  /**
+   * Obtener mensaje de justificación según el estado
+   */
+  const getJustificationMessage = (status) => {
+    switch(status) {
+      case 'P':
+        return 'Justificar salida anticipada';
+      case 'L':
+        return 'Justificar tardanza';
+      case 'A':
+        return 'Justificar falta';
+      case 'J':
+        return 'Ver justificación';
+      default:
+        return 'Justificar';
+    }
+  };
+
+  /**
    * Columnas de la tabla de asistencias
    */
   const columns = [
@@ -901,6 +1110,46 @@ const AttendanceRegister = () => {
           );
         }
         return <span style={{ color: '#999' }}>---</span>;
+      }
+    },
+    {
+      title: 'Acciones',
+      key: 'actions',
+      align: 'center',
+      width: 100,
+      render: (_, record) => {
+        const menuItems = [
+          {
+            key: 'justify',
+            icon: <FileTextOutlined />,
+            label: getJustificationMessage(record.status),
+            onClick: () => handleOpenJustificationModal(record)
+          }
+        ];
+
+        // Agregar opción de registrar salida si está presente y no tiene exitTime
+        if (record.status === 'P' && record.attendanceTime && !record.exitTime) {
+          menuItems.push({
+            key: 'exit',
+            icon: <LogoutOutlined />,
+            label: 'Registrar Salida',
+            onClick: () => handleExitRegister(record)
+          });
+        }
+
+        return (
+          <Dropdown
+            menu={{ items: menuItems }}
+            placement="bottomRight"
+            trigger={['click']}
+          >
+            <Button
+              type="text"
+              icon={<MoreOutlined style={{ fontSize: '16px' }} />}
+              style={{ padding: '4px 8px' }}
+            />
+          </Dropdown>
+        );
       }
     }
   ];
@@ -1119,12 +1368,6 @@ const AttendanceRegister = () => {
                     render: (time) => time || <span style={{ color: '#999' }}>---</span>
                   },
                   {
-                    title: 'Aula',
-                    dataIndex: 'nombre_aula',
-                    key: 'nombre_aula',
-                    render: (aula) => aula || 'Sin aula'
-                  },
-                  {
                     title: 'Acciones',
                     key: 'actions',
                     render: (_, record) => (
@@ -1143,7 +1386,7 @@ const AttendanceRegister = () => {
                 rowKey="id_estudiante"
                 pagination={false}
                 size="small"
-                scroll={{ x: 600 }}
+                scroll={{ x: 500 }}
               />
             </Card>
           )}
@@ -1185,12 +1428,6 @@ const AttendanceRegister = () => {
                     render: (time) => time || <span style={{ color: '#999' }}>---</span>
                   },
                   {
-                    title: 'Aula',
-                    dataIndex: 'nombre_aula',
-                    key: 'nombre_aula',
-                    render: (aula) => aula || 'Sin aula'
-                  },
-                  {
                     title: 'Acciones',
                     key: 'actions',
                     render: (_, record) => (
@@ -1209,7 +1446,7 @@ const AttendanceRegister = () => {
                 rowKey="id_estudiante"
                 pagination={false}
                 size="small"
-                scroll={{ x: 600 }}
+                scroll={{ x: 500 }}
               />
             </Card>
           )}
@@ -1370,6 +1607,279 @@ const AttendanceRegister = () => {
       </Modal>
 
       {/* Modal de confirmación eliminado - Registro automático */}
+
+      {/* Modal de Justificación - 2 Pasos */}
+      <Modal
+        title={
+          <div>
+            <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '4px' }}>
+              📝 Justificar Asistencia
+            </div>
+            {selectedStudent && (
+              <div style={{ fontSize: '13px', color: '#666', fontWeight: 400 }}>
+                Estudiante: <strong>{selectedStudent.studentName}</strong> • 
+                Fecha: <strong>{dayjs(selectedStudent.attendanceDate).format('DD/MM/YYYY')}</strong>
+              </div>
+            )}
+          </div>
+        }
+        open={justificationModal}
+        onCancel={handleCloseJustificationModal}
+        footer={null}
+        width={700}
+        destroyOnClose
+      >
+        {/* Steps Indicator */}
+        <Steps current={currentStep} style={{ marginBottom: '30px' }}>
+          <Step title="Motivo" description="Tipo y razón" icon={currentStep > 0 ? <CheckCircleOutlined /> : undefined} />
+          <Step title="Datos" description="Contacto" />
+        </Steps>
+
+        {/* Información del estudiante */}
+        {selectedStudent && (
+          <div style={{ 
+            marginBottom: '24px', 
+            padding: '16px', 
+            backgroundColor: '#f5f7fa', 
+            borderRadius: '8px',
+            border: '1px solid #e8ecf0'
+          }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+              <div>
+                <div style={{ fontSize: '12px', color: '#8c8c8c', marginBottom: '4px' }}>Estado Actual</div>
+                <div>
+                  {selectedStudent.status === 'P' && <Tag color="green">PRESENTE</Tag>}
+                  {selectedStudent.status === 'L' && <Tag color="orange">TARDANZA</Tag>}
+                  {selectedStudent.status === 'A' && <Tag color="red">AUSENTE</Tag>}
+                  {selectedStudent.status === 'J' && <Tag color="purple">JUSTIFICADO</Tag>}
+                </div>
+              </div>
+              {selectedStudent.attendanceTime && (
+                <div>
+                  <div style={{ fontSize: '12px', color: '#8c8c8c', marginBottom: '4px' }}>Hora de Entrada</div>
+                  <div style={{ fontSize: '14px', fontWeight: 500 }}>{selectedStudent.attendanceTime}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <Form
+          form={justificationForm}
+          layout="vertical"
+          requiredMark="optional"
+        >
+          {/* PASO 1: Motivo */}
+          {currentStep === 0 && (
+            <div>
+              <h4 style={{ marginBottom: '16px', fontSize: '15px', fontWeight: 600 }}>
+                ¿Cuál es el motivo de la justificación?
+              </h4>
+              
+              {/* Tipo de Justificación - Grid de tarjetas */}
+              <Form.Item
+                name="justificationType"
+                rules={[{ required: true, message: 'Selecciona un tipo de justificación' }]}
+              >
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(3, 1fr)', 
+                  gap: '12px',
+                  marginBottom: '20px'
+                }}>
+                  {[
+                    { value: 'MEDICAL', label: 'Médica', icon: '🏥', desc: 'Enfermedad o cita' },
+                    { value: 'FAMILY_EMERGENCY', label: 'Emergencia', icon: '👨‍👩‍👧‍👦', desc: 'Familiar' },
+                    { value: 'INSTITUTIONAL', label: 'Institucional', icon: '🏫', desc: 'Evento escolar' },
+                    { value: 'TRANSPORTATION', label: 'Transporte', icon: '�', desc: 'Problemas de traslado' },
+                    { value: 'WEATHER', label: 'Clima', icon: '🌧️', desc: 'Condiciones climáticas' },
+                    { value: 'PERSONAL', label: 'Personal', icon: '📄', desc: 'Razones personales' },
+                    { value: 'OTHER', label: 'Otro', icon: '📝', desc: 'Otros motivos' }
+                  ].map(type => (
+                    <div
+                      key={type.value}
+                      onClick={() => {
+                        setSelectedJustificationType(type.value);
+                        justificationForm.setFieldsValue({ justificationType: type.value });
+                      }}
+                      style={{
+                        padding: '16px',
+                        border: selectedJustificationType === type.value 
+                          ? '2px solid #1890ff' 
+                          : '2px solid #e8ecf0',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        backgroundColor: selectedJustificationType === type.value 
+                          ? '#e6f7ff' 
+                          : '#fff',
+                        transition: 'all 0.3s'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (selectedJustificationType !== type.value) {
+                          e.currentTarget.style.borderColor = '#1890ff';
+                          e.currentTarget.style.backgroundColor = '#f5f5f5';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (selectedJustificationType !== type.value) {
+                          e.currentTarget.style.borderColor = '#e8ecf0';
+                          e.currentTarget.style.backgroundColor = '#fff';
+                        }
+                      }}
+                    >
+                      <div style={{ fontSize: '28px', marginBottom: '8px' }}>{type.icon}</div>
+                      <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '2px' }}>{type.label}</div>
+                      <div style={{ fontSize: '11px', color: '#8c8c8c' }}>{type.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </Form.Item>
+
+              {/* Razón Detallada */}
+              <Form.Item
+                label={<span style={{ fontSize: '14px', fontWeight: 600 }}>Describe detalladamente el motivo</span>}
+                name="justificationReason"
+                rules={[
+                  { required: true, message: 'Por favor ingresa la razón' },
+                  { min: 10, message: 'La razón debe tener al menos 10 caracteres' }
+                ]}
+              >
+                <TextArea 
+                  rows={5} 
+                  placeholder="Ejemplo: El estudiante presentó fiebre alta y malestar general, por lo que tuvo que quedarse en casa para recuperarse..."
+                  maxLength={500}
+                  showCount
+                  style={{ fontSize: '14px' }}
+                />
+              </Form.Item>
+
+              {/* Botones Paso 1 */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '24px' }}>
+                <Button onClick={handleCloseJustificationModal} size="large">
+                  Cancelar
+                </Button>
+                <Button type="primary" onClick={handleNextStep} size="large">
+                  Continuar →
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* PASO 2: Datos de Contacto */}
+          {currentStep === 1 && (
+            <div>
+              <h4 style={{ marginBottom: '16px', fontSize: '15px', fontWeight: 600 }}>
+                Datos de quien envía la justificación
+              </h4>
+
+              {/* Presentado por - Radio Cards */}
+              <Form.Item
+                label={<span style={{ fontSize: '14px', fontWeight: 600 }}>¿Quién envía esta justificación?</span>}
+                name="submittedBy"
+                rules={[{ required: true, message: 'Selecciona quién presenta' }]}
+              >
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                  {[
+                    { value: 'STUDENT', label: 'Estudiante', icon: '👨‍🎓' },
+                    { value: 'PARENT', label: 'Padre/Madre', icon: '👨‍👩‍👧' },
+                    { value: 'GUARDIAN', label: 'Apoderado', icon: '🤝' }
+                  ].map(type => (
+                    <div
+                      key={type.value}
+                      onClick={() => {
+                        setSelectedSubmittedBy(type.value);
+                        justificationForm.setFieldsValue({ submittedBy: type.value });
+                      }}
+                      style={{
+                        padding: '14px',
+                        border: selectedSubmittedBy === type.value 
+                          ? '2px solid #1890ff' 
+                          : '2px solid #e8ecf0',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        backgroundColor: selectedSubmittedBy === type.value 
+                          ? '#e6f7ff' 
+                          : '#fff',
+                        transition: 'all 0.3s'
+                      }}
+                    >
+                      <div style={{ fontSize: '24px', marginBottom: '6px' }}>{type.icon}</div>
+                      <div style={{ fontSize: '13px', fontWeight: 500 }}>{type.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </Form.Item>
+
+              {/* Nombre */}
+              <Form.Item
+                label={<span style={{ fontSize: '14px', fontWeight: 600 }}>Nombre completo</span>}
+                name="submitterName"
+                rules={[{ required: true, message: 'Por favor ingresa el nombre' }]}
+              >
+                <Input 
+                  placeholder="Ej: Juan Carlos Pérez García"
+                  size="large"
+                />
+              </Form.Item>
+
+              {/* Contacto */}
+              <Form.Item
+                label={
+                  <span style={{ fontSize: '14px', fontWeight: 600 }}>
+                    Teléfono o Email <span style={{ color: '#8c8c8c', fontWeight: 400 }}>(opcional)</span>
+                  </span>
+                }
+                name="submitterContact"
+              >
+                <Input 
+                  placeholder="987654321 o correo@ejemplo.com"
+                  size="large"
+                />
+              </Form.Item>
+
+              {/* Resumen */}
+              <div style={{ 
+                padding: '16px', 
+                backgroundColor: '#f5f7fa', 
+                borderRadius: '8px',
+                marginBottom: '20px'
+              }}>
+                <h4 style={{ marginBottom: '12px', fontSize: '14px', fontWeight: 600 }}>📋 Resumen</h4>
+                <div style={{ fontSize: '13px', lineHeight: '1.8' }}>
+                  <div><strong>Motivo:</strong> {
+                    selectedJustificationType === 'MEDICAL' ? '🏥 Médica' :
+                    selectedJustificationType === 'FAMILY_EMERGENCY' ? '👨‍👩‍👧‍👦 Emergencia Familiar' :
+                    selectedJustificationType === 'INSTITUTIONAL' ? '🏫 Institucional' :
+                    selectedJustificationType === 'TRANSPORTATION' ? '� Transporte' :
+                    selectedJustificationType === 'WEATHER' ? '🌧️ Clima' :
+                    selectedJustificationType === 'PERSONAL' ? '📄 Personal' :
+                    '📝 Otro'
+                  }</div>
+                  <div><strong>Descripción:</strong> {justificationReasonText.substring(0, 100)}{justificationReasonText.length > 100 ? '...' : ''}</div>
+                </div>
+              </div>
+
+              {/* Botones Paso 2 */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginTop: '24px' }}>
+                <Button onClick={handlePrevStep} size="large">
+                  ← Atrás
+                </Button>
+                <Button 
+                  type="primary" 
+                  onClick={handleSubmitJustification}
+                  loading={submittingJustification}
+                  size="large"
+                  icon={<CheckCircleOutlined />}
+                >
+                  Enviar Justificación
+                </Button>
+              </div>
+            </div>
+          )}
+        </Form>
+      </Modal>
 
       <AlertModal alert={alertState} onConfirm={alertConfirm} onCancel={alertCancel} />
     </>

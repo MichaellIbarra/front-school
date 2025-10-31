@@ -143,7 +143,14 @@ class FutRequestService {
         estimatedDeliveryDate: futRequestData.estimatedDeliveryDate,
         attachedDocuments: futRequestData.attachedDocuments || {},
         adminNotes: futRequestData.adminNotes || '',
-        status: futRequestData.status || 'PENDIENTE'
+        status: futRequestData.status || 'PENDIENTE',
+        // Guardian information
+        guardianFullName: futRequestData.guardianFullName || '',
+        guardianPhone: futRequestData.guardianPhone || '',
+        guardianDni: futRequestData.guardianDni || '',
+        guardianAddress: futRequestData.guardianAddress || '',
+        guardianDistrict: futRequestData.guardianDistrict || '',
+        guardianProvince: futRequestData.guardianProvince || ''
       };
 
       return await this.executeWithRetry(async () => {
@@ -257,7 +264,7 @@ class FutRequestService {
       // Crear el payload sin el ID
       const payload = {
         studentEnrollmentId: futRequestData.studentEnrollmentId,
-        requestNumber: futRequestData.requestNumber,
+        requestNumber: futRequestData.requestNumber || '',
         requestType: futRequestData.requestType,
         requestSubject: futRequestData.requestSubject,
         requestDescription: futRequestData.requestDescription,
@@ -268,8 +275,28 @@ class FutRequestService {
         estimatedDeliveryDate: futRequestData.estimatedDeliveryDate,
         attachedDocuments: futRequestData.attachedDocuments || {},
         adminNotes: futRequestData.adminNotes || '',
-        status: futRequestData.status
+        status: futRequestData.status || 'PENDIENTE',
+        // Guardian information
+        guardianFullName: futRequestData.guardianFullName || '',
+        guardianPhone: futRequestData.guardianPhone || '',
+        guardianDni: futRequestData.guardianDni || '',
+        guardianAddress: futRequestData.guardianAddress || '',
+        guardianDistrict: futRequestData.guardianDistrict || '',
+        guardianProvince: futRequestData.guardianProvince || ''
       };
+
+      // Si es una actualización y no hay requestNumber, mantener el existente
+      if (!payload.requestNumber && id) {
+        // Obtener el requestNumber existente
+        try {
+          const existingRequest = await this.getById(id);
+          if (existingRequest.success && existingRequest.data) {
+            payload.requestNumber = existingRequest.data.requestNumber;
+          }
+        } catch (error) {
+          console.warn('No se pudo obtener el requestNumber existente:', error);
+        }
+      }
 
       return await this.executeWithRetry(async () => {
         const response = await fetch(`${this.baseURL}/${id}`, {

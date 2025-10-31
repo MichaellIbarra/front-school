@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Table, Button, Input, Select, Space, Dropdown, Tag, Tooltip, Menu, Modal, Card, Row, Col, Descriptions, Checkbox, Form, DatePicker } from "antd";
-import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, UndoOutlined, CheckOutlined, CloseOutlined, EyeOutlined, UserOutlined, FileTextOutlined, DownloadOutlined } from "@ant-design/icons";
+import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, UndoOutlined, CheckOutlined, CloseOutlined, EyeOutlined, UserOutlined, FileTextOutlined, DownloadOutlined, FilePdfOutlined, FileExcelOutlined, PrinterOutlined, CalendarOutlined, BookOutlined } from "@ant-design/icons";
 import FeatherIcon from "feather-icons-react";
 import { MoreHorizontal, Filter } from "react-feather";
 import Header from "../../../components/Header";
@@ -398,6 +398,77 @@ const EnrollmentList = () => {
     setLoading(false);
   };
 
+  /**
+   * Maneja la exportación de reportes de matriculaciones
+   */
+  const handleReportExport = async (exportType) => {
+    try {
+      // Importar dinámicamente la utilidad de reportes
+      const { default: EnrollmentReportExporter } = await import('../../../utils/enrollments/enrollmentReportExporter');
+      
+      // Usar las matriculaciones filtradas actuales
+      const dataToExport = displayEnrollments.length > 0 ? displayEnrollments : enrollments;
+      
+      if (dataToExport.length === 0) {
+        showWarning('No hay matriculaciones para generar reporte');
+        return;
+      }
+
+      // Enriquecer los datos con información completa de estudiantes y aulas
+      const enrichedData = dataToExport.map(enrollment => {
+        const student = students.find(s => s.id === enrollment.studentId);
+        const classroom = classrooms.find(c => c.id === enrollment.classroomId);
+        
+        return {
+          ...enrollment,
+          student: student || null,
+          classroom: classroom || null
+        };
+      });
+
+      console.log('Datos enriquecidos para reporte:', enrichedData); // Debug
+
+      let result;
+      const institutionName = localStorage.getItem('institution_name') || '';
+      const currentYear = new Date().getFullYear();
+
+      switch (exportType) {
+        case 'csv':
+          result = EnrollmentReportExporter.exportEnrollmentsToCSV(enrichedData, institutionName);
+          break;
+        case 'pdf':
+          result = EnrollmentReportExporter.exportEnrollmentsToPDF(enrichedData, institutionName);
+          break;
+        case 'active':
+          result = EnrollmentReportExporter.exportActiveEnrollments(enrichedData, institutionName);
+          break;
+        case 'retired':
+          result = EnrollmentReportExporter.exportRetiredEnrollments(enrichedData, institutionName);
+          break;
+        case 'completed':
+          result = EnrollmentReportExporter.exportEnrollmentsByStatus(enrichedData, 'C', institutionName);
+          break;
+        case 'transferred':
+          result = EnrollmentReportExporter.exportEnrollmentsByStatus(enrichedData, 'T', institutionName);
+          break;
+        case 'current_year':
+          result = EnrollmentReportExporter.exportEnrollmentsByAcademicYear(enrichedData, currentYear, institutionName);
+          break;
+        default:
+          result = EnrollmentReportExporter.exportEnrollmentsToPDF(enrichedData, institutionName);
+      }
+
+      if (result.success) {
+        showSuccess(result.message);
+      } else {
+        showError(result.error);
+      }
+    } catch (error) {
+      console.error('Error al generar reporte:', error);
+      showError('Error al generar el reporte de matriculaciones');
+    }
+  };
+
   const columns = [
     {
       title: 'Estudiante',
@@ -621,6 +692,65 @@ const EnrollmentList = () => {
                         >
                           Importar Masivo
                         </Button>
+                        <Dropdown
+                          menu={{
+                            items: [
+                              {
+                                key: 'csv',
+                                label: 'Exportar CSV',
+                                icon: <FileExcelOutlined />,
+                                onClick: () => handleReportExport('csv'),
+                              },
+                              {
+                                key: 'pdf',
+                                label: 'Reporte PDF',
+                                icon: <FilePdfOutlined />,
+                                onClick: () => handleReportExport('pdf'),
+                              },
+                              { type: 'divider' },
+                              {
+                                key: 'active',
+                                label: 'Solo Activas',
+                                icon: <CheckOutlined />,
+                                onClick: () => handleReportExport('active'),
+                              },
+                              {
+                                key: 'retired',
+                                label: 'Solo Retiradas',
+                                icon: <CloseOutlined />,
+                                onClick: () => handleReportExport('retired'),
+                              },
+                              { type: 'divider' },
+                              {
+                                key: 'completed',
+                                label: 'Matriculaciones Completadas',
+                                icon: <BookOutlined />,
+                                onClick: () => handleReportExport('completed'),
+                              },
+                              {
+                                key: 'transferred',
+                                label: 'Matriculaciones Transferidas',
+                                icon: <UserOutlined />,
+                                onClick: () => handleReportExport('transferred'),
+                              },
+                              { type: 'divider' },
+                              {
+                                key: 'current_year',
+                                label: 'Año Actual',
+                                icon: <CalendarOutlined />,
+                                onClick: () => handleReportExport('current_year'),
+                              },
+                            ],
+                          }}
+                          trigger={['click']}
+                        >
+                          <Button
+                            icon={<PrinterOutlined />}
+                            className="btn-sm"
+                          >
+                            Reportes
+                          </Button>
+                        </Dropdown>
                         <Button
                           type="primary"
                           icon={<PlusOutlined />}
@@ -942,29 +1072,8 @@ const EnrollmentList = () => {
                 >
                   {classrooms.map(classroom => (
                     <Select.Option key={classroom.id} value={classroom.id}>
-                      {(() => {
-                        // Construir nombre descriptivo del aula
-                        let displayName = '';
-                        
-                        if (classroom.name) {
-                          displayName = classroom.name;
-                        } else if (classroom.grade && classroom.section) {
-                          displayName = `${classroom.grade}° ${classroom.section}`;
-                        } else if (classroom.grade) {
-                          displayName = `${classroom.grade}° Grado`;
-                        } else if (classroom.level) {
-                          displayName = classroom.level;
-                        } else {
-                          displayName = `Aula ${classroom.id.substring(0, 8)}...`;
-                        }
-                        
-                        // Agregar información adicional si está disponible
-                        const extras = [];
-                        if (classroom.capacity) extras.push(`Cap: ${classroom.capacity}`);
-                        if (classroom.academicYear) extras.push(classroom.academicYear);
-                        
-                        return displayName + (extras.length > 0 ? ` (${extras.join(', ')})` : '');
-                      })()}
+                      {/* Usar exactamente el mismo formato que el dropdown de filtros */}
+                      {classroom.classroomName} {classroom.section ? `(${classroom.section})` : ''}
                     </Select.Option>
                   ))}
                 </Select>

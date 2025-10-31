@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Table, Button, Input, Select, Dropdown, Tag } from 'antd';
-import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, EyeOutlined } from '@ant-design/icons';
+import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, EyeOutlined, FilePdfOutlined } from '@ant-design/icons';
 import { MoreHorizontal } from 'react-feather';
 import teacherAssignmentService from '../../../services/academic/teacherAssignmentService';
 import courseService from '../../../services/academic/courseService';
@@ -14,6 +14,7 @@ import academicExporter from '../../../utils/academic/academicExporter';
 import { filterByStatus, getStatusColor, getStatusText } from '../../../utils/academic/academicHelpers';
 import TeacherAssignmentFormModal from './TeacherAssignmentFormModal';
 import TeacherAssignmentDetailModal from './TeacherAssignmentDetailModal';
+import TeacherAssignmentReportExporter from '../../../utils/academic/teacherAssignmentReportExporter';
 
 const { Option } = Select;
 
@@ -239,6 +240,45 @@ const TeacherAssignmentList = () => {
     }
   };
 
+  const handleExportPDF = () => {
+    try {
+      const result = TeacherAssignmentReportExporter.exportAssignmentsToPDF(filteredAssignments);
+      if (result.success) {
+        showSuccess(result.message);
+      } else {
+        showError(result.error);
+      }
+    } catch (error) {
+      showError('Error al generar el PDF: ' + error.message);
+    }
+  };
+
+  const handleExportByTeacher = () => {
+    try {
+      const result = TeacherAssignmentReportExporter.exportByTeacher(filteredAssignments);
+      if (result.success) {
+        showSuccess(result.message);
+      } else {
+        showError(result.error);
+      }
+    } catch (error) {
+      showError('Error al generar el reporte por profesor: ' + error.message);
+    }
+  };
+
+  const handleExportCSV = () => {
+    try {
+      const result = TeacherAssignmentReportExporter.exportAssignmentsToCSV(filteredAssignments);
+      if (result.success) {
+        showSuccess(result.message);
+      } else {
+        showError(result.error);
+      }
+    } catch (error) {
+      showError('Error al exportar CSV: ' + error.message);
+    }
+  };
+
   const handleOpenCreateModal = () => {
     setSelectedAssignment(null);
     setModalMode('create');
@@ -382,9 +422,45 @@ const TeacherAssignmentList = () => {
                     </div>
                     <div className="col-lg-4 col-md-12 col-sm-12 mb-2">
                       <div className="d-flex flex-wrap justify-content-end gap-2">
-                        <Button icon={<DownloadOutlined />} onClick={handleExport} disabled={filteredAssignments.length === 0}>
-                          Exportar
-                        </Button>
+                        <Dropdown
+                          menu={{
+                            items: [
+                              {
+                                key: 'pdf',
+                                label: 'Exportar PDF General',
+                                icon: <FilePdfOutlined />,
+                                onClick: handleExportPDF,
+                              },
+                              {
+                                key: 'pdf-teacher',
+                                label: 'PDF por Profesor',
+                                icon: <FilePdfOutlined />,
+                                onClick: handleExportByTeacher,
+                              },
+                              {
+                                type: 'divider',
+                              },
+                              {
+                                key: 'csv',
+                                label: 'Exportar CSV',
+                                icon: <DownloadOutlined />,
+                                onClick: handleExportCSV,
+                              },
+                              {
+                                key: 'excel',
+                                label: 'Exportar Excel',
+                                icon: <DownloadOutlined />,
+                                onClick: handleExport,
+                              },
+                            ],
+                          }}
+                          trigger={['click']}
+                          disabled={filteredAssignments.length === 0}
+                        >
+                          <Button icon={<DownloadOutlined />}>
+                            Exportar
+                          </Button>
+                        </Dropdown>
                         <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenCreateModal}>
                           Nueva Asignación
                         </Button>

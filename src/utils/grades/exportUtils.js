@@ -1,7 +1,7 @@
 // Utilidades de exportación para tablas de calificaciones
 import { message } from 'antd';
 import { 
-  AchievementLevel,
+  GradeScale,
   formatDate
 } from '../../types/grades/grade';
 
@@ -406,16 +406,19 @@ export class GradeExportUtils {
   }
 
   /**
-   * Obtiene la clase CSS para el nivel de logro
-   * @param {string} level - Código del nivel de logro
+   * Obtiene la clase CSS para la escala de calificación
+   * @param {string} scale - Código de la escala de calificación
    * @returns {string} Clase CSS
    */
-  static getAchievementLevelClass(level) {
-    switch (level) {
+  static getGradeScaleClass(scale) {
+    switch (scale) {
       case 'AD': return 'level-ad';
       case 'A': return 'level-a';
       case 'B': return 'level-b';
       case 'C': return 'level-c';
+      case 'LOGRADO': return 'level-logrado';
+      case 'PROCESO': return 'level-proceso';
+      case 'INICIO': return 'level-inicio';
       default: return '';
     }
   }
@@ -429,20 +432,20 @@ export class GradeExportUtils {
    */
   static exportGradesToCSV(grades) {
     const headers = [
-      'ID', 'Estudiante', 'Curso', 'Período Académico', 'Tipo Evaluación',
-      'Nivel de Logro', 'Descripción Logro', 'Fecha Evaluación', 'Observaciones'
+      'ID', 'Estudiante', 'Curso', 'Tipo Período', 'Tipo Evaluación',
+      'Escala Calificación', 'Descripción Escala', 'Fecha Evaluación', 'Observaciones'
     ];
 
     const mapFunction = (grade) => [
       GradeExportUtils.sanitizeCSV(grade.id),
       GradeExportUtils.sanitizeCSV(grade.studentId),
       GradeExportUtils.sanitizeCSV(grade.courseId),
-      GradeExportUtils.sanitizeCSV(grade.academicPeriod),
+      GradeExportUtils.sanitizeCSV(grade.typePeriod),
       GradeExportUtils.sanitizeCSV(grade.evaluationType),
-      GradeExportUtils.sanitizeCSV(grade.achievementLevel),
-      GradeExportUtils.sanitizeCSV(AchievementLevel[grade.achievementLevel]?.name || ''),
+      GradeExportUtils.sanitizeCSV(grade.gradeScale),
+      GradeExportUtils.sanitizeCSV(GradeScale[grade.gradeScale]?.name || ''),
       GradeExportUtils.sanitizeCSV(formatDate(grade.evaluationDate)),
-      GradeExportUtils.sanitizeCSV(grade.remarks)
+      GradeExportUtils.sanitizeCSV(grade.observations)
     ];
 
     GradeExportUtils.exportToCSV(grades, headers, mapFunction, 'calificaciones');
@@ -453,22 +456,22 @@ export class GradeExportUtils {
    */
   static exportGradesToPDF(grades) {
     const headers = [
-      'Estudiante', 'Curso', 'Período', 'Tipo Evaluación', 'Nivel de Logro', 'Fecha', 'Observaciones'
+      'Estudiante', 'Curso', 'Tipo Período', 'Tipo Evaluación', 'Escala Calificación', 'Fecha', 'Observaciones'
     ];
 
     const mapFunction = (grade) => {
-      const levelInfo = AchievementLevel[grade.achievementLevel];
-      const levelClass = GradeExportUtils.getAchievementLevelClass(grade.achievementLevel);
-      const observations = grade.remarks ? GradeExportUtils.sanitizeHTML(grade.remarks) : '-';
+      const scaleInfo = GradeScale[grade.gradeScale];
+      const scaleClass = GradeExportUtils.getGradeScaleClass(grade.gradeScale);
+      const observations = grade.observations ? GradeExportUtils.sanitizeHTML(grade.observations) : '-';
       
       return `
         <td style="font-weight: 600;">${GradeExportUtils.sanitizeHTML(grade.studentId)}</td>
         <td>${GradeExportUtils.sanitizeHTML(grade.courseId)}</td>
-        <td style="text-align: center;">${GradeExportUtils.sanitizeHTML(grade.academicPeriod)}</td>
+        <td style="text-align: center;">${GradeExportUtils.sanitizeHTML(grade.typePeriod)}</td>
         <td style="font-size: 9px;">${GradeExportUtils.sanitizeHTML(grade.evaluationType)}</td>
         <td style="text-align: center;">
-          <span class="${levelClass}">
-            ${grade.achievementLevel} - ${levelInfo?.name || ''}
+          <span class="${scaleClass}">
+            ${grade.gradeScale} - ${scaleInfo?.name || ''}
           </span>
         </td>
         <td style="text-align: center;">${GradeExportUtils.sanitizeHTML(formatDate(grade.evaluationDate))}</td>
@@ -490,40 +493,40 @@ export class GradeExportUtils {
    */
   static exportGradesToExcel(grades) {
     const headers = [
-      'ID', 'Estudiante', 'Curso', 'Período Académico', 'Tipo Evaluación',
-      'Nivel de Logro', 'Descripción Logro', 'Fecha Evaluación', 'Observaciones'
+      'ID', 'Estudiante', 'Curso', 'Tipo Período', 'Tipo Evaluación',
+      'Escala Calificación', 'Descripción Escala', 'Fecha Evaluación', 'Observaciones'
     ];
 
     const mapFunction = (grade) => [
       grade.id,
       grade.studentId,
       grade.courseId,
-      grade.academicPeriod,
+      grade.typePeriod,
       grade.evaluationType,
-      grade.achievementLevel,
-      AchievementLevel[grade.achievementLevel]?.name || '',
+      grade.gradeScale,
+      GradeScale[grade.gradeScale]?.name || '',
       formatDate(grade.evaluationDate),
-      grade.remarks
+      grade.observations
     ];
 
     GradeExportUtils.exportToExcel(grades, headers, mapFunction, 'calificaciones', 'Calificaciones');
   }
 
   /**
-   * Exporta reporte por período académico
+   * Exporta reporte por tipo de período
    */
   static exportGradesByPeriodToCSV(grades, period) {
-    const filteredGrades = grades.filter(grade => grade.academicPeriod === period);
+    const filteredGrades = grades.filter(grade => grade.typePeriod === period);
     
     const headers = [
-      'Estudiante', 'Curso', 'Nivel de Logro', 'Descripción', 'Fecha Evaluación'
+      'Estudiante', 'Curso', 'Escala Calificación', 'Descripción', 'Fecha Evaluación'
     ];
 
     const mapFunction = (grade) => [
       GradeExportUtils.sanitizeCSV(grade.studentId),
       GradeExportUtils.sanitizeCSV(grade.courseId),
-      GradeExportUtils.sanitizeCSV(grade.achievementLevel),
-      GradeExportUtils.sanitizeCSV(AchievementLevel[grade.achievementLevel]?.name || ''),
+      GradeExportUtils.sanitizeCSV(grade.gradeScale),
+      GradeExportUtils.sanitizeCSV(GradeScale[grade.gradeScale]?.name || ''),
       GradeExportUtils.sanitizeCSV(formatDate(grade.evaluationDate))
     ];
 
@@ -542,17 +545,17 @@ export class GradeExportUtils {
     const studentGrades = grades.filter(grade => grade.studentId === studentId);
     
     const headers = [
-      'Curso', 'Período', 'Tipo Evaluación', 'Nivel de Logro', 'Descripción', 'Fecha', 'Observaciones'
+      'Curso', 'Tipo Período', 'Tipo Evaluación', 'Escala Calificación', 'Descripción', 'Fecha', 'Observaciones'
     ];
 
     const mapFunction = (grade) => [
       GradeExportUtils.sanitizeCSV(grade.courseId),
-      GradeExportUtils.sanitizeCSV(grade.academicPeriod),
+      GradeExportUtils.sanitizeCSV(grade.typePeriod),
       GradeExportUtils.sanitizeCSV(grade.evaluationType),
-      GradeExportUtils.sanitizeCSV(grade.achievementLevel),
-      GradeExportUtils.sanitizeCSV(AchievementLevel[grade.achievementLevel]?.name || ''),
+      GradeExportUtils.sanitizeCSV(grade.gradeScale),
+      GradeExportUtils.sanitizeCSV(GradeScale[grade.gradeScale]?.name || ''),
       GradeExportUtils.sanitizeCSV(formatDate(grade.evaluationDate)),
-      GradeExportUtils.sanitizeCSV(grade.remarks)
+      GradeExportUtils.sanitizeCSV(grade.observations)
     ];
 
     GradeExportUtils.exportToCSV(
@@ -571,16 +574,16 @@ export class GradeExportUtils {
     const uniqueStudents = new Set(grades.map(g => g.studentId)).size;
     const uniqueCourses = new Set(grades.map(g => g.courseId)).size;
     
-    // Distribución por niveles de logro
-    const levelDistribution = {};
-    Object.keys(AchievementLevel).forEach(level => {
-      levelDistribution[level] = grades.filter(g => g.achievementLevel === level).length;
+    // Distribución por escala de calificación
+    const scaleDistribution = {};
+    Object.keys(GradeScale).forEach(scale => {
+      scaleDistribution[scale] = grades.filter(g => g.gradeScale === scale).length;
     });
     
-    // Distribución por período
+    // Distribución por tipo de período
     const periodDistribution = {};
     grades.forEach(grade => {
-      const period = grade.academicPeriod || 'Sin período';
+      const period = grade.typePeriod || 'Sin período';
       periodDistribution[period] = (periodDistribution[period] || 0) + 1;
     });
 
@@ -588,7 +591,7 @@ export class GradeExportUtils {
       totalGrades,
       uniqueStudents,
       uniqueCourses,
-      levelDistribution,
+      scaleDistribution,
       periodDistribution
     };
   }

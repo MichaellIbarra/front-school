@@ -26,10 +26,8 @@ const MyClassrooms = () => {
     setLoading(true);
     try {
       const classroomsData = await classroomService.getAuxiliaryClassrooms();
-      console.log('✅ Aulas cargadas:', classroomsData);
       setClassrooms(classroomsData);
     } catch (error) {
-      console.error('❌ Error al cargar aulas:', error);
       showError('Error al cargar las aulas: ' + error.message);
       setClassrooms([]);
     }

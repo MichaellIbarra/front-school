@@ -169,6 +169,46 @@ class AttendanceService {
     }
   }
 
+  /**
+   * Obtiene las asistencias de un estudiante específico
+   * GET /api/v1/attendances/auxiliary/by-student/{studentId}
+   * @param {string} studentId - UUID del estudiante
+   * @returns {Promise<Object>} - Lista de asistencias del estudiante
+   */
+  async getAttendancesByStudent(studentId) {
+    try {
+      console.log(`📤 Obteniendo asistencias del estudiante ${studentId}`);
+      
+      return await this.executeWithRetry(async () => {
+        const response = await fetch(`${this.baseURL}/auxiliary/by-student/${studentId}`, {
+          method: 'GET',
+          headers: this.getAuthHeaders()
+        });
+
+        const result = await this.handleResponse(response);
+        
+        console.log('📥 Asistencias del estudiante obtenidas:', result);
+        
+        // El backend devuelve directamente un array, no un objeto con propiedad data
+        const attendances = Array.isArray(result) ? result : (result.data || []);
+        
+        return {
+          success: true,
+          message: 'Asistencias del estudiante cargadas exitosamente',
+          data: attendances
+        };
+      });
+
+    } catch (error) {
+      console.error('❌ Error al obtener asistencias del estudiante:', error);
+      return {
+        success: false,
+        error: error.message || 'Error al cargar las asistencias del estudiante',
+        data: []
+      };
+    }
+  }
+
   // ==========================================
   // MÉTODOS PARA REGISTRO QR DE ASISTENCIAS
   // ==========================================

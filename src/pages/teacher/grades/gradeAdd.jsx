@@ -12,8 +12,8 @@ import useAlert from "../../../hooks/useAlert";
 import gradeService from "../../../services/grades/gradeService";
 import { 
   Grade, 
-  AchievementLevel, 
-  AcademicPeriod, 
+  GradeScale, 
+  TypePeriod, 
   EvaluationType, 
   validateGrade 
 } from "../../../types/grades/grade";
@@ -80,11 +80,11 @@ const GradeAdd = () => {
     form.setFieldsValue({
       studentId: grade.studentId,
       courseId: grade.courseId,
-      academicPeriod: grade.academicPeriod,
+      typePeriod: grade.typePeriod,
       evaluationType: grade.evaluationType,
-      achievementLevel: grade.achievementLevel,
+      gradeScale: grade.gradeScale,
       evaluationDate: grade.evaluationDate ? dayjs(grade.evaluationDate) : dayjs(),
-      remarks: grade.remarks,
+      observations: grade.observations,
     });
   };
 
@@ -99,11 +99,11 @@ const GradeAdd = () => {
       const gradePayload = {
         studentId: values.studentId.trim(),
         courseId: values.courseId.trim(),
-        academicPeriod: values.academicPeriod,
+        typePeriod: values.typePeriod,
         evaluationType: values.evaluationType,
-        achievementLevel: values.achievementLevel,
+        gradeScale: values.gradeScale,
         evaluationDate: values.evaluationDate.format('YYYY-MM-DD'),
-        remarks: values.remarks ? values.remarks.trim() : '',
+        observations: values.observations ? values.observations.trim() : '',
       };
 
       // Validar antes de enviar
@@ -119,7 +119,7 @@ const GradeAdd = () => {
       if (isEdit) {
         response = await gradeService.updateGrade(gradeData.id, gradePayload);
       } else {
-        response = await gradeService.createGrade(gradePayload);
+        response = await gradeService.registerGrade(gradePayload);
       }
 
       if (response.success) {
@@ -148,13 +148,13 @@ const GradeAdd = () => {
   };
 
   /**
-   * Maneja el cambio del nivel de logro para mostrar descripción
+   * Maneja el cambio de la escala de calificación para mostrar descripción
    */
-  const handleAchievementLevelChange = (value) => {
-    const levelInfo = AchievementLevel[value];
-    if (levelInfo) {
+  const handleGradeScaleChange = (value) => {
+    const scaleInfo = GradeScale[value];
+    if (scaleInfo) {
       form.setFieldsValue({
-        remarks: levelInfo.description
+        observations: scaleInfo.description
       });
     }
   };
@@ -236,13 +236,15 @@ const GradeAdd = () => {
 
                         <Col xs={24} sm={12} lg={6}>
                           <Form.Item
-                            name="academicPeriod"
-                            label="Período Académico"
-                            rules={[{ required: true, message: 'El período académico es obligatorio' }]}
+                            name="typePeriod"
+                            label="Tipo de Período"
+                            rules={[{ required: true, message: 'El tipo de período es obligatorio' }]}
                           >
-                            <Select placeholder="Seleccione el período académico">
-                              {Object.values(AcademicPeriod).map(period => (
-                                <Option key={period} value={period}>{period}</Option>
+                            <Select placeholder="Seleccione el tipo de período">
+                              {Object.values(TypePeriod).map(period => (
+                                <Option key={period.code} value={period.code}>
+                                  {period.name}
+                                </Option>
                               ))}
                             </Select>
                           </Form.Item>
@@ -269,20 +271,20 @@ const GradeAdd = () => {
                       <Row gutter={[16, 16]}>
                         <Col xs={24} sm={12} lg={8}>
                           <Form.Item
-                            name="achievementLevel"
-                            label="Nivel de Logro"
-                            rules={[{ required: true, message: 'El nivel de logro es obligatorio' }]}
+                            name="gradeScale"
+                            label="Escala de Calificación"
+                            rules={[{ required: true, message: 'La escala de calificación es obligatoria' }]}
                           >
                             <Select 
-                              placeholder="Seleccione el nivel de logro"
-                              onChange={handleAchievementLevelChange}
+                              placeholder="Seleccione la escala de calificación"
+                              onChange={handleGradeScaleChange}
                             >
-                              {Object.values(AchievementLevel).map(level => (
-                                <Option key={level.code} value={level.code}>
+                              {Object.values(GradeScale).map(scale => (
+                                <Option key={scale.code} value={scale.code}>
                                   <div>
-                                    <strong>{level.code} - {level.name}</strong>
+                                    <strong>{scale.code} - {scale.name}</strong>
                                     <div style={{ fontSize: '12px', color: '#666' }}>
-                                      {level.description}
+                                      {scale.description}
                                     </div>
                                   </div>
                                 </Option>
@@ -307,23 +309,23 @@ const GradeAdd = () => {
                         </Col>
 
                         <Col xs={24} lg={8}>
-                          {/* Mostrar información del nivel de logro seleccionado */}
+                          {/* Mostrar información de la escala seleccionada */}
                           <div className="form-group">
-                            <label>Descripción del Nivel</label>
+                            <label>Descripción de la Escala</label>
                             <div className="alert alert-info">
-                              <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues.achievementLevel !== currentValues.achievementLevel}>
+                              <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues.gradeScale !== currentValues.gradeScale}>
                                 {({ getFieldValue }) => {
-                                  const level = getFieldValue('achievementLevel');
-                                  const levelInfo = AchievementLevel[level];
-                                  return levelInfo ? (
+                                  const scale = getFieldValue('gradeScale');
+                                  const scaleInfo = GradeScale[scale];
+                                  return scaleInfo ? (
                                     <div>
-                                      <strong>{levelInfo.name}</strong>
+                                      <strong>{scaleInfo.name}</strong>
                                       <div className="mt-1" style={{ fontSize: '13px' }}>
-                                        {levelInfo.description}
+                                        {scaleInfo.description}
                                       </div>
                                     </div>
                                   ) : (
-                                    <div>Seleccione un nivel de logro para ver la descripción</div>
+                                    <div>Seleccione una escala para ver la descripción</div>
                                   );
                                 }}
                               </Form.Item>
@@ -333,7 +335,7 @@ const GradeAdd = () => {
 
                         <Col xs={24}>
                           <Form.Item
-                            name="remarks"
+                            name="observations"
                             label="Observaciones"
                             rules={[
                               { max: 500, message: 'Las observaciones no pueden exceder 500 caracteres' }

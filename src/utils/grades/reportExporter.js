@@ -5,7 +5,7 @@
 
 import GradeExportUtils from './exportUtils';
 import { 
-  AchievementLevel,
+  GradeScale,
   formatDate
 } from '../../types/grades/grade';
 
@@ -144,20 +144,20 @@ export class GradeReportExporter {
       // Usar la función de exportToPDF mejorada para imprimir
       GradeExportUtils.exportToPDF(
         grades,
-        ['Estudiante', 'Curso', 'Período', 'Tipo Evaluación', 'Nivel de Logro', 'Fecha', 'Observaciones'],
+        ['Estudiante', 'Curso', 'Tipo Período', 'Tipo Evaluación', 'Escala Calificación', 'Fecha', 'Observaciones'],
         (grade) => {
-          const levelInfo = AchievementLevel[grade.achievementLevel];
-          const levelClass = GradeExportUtils.getAchievementLevelClass(grade.achievementLevel);
-          const observations = grade.remarks ? GradeExportUtils.sanitizeHTML(grade.remarks) : '-';
+          const scaleInfo = GradeScale[grade.gradeScale];
+          const scaleClass = GradeExportUtils.getGradeScaleClass(grade.gradeScale);
+          const observations = grade.observations ? GradeExportUtils.sanitizeHTML(grade.observations) : '-';
           
           return `
             <td style="font-weight: 600;">${GradeExportUtils.sanitizeHTML(grade.studentId)}</td>
             <td>${GradeExportUtils.sanitizeHTML(grade.courseId)}</td>
-            <td style="text-align: center;">${GradeExportUtils.sanitizeHTML(grade.academicPeriod)}</td>
+            <td style="text-align: center;">${GradeExportUtils.sanitizeHTML(grade.typePeriod)}</td>
             <td style="font-size: 9px;">${GradeExportUtils.sanitizeHTML(grade.evaluationType)}</td>
             <td style="text-align: center;">
-              <span class="${levelClass}">
-                ${grade.achievementLevel} - ${levelInfo?.name || ''}
+              <span class="${scaleClass}">
+                ${grade.gradeScale} - ${scaleInfo?.name || ''}
               </span>
             </td>
             <td style="text-align: center;">${GradeExportUtils.sanitizeHTML(formatDate(grade.evaluationDate))}</td>

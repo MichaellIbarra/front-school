@@ -68,9 +68,10 @@ import StudentForm from "./pages/secretary/students/studentForm";
 import EditStudent from "./pages/secretary/students/EditStudent";
 
 import Fut from "./pages/secretary/fut";
+import FutFormPage from "./pages/secretary/fut/FutFormPage";
 // Grades and Notifications
+// Grades
 import GradeList from "./pages/teacher/grades/gradeList";
-import NotificationList from "./pages/teacher/grades/notificationList";
 import EnrollmentAnalytics from "./pages/secretary/enrollments/enrollmentAnalytics";
 // Teacher Assignments
 import MyAssignments from "./pages/teacher/MyAssignments";
@@ -89,6 +90,8 @@ import TeacherAssignmentList from "./pages/secretary/academic/TeacherAssignmentL
 import AssignmentList from "./pages/secretary/notifications/AssignmentList";
 import MyClassrooms from "./pages/auxiliary/attendance/myClassrooms";
 import AttendanceRegister from "./pages/auxiliary/attendance/AttendanceRegister";
+import AttendanceCalendar from "./pages/auxiliary/attendance/AttendanceCalendar";
+import JustificationsPage from "./pages/auxiliary/justifications/JustificationsPage";
 
 import DirectorAssignmentList from "./pages/director/institutions/directorAssignments";
 import DirectorAssignmentAdd from "./pages/director/institutions/directorAssignmentAdd";
@@ -419,16 +422,6 @@ const Approuter = () => {
             }
           />
 
-          {/* Rutas de Notificaciones */}
-          <Route
-            path="/teacher/notifications"
-            element={
-              <TeacherRoute>
-                <NotificationList />
-              </TeacherRoute>
-            }
-          />
-
           {/* Rutas de Asignaciones del Docente */}
           <Route
             path="/teacher/my-assignments"
@@ -467,6 +460,24 @@ const Approuter = () => {
             }
           />
 
+          <Route
+            path="/auxiliary/attendance/calendar"
+            element={
+              <AuxiliaryRoute>
+                <AttendanceCalendar />
+              </AuxiliaryRoute>
+            }
+          />
+
+          <Route
+            path="/auxiliary/justifications"
+            element={
+              <AuxiliaryRoute>
+                <JustificationsPage />
+              </AuxiliaryRoute>
+            }
+          />
+
           
 
           {/* ============= RUTAS DE SECRETARY ============= */}
@@ -484,6 +495,15 @@ const Approuter = () => {
             element={
               <SecretaryRoute>
                 <Fut />
+              </SecretaryRoute>
+            }
+          />
+
+          <Route
+            path="/fut/form"
+            element={
+              <SecretaryRoute>
+                <FutFormPage />
               </SecretaryRoute>
             }
           />

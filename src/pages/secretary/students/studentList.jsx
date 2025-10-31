@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Table, Button, Input, Select, Space, Dropdown, Tag, Tooltip, Menu } from "antd";
-import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, UndoOutlined, CheckOutlined, CloseOutlined, EyeOutlined, UserOutlined, FileTextOutlined, DownloadOutlined, IdcardOutlined, CalendarOutlined, ManOutlined, WomanOutlined, CheckCircleOutlined, HomeOutlined, EnvironmentOutlined, PhoneOutlined, MailOutlined, ClockCircleOutlined, HistoryOutlined, UnorderedListOutlined } from "@ant-design/icons";
+import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, UndoOutlined, CheckOutlined, CloseOutlined, EyeOutlined, UserOutlined, FileTextOutlined, DownloadOutlined, IdcardOutlined, CalendarOutlined, ManOutlined, WomanOutlined, CheckCircleOutlined, HomeOutlined, EnvironmentOutlined, PhoneOutlined, MailOutlined, ClockCircleOutlined, HistoryOutlined, UnorderedListOutlined, FilePdfOutlined, FileExcelOutlined, PrinterOutlined } from "@ant-design/icons";
 import FeatherIcon from "feather-icons-react";
 import { MoreHorizontal, Filter } from "react-feather";
 import Header from "../../../components/Header";
@@ -266,6 +266,59 @@ const StudentList = () => {
     }
   };
 
+  /**
+   * Maneja la exportación de reportes
+   */
+  const handleReportExport = async (exportType) => {
+    try {
+      // Importar dinámicamente la utilidad de reportes
+      const { default: StudentReportExporter } = await import('../../../utils/students/studentReportExporter');
+      
+      // Usar los estudiantes filtrados actuales
+      const dataToExport = displayStudents.length > 0 ? displayStudents : students;
+      
+      if (dataToExport.length === 0) {
+        showWarning('No hay estudiantes para generar reporte');
+        return;
+      }
+
+      let result;
+      const institutionName = localStorage.getItem('institution_name') || '';
+
+      switch (exportType) {
+        case 'csv':
+          result = StudentReportExporter.exportStudentsToCSV(dataToExport, institutionName);
+          break;
+        case 'pdf':
+          result = StudentReportExporter.exportStudentsToPDF(dataToExport, institutionName);
+          break;
+        case 'active':
+          result = StudentReportExporter.exportActiveStudents(dataToExport, institutionName);
+          break;
+        case 'inactive':
+          result = StudentReportExporter.exportInactiveStudents(dataToExport, institutionName);
+          break;
+        case 'male':
+          result = StudentReportExporter.exportStudentsByGender(dataToExport, 'MALE', institutionName);
+          break;
+        case 'female':
+          result = StudentReportExporter.exportStudentsByGender(dataToExport, 'FEMALE', institutionName);
+          break;
+        default:
+          result = StudentReportExporter.exportStudentsToPDF(dataToExport, institutionName);
+      }
+
+      if (result.success) {
+        showSuccess(result.message);
+      } else {
+        showError(result.error);
+      }
+    } catch (error) {
+      console.error('Error al generar reporte:', error);
+      showError('Error al generar el reporte de estudiantes');
+    }
+  };
+
   // Configuración de columnas de la tabla
   const columns = [
     {
@@ -483,6 +536,58 @@ const StudentList = () => {
                         >
                           Importar Masivo
                         </Button>
+                        <Dropdown
+                          menu={{
+                            items: [
+                              {
+                                key: 'csv',
+                                label: 'Exportar CSV',
+                                icon: <FileExcelOutlined />,
+                                onClick: () => handleReportExport('csv'),
+                              },
+                              {
+                                key: 'pdf',
+                                label: 'Reporte PDF',
+                                icon: <FilePdfOutlined />,
+                                onClick: () => handleReportExport('pdf'),
+                              },
+                              { type: 'divider' },
+                              {
+                                key: 'active',
+                                label: 'Solo Activos',
+                                icon: <CheckOutlined />,
+                                onClick: () => handleReportExport('active'),
+                              },
+                              {
+                                key: 'inactive',
+                                label: 'Solo Inactivos',
+                                icon: <CloseOutlined />,
+                                onClick: () => handleReportExport('inactive'),
+                              },
+                              { type: 'divider' },
+                              {
+                                key: 'male',
+                                label: 'Solo Masculino',
+                                icon: <ManOutlined />,
+                                onClick: () => handleReportExport('male'),
+                              },
+                              {
+                                key: 'female',
+                                label: 'Solo Femenino',
+                                icon: <WomanOutlined />,
+                                onClick: () => handleReportExport('female'),
+                              },
+                            ],
+                          }}
+                          trigger={['click']}
+                        >
+                          <Button
+                            type="default"
+                            icon={<PrinterOutlined />}
+                          >
+                            Reportes
+                          </Button>
+                        </Dropdown>
                         <Button
                           type="primary"
                           icon={<PlusOutlined />}
