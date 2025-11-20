@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Card, Button, Table, Tag, DatePicker, Modal, message, Badge, Space, Divider, Dropdown, Input, Form, Steps } from 'antd';
+import { Card, Button, Table, Tag, DatePicker, Modal, message, Badge, Dropdown, Input, Form, Steps } from 'antd';
 import { CameraOutlined, ReloadOutlined, ArrowLeftOutlined, ClockCircleOutlined, SendOutlined, DeleteOutlined, MoreOutlined, FileTextOutlined, LogoutOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import QrScanner from 'qr-scanner';
@@ -12,6 +12,7 @@ import { classroomService } from '../../../services/attendance';
 import attendanceService from '../../../services/attendance/attendanceService';
 import justificationsService from '../../../services/justifications/justificationsService';
 import { BatchAttendanceStatus, RegistrationMethod } from '../../../types/attendance';
+import '../../../assets/css/attendance-responsive.css';
 
 const { TextArea } = Input;
 const { Step } = Steps;
@@ -1037,64 +1038,111 @@ const AttendanceRegister = () => {
   };
 
   /**
-   * Columnas de la tabla de asistencias
+   * Columnas de la tabla de asistencias - Responsive
    */
   const columns = [
     {
       title: 'Personal',
       dataIndex: 'studentName',
       key: 'studentName',
+      width: window.innerWidth < 768 ? 150 : 200,
+      ellipsis: true,
       render: (text, record) => (
         <div>
-          <div style={{ fontWeight: 500 }}>{text || 'Sin nombre'}</div>
-          <div style={{ fontSize: '12px', color: '#888' }}>ID: {record.studentId}</div>
+          <div style={{ 
+            fontWeight: 500, 
+            fontSize: window.innerWidth < 768 ? '12px' : '14px',
+            lineHeight: '1.3'
+          }}>
+            {text || 'Sin nombre'}
+          </div>
+          <div style={{ 
+            fontSize: window.innerWidth < 768 ? '10px' : '12px', 
+            color: '#888',
+            fontFamily: 'monospace'
+          }}>
+            ID: {record.studentId?.slice(-6) || 'N/A'}
+          </div>
         </div>
       )
     },
     {
-      title: 'Fecha Entrada',
+      title: 'Fecha',
       dataIndex: 'attendanceDate',
       key: 'attendanceDate',
+      width: window.innerWidth < 768 ? 80 : 110,
+      responsive: ['lg'],
       render: (date) => {
         if (!date) return '---';
-        return dayjs(date).format('DD/MM/YYYY');
+        return (
+          <div style={{ fontSize: window.innerWidth < 768 ? '11px' : '13px' }}>
+            {dayjs(date).format('DD/MM/YY')}
+          </div>
+        );
       }
     },
     {
       title: 'H. Entrada',
       dataIndex: 'attendanceTime',
       key: 'attendanceTime',
-      render: (time) => time || '---'
+      width: window.innerWidth < 768 ? 80 : 100,
+      render: (time) => (
+        <span style={{ 
+          fontSize: window.innerWidth < 768 ? '11px' : '13px',
+          fontFamily: 'monospace'
+        }}>
+          {time || '---'}
+        </span>
+      )
     },
     {
       title: 'Status',
       key: 'status',
+      width: window.innerWidth < 768 ? 90 : 110,
       render: (_, record) => {
         const status = record.status || 'A';
         
-        switch(status) {
-          case 'P':
-            return <Tag color="green">PRESENTE</Tag>;
-          case 'A':
-            return <Tag color="red">AUSENTE</Tag>;
-          case 'L':
-            return <Tag color="orange">TARDANZA</Tag>;
-          case 'E':
-            return <Tag color="blue">EXCUSADO</Tag>;
-          case 'J':
-            return <Tag color="purple">JUSTIFICADO</Tag>;
-          default:
-            return <Tag color="gray">DESCONOCIDO</Tag>;
-        }
+        const tagMap = {
+          'P': { color: 'green', text: window.innerWidth < 768 ? 'P' : 'PRESENTE' },
+          'A': { color: 'red', text: window.innerWidth < 768 ? 'A' : 'AUSENTE' },
+          'L': { color: 'orange', text: window.innerWidth < 768 ? 'T' : 'TARDANZA' },
+          'E': { color: 'blue', text: window.innerWidth < 768 ? 'E' : 'EXCUSADO' },
+          'J': { color: 'purple', text: window.innerWidth < 768 ? 'J' : 'JUSTIFICADO' }
+        };
+
+        const tagInfo = tagMap[status] || { color: 'gray', text: 'N/A' };
+        
+        return (
+          <Tag 
+            color={tagInfo.color}
+            style={{ 
+              fontSize: window.innerWidth < 768 ? '10px' : '12px',
+              margin: 0,
+              padding: window.innerWidth < 768 ? '2px 6px' : '2px 8px'
+            }}
+          >
+            {tagInfo.text}
+          </Tag>
+        );
       }
     },
     {
       title: 'H. Salida',
       dataIndex: 'exitTime',
       key: 'exitTime',
+      width: window.innerWidth < 768 ? 90 : 120,
       render: (exitTime, record) => {
         if (exitTime) {
-          return <span style={{ color: '#52c41a', fontWeight: '500' }}>{exitTime}</span>;
+          return (
+            <span style={{ 
+              color: '#52c41a', 
+              fontWeight: '500',
+              fontSize: window.innerWidth < 768 ? '11px' : '13px',
+              fontFamily: 'monospace'
+            }}>
+              {exitTime}
+            </span>
+          );
         }
         // Solo mostrar botón de salida si el estudiante está presente
         if (record.status === 'P' && record.attendanceTime) {
@@ -1103,20 +1151,25 @@ const AttendanceRegister = () => {
               size="small" 
               type="primary" 
               onClick={() => handleExitRegister(record)}
-              style={{ fontSize: '11px' }}
+              style={{ 
+                fontSize: window.innerWidth < 768 ? '10px' : '11px',
+                padding: window.innerWidth < 768 ? '2px 6px' : '4px 8px',
+                height: window.innerWidth < 768 ? '24px' : 'auto'
+              }}
             >
-              Registrar Salida
+              {window.innerWidth < 768 ? 'Salida' : 'Registrar Salida'}
             </Button>
           );
         }
-        return <span style={{ color: '#999' }}>---</span>;
+        return <span style={{ color: '#999', fontSize: window.innerWidth < 768 ? '11px' : '13px' }}>---</span>;
       }
     },
     {
       title: 'Acciones',
       key: 'actions',
       align: 'center',
-      width: 100,
+      width: window.innerWidth < 768 ? 50 : 80,
+      fixed: 'right',
       render: (_, record) => {
         const menuItems = [
           {
@@ -1145,8 +1198,13 @@ const AttendanceRegister = () => {
           >
             <Button
               type="text"
-              icon={<MoreOutlined style={{ fontSize: '16px' }} />}
-              style={{ padding: '4px 8px' }}
+              icon={<MoreOutlined style={{ 
+                fontSize: window.innerWidth < 768 ? '14px' : '16px' 
+              }} />}
+              style={{ 
+                padding: window.innerWidth < 768 ? '2px 4px' : '4px 8px',
+                minWidth: window.innerWidth < 768 ? '32px' : 'auto'
+              }}
             />
           </Dropdown>
         );
@@ -1168,17 +1226,46 @@ const AttendanceRegister = () => {
                 <Button
                   icon={<ArrowLeftOutlined />}
                   onClick={() => navigate('/auxiliary/my-classrooms')}
-                  style={{ marginBottom: '10px' }}
+                  style={{ 
+                    marginBottom: '10px',
+                    fontSize: window.innerWidth < 768 ? '12px' : '14px'
+                  }}
+                  size={window.innerWidth < 768 ? 'small' : 'middle'}
                 >
-                  Volver a Mis Aulas
+                  {window.innerWidth < 768 ? 'Volver' : 'Volver a Mis Aulas'}
                 </Button>
-                <h3 className="page-title">Registrar Asistencia</h3>
+                <h3 className="page-title">
+                  {window.innerWidth < 768 ? 'Registro Asistencia' : 'Registrar Asistencia'}
+                </h3>
                 {classroom && (
-                  <div style={{ marginTop: '8px' }}>
-                    <Tag color={classroomService.getRandomClassroomColor()}>
-                      {classroom.classroomName || `Aula ${classroom.section}`} - {classroom.shiftName}
+                  <div style={{ 
+                    marginTop: '8px',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '4px'
+                  }}>
+                    <Tag 
+                      color={classroomService.getRandomClassroomColor()}
+                      style={{ 
+                        fontSize: window.innerWidth < 768 ? '11px' : '12px',
+                        margin: '2px'
+                      }}
+                    >
+                      {window.innerWidth < 768 
+                        ? (classroom.classroomName || `Aula ${classroom.section}`) 
+                        : `${classroom.classroomName || `Aula ${classroom.section}`} - ${classroom.shiftName}`
+                      }
                     </Tag>
-                    <Tag>Sección: {classroom.section}</Tag>
+                    {window.innerWidth >= 768 && (
+                      <Tag style={{ fontSize: '12px', margin: '2px' }}>
+                        Sección: {classroom.section}
+                      </Tag>
+                    )}
+                    {window.innerWidth < 768 && (
+                      <Tag style={{ fontSize: '11px', margin: '2px' }}>
+                        {classroom.shiftName}
+                      </Tag>
+                    )}
                   </div>
                 )}
               </div>
@@ -1187,25 +1274,59 @@ const AttendanceRegister = () => {
 
           {/* Card de Control */}
           <Card style={{ marginBottom: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-              <div>
-                <label style={{ marginRight: '8px', fontWeight: 500 }}>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '16px', 
+              flexWrap: 'wrap',
+              '@media (max-width: 768px)': {
+                flexDirection: 'column',
+                alignItems: 'stretch'
+              }
+            }}>
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                '@media (min-width: 769px)': {
+                  flexDirection: 'row',
+                  alignItems: 'center'
+                }
+              }}>
+                <label style={{ marginRight: '8px', fontWeight: 500, fontSize: '14px' }}>
                   Establecer Fecha de Registro:
                 </label>
                 <DatePicker
                   value={dayjs(attendanceDate)}
                   onChange={handleDateChange}
                   format="DD/MM/YYYY"
-                  style={{ width: '200px' }}
+                  style={{ 
+                    width: '100%',
+                    maxWidth: '200px',
+                    minWidth: '150px'
+                  }}
                   allowClear={false}
                 />
               </div>
 
               {/* Indicador de Turno Actual */}
               {shiftInfo && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', backgroundColor: '#f0f2f5', borderRadius: '6px' }}>
-                  <ClockCircleOutlined style={{ color: '#1890ff' }} />
-                  <div>
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px', 
+                  padding: '8px 12px', 
+                  backgroundColor: '#f0f2f5', 
+                  borderRadius: '6px',
+                  width: '100%',
+                  maxWidth: '300px',
+                  '@media (max-width: 768px)': {
+                    maxWidth: '100%',
+                    marginBottom: '8px'
+                  }
+                }}>
+                  <ClockCircleOutlined style={{ color: '#1890ff', fontSize: '16px' }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '12px', color: '#666' }}>Turno Actual:</div>
                     <div style={{ fontSize: '14px', fontWeight: 500 }}>
                       <Badge 
@@ -1221,7 +1342,8 @@ const AttendanceRegister = () => {
                     {shiftInfo.toleranceMessage && (
                       <div style={{ 
                         fontSize: '11px', 
-                        color: shiftInfo.isEstimated ? '#fa8c16' : (shiftInfo.status === 'P' ? '#52c41a' : '#faad14')
+                        color: shiftInfo.isEstimated ? '#fa8c16' : (shiftInfo.status === 'P' ? '#52c41a' : '#faad14'),
+                        wordBreak: 'break-word'
                       }}>
                         {shiftInfo.toleranceMessage} • Estado: {shiftInfo.statusText}
                       </div>
@@ -1230,93 +1352,137 @@ const AttendanceRegister = () => {
                 </div>
               )}
 
-              <Button
-                type="primary"
-                icon={<CameraOutlined />}
-                onClick={() => openQRScanner('entry')}
-                size="large"
-                style={{ backgroundColor: '#52c41a' }}
-                disabled={isProcessingQR}
-              >
-                {isProcessingQR && scanMode === 'entry' ? 'Procesando...' : 'QR Entrada'}
-              </Button>
-
-              <Button
-                type="primary"
-                icon={<CameraOutlined />}
-                onClick={() => openQRScanner('exit')}
-                size="large"
-                style={{ backgroundColor: '#faad14' }}
-                disabled={isProcessingQR}
-              >
-                {isProcessingQR && scanMode === 'exit' ? 'Procesando...' : 'QR Salida'}
-              </Button>
-
-              <Divider type="vertical" />
-
-              {/* Controles del Lote de Entrada */}
-              <Space>
+              <div style={{
+                display: 'flex',
+                gap: '12px',
+                flexWrap: 'wrap',
+                width: '100%'
+              }}>
                 <Button
                   type="primary"
-                  icon={<SendOutlined />}
-                  onClick={sendBatchAttendances}
-                  loading={isSendingBatch}
-                  disabled={batchAttendances.length === 0}
-                  style={{ backgroundColor: '#52c41a' }}
+                  icon={<CameraOutlined />}
+                  onClick={() => openQRScanner('entry')}
+                  size="large"
+                  style={{ 
+                    backgroundColor: '#52c41a',
+                    flex: '1',
+                    minWidth: '120px',
+                    maxWidth: '150px'
+                  }}
+                  disabled={isProcessingQR}
                 >
-                  Enviar Lote Entrada ({batchAttendances.length})
+                  {isProcessingQR && scanMode === 'entry' ? 'Procesando...' : 'QR Entrada'}
                 </Button>
 
-                <Button
-                  icon={<DeleteOutlined />}
-                  onClick={clearBatchAttendances}
-                  disabled={batchAttendances.length === 0}
-                  danger
-                >
-                  Limpiar Entrada
-                </Button>
-              </Space>
-
-              <Divider type="vertical" />
-
-              {/* Controles del Lote de Salida */}
-              <Space>
                 <Button
                   type="primary"
-                  icon={<SendOutlined />}
-                  onClick={sendBatchExits}
-                  loading={isSendingBatch}
-                  disabled={batchExits.length === 0}
-                  style={{ backgroundColor: '#ff7875' }}
+                  icon={<CameraOutlined />}
+                  onClick={() => openQRScanner('exit')}
+                  size="large"
+                  style={{ 
+                    backgroundColor: '#faad14',
+                    flex: '1',
+                    minWidth: '120px',
+                    maxWidth: '150px'
+                  }}
+                  disabled={isProcessingQR}
                 >
-                  Enviar Lote Salida ({batchExits.length})
+                  {isProcessingQR && scanMode === 'exit' ? 'Procesando...' : 'QR Salida'}
                 </Button>
+              </div>
 
-                <Button
-                  icon={<DeleteOutlined />}
-                  onClick={clearBatchExits}
-                  disabled={batchExits.length === 0}
-                  danger
-                >
-                  Limpiar Salida
-                </Button>
-              </Space>
+              {/* Separador responsive */}
+              <div style={{ 
+                width: '100%', 
+                height: '1px', 
+                backgroundColor: '#e8ecf0', 
+                margin: '8px 0',
+                display: 'block'
+              }} />
 
-              <Divider type="vertical" />
+              {/* Controles de Lote - Grid Responsive */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '12px',
+                width: '100%',
+                alignItems: 'center'
+              }}>
+                {/* Controles del Lote de Entrada */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <Button
+                    type="primary"
+                    icon={<SendOutlined />}
+                    onClick={sendBatchAttendances}
+                    loading={isSendingBatch}
+                    disabled={batchAttendances.length === 0}
+                    style={{ backgroundColor: '#52c41a', width: '100%' }}
+                    size="small"
+                  >
+                    Enviar Lote Entrada ({batchAttendances.length})
+                  </Button>
+                  <Button
+                    icon={<DeleteOutlined />}
+                    onClick={clearBatchAttendances}
+                    disabled={batchAttendances.length === 0}
+                    danger
+                    style={{ width: '100%' }}
+                    size="small"
+                  >
+                    Limpiar Entrada
+                  </Button>
+                </div>
 
-              <Button
-                icon={<ReloadOutlined />}
-                onClick={loadAttendances}
-                loading={loading}
-              >
-                Actualizar
-              </Button>
+                {/* Controles del Lote de Salida */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <Button
+                    type="primary"
+                    icon={<SendOutlined />}
+                    onClick={sendBatchExits}
+                    loading={isSendingBatch}
+                    disabled={batchExits.length === 0}
+                    style={{ backgroundColor: '#ff7875', width: '100%' }}
+                    size="small"
+                  >
+                    Enviar Lote Salida ({batchExits.length})
+                  </Button>
+                  <Button
+                    icon={<DeleteOutlined />}
+                    onClick={clearBatchExits}
+                    disabled={batchExits.length === 0}
+                    danger
+                    style={{ width: '100%' }}
+                    size="small"
+                  >
+                    Limpiar Salida
+                  </Button>
+                </div>
 
-              <div style={{ marginLeft: 'auto', fontSize: '14px', color: '#666' }}>
-                <Space direction="vertical" size="small">
-                  <div>Total registros: <strong>{attendances.length}</strong></div>
-                  <div>Lote pendiente: <strong style={{ color: '#1890ff' }}>{batchAttendances.length}</strong></div>
-                </Space>
+                {/* Botón Actualizar y Stats */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+                  <Button
+                    icon={<ReloadOutlined />}
+                    onClick={loadAttendances}
+                    loading={loading}
+                    style={{ width: '100%' }}
+                    size="small"
+                  >
+                    Actualizar
+                  </Button>
+                  
+                  <div style={{ 
+                    fontSize: '12px', 
+                    color: '#666', 
+                    textAlign: 'center',
+                    padding: '4px 8px',
+                    backgroundColor: '#f5f5f5',
+                    borderRadius: '4px',
+                    width: '100%'
+                  }}>
+                    <div>Total: <strong>{attendances.length}</strong></div>
+                    <div>Pendiente: <strong style={{ color: '#1890ff' }}>{batchAttendances.length}</strong></div>
+                  </div>
+                </div>
               </div>
             </div>
           </Card>
@@ -1336,12 +1502,13 @@ const AttendanceRegister = () => {
               <Table
                 columns={[
                   {
-                    title: 'ID Estudiante',
+                    title: 'ID',
                     dataIndex: 'id_estudiante',
                     key: 'id_estudiante',
+                    width: 80,
                     render: (id) => (
-                      <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>
-                        ...{id.slice(-8)}
+                      <span style={{ fontFamily: 'monospace', fontSize: '11px' }}>
+                        ...{id.slice(-6)}
                       </span>
                     )
                   },
@@ -1349,33 +1516,49 @@ const AttendanceRegister = () => {
                     title: 'Nombre',
                     dataIndex: 'nombre_completo',
                     key: 'nombre_completo',
-                    render: (name) => name || 'Sin nombre'
+                    ellipsis: true,
+                    render: (name) => (
+                      <div style={{ fontSize: '12px' }}>
+                        {name || 'Sin nombre'}
+                      </div>
+                    )
                   },
                   {
                     title: 'Status',
                     dataIndex: 'status',
                     key: 'status',
+                    width: 90,
                     render: (status) => (
-                      <Tag color={status === 'P' ? 'green' : status === 'L' ? 'orange' : 'red'}>
+                      <Tag 
+                        color={status === 'P' ? 'green' : status === 'L' ? 'orange' : 'red'}
+                        style={{ fontSize: '10px' }}
+                      >
                         {status === 'P' ? 'Presente' : status === 'L' ? 'Tardanza' : 'Ausente'}
                       </Tag>
                     )
                   },
                   {
-                    title: 'Hora Entrada',
+                    title: 'H. Entrada',
                     dataIndex: 'hora_entrada',
                     key: 'hora_entrada',
-                    render: (time) => time || <span style={{ color: '#999' }}>---</span>
+                    width: 80,
+                    render: (time) => (
+                      <span style={{ fontSize: '11px' }}>
+                        {time || <span style={{ color: '#999' }}>---</span>}
+                      </span>
+                    )
                   },
                   {
                     title: 'Acciones',
                     key: 'actions',
+                    width: 80,
                     render: (_, record) => (
                       <Button
                         size="small"
                         danger
                         onClick={() => removeFromBatchEntry(record.id_estudiante)}
                         icon={<DeleteOutlined />}
+                        style={{ padding: '0 8px' }}
                       >
                         Quitar
                       </Button>
@@ -1386,7 +1569,7 @@ const AttendanceRegister = () => {
                 rowKey="id_estudiante"
                 pagination={false}
                 size="small"
-                scroll={{ x: 500 }}
+                scroll={{ x: 400, y: 200 }}
               />
             </Card>
           )}
@@ -1406,12 +1589,13 @@ const AttendanceRegister = () => {
               <Table
                 columns={[
                   {
-                    title: 'ID Estudiante',
+                    title: 'ID',
                     dataIndex: 'id_estudiante',
                     key: 'id_estudiante',
+                    width: 80,
                     render: (id) => (
-                      <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>
-                        ...{id.slice(-8)}
+                      <span style={{ fontFamily: 'monospace', fontSize: '11px' }}>
+                        ...{id.slice(-6)}
                       </span>
                     )
                   },
@@ -1419,23 +1603,35 @@ const AttendanceRegister = () => {
                     title: 'Nombre',
                     dataIndex: 'nombre_completo',
                     key: 'nombre_completo',
-                    render: (name) => name || 'Sin nombre'
+                    ellipsis: true,
+                    render: (name) => (
+                      <div style={{ fontSize: '12px' }}>
+                        {name || 'Sin nombre'}
+                      </div>
+                    )
                   },
                   {
-                    title: 'Hora Salida',
+                    title: 'H. Salida',
                     dataIndex: 'hora_salida',
                     key: 'hora_salida',
-                    render: (time) => time || <span style={{ color: '#999' }}>---</span>
+                    width: 80,
+                    render: (time) => (
+                      <span style={{ fontSize: '11px' }}>
+                        {time || <span style={{ color: '#999' }}>---</span>}
+                      </span>
+                    )
                   },
                   {
                     title: 'Acciones',
                     key: 'actions',
+                    width: 80,
                     render: (_, record) => (
                       <Button
                         size="small"
                         danger
                         onClick={() => removeFromBatchExit(record.id_estudiante)}
                         icon={<DeleteOutlined />}
+                        style={{ padding: '0 8px' }}
                       >
                         Quitar
                       </Button>
@@ -1446,13 +1642,16 @@ const AttendanceRegister = () => {
                 rowKey="id_estudiante"
                 pagination={false}
                 size="small"
-                scroll={{ x: 500 }}
+                scroll={{ x: 300, y: 200 }}
               />
             </Card>
           )}
 
           {/* Tabla de Asistencias */}
-          <Card title="Lista de Asistencias">
+          <Card 
+            title="Lista de Asistencias"
+            style={{ overflow: 'hidden' }}
+          >
             <Table
               columns={columns}
               dataSource={attendances}
@@ -1461,12 +1660,16 @@ const AttendanceRegister = () => {
               pagination={{
                 pageSize: 10,
                 showSizeChanger: true,
-                showTotal: (total) => `Total ${total} registros`
+                showTotal: (total) => `Total ${total} registros`,
+                responsive: true,
+                showQuickJumper: true,
+                size: 'small'
               }}
               locale={{
                 emptyText: 'No hay asistencias registradas para esta fecha'
               }}
               size="middle"
+              scroll={{ x: 800, y: 400 }}
             />
           </Card>
         </div>
@@ -1478,11 +1681,15 @@ const AttendanceRegister = () => {
         open={scannerModal}
         onCancel={closeScanner}
         footer={[
-          <Button key="close" onClick={closeScanner}>
+          <Button key="close" onClick={closeScanner} block>
             Cerrar Scanner
           </Button>
         ]}
-        width={650}
+        width={window.innerWidth < 768 ? '95%' : 650}
+        style={{
+          top: window.innerWidth < 768 ? 20 : undefined,
+          paddingBottom: window.innerWidth < 768 ? 20 : undefined
+        }}
         destroyOnClose
         maskClosable={false}
       >
@@ -1551,7 +1758,7 @@ const AttendanceRegister = () => {
 
           {/* Scanner QR - Solo mostrar si no hay QR detectado */}
           {scannerModal && !detectedQRContent && (
-            <div style={{ 
+            <div className="qr-scanner-container" style={{ 
               border: '2px solid #d9d9d9', 
               borderRadius: '8px', 
               overflow: 'hidden',
@@ -1571,18 +1778,7 @@ const AttendanceRegister = () => {
                 muted
               />
               {isProcessingQR && (
-                <div style={{
-                  position: 'absolute',
-                  top: '10px',
-                  left: '10px',
-                  right: '10px',
-                  backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                  color: 'white',
-                  padding: '8px',
-                  borderRadius: '4px',
-                  textAlign: 'center',
-                  fontSize: '14px'
-                }}>
+                <div className="scanner-status">
                   ⚡ Procesando QR detectado...
                 </div>
               )}
@@ -1612,11 +1808,16 @@ const AttendanceRegister = () => {
       <Modal
         title={
           <div>
-            <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '4px' }}>
+            <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>
               📝 Justificar Asistencia
             </div>
             {selectedStudent && (
-              <div style={{ fontSize: '13px', color: '#666', fontWeight: 400 }}>
+              <div style={{ 
+                fontSize: '12px', 
+                color: '#666', 
+                fontWeight: 400,
+                wordBreak: 'break-word'
+              }}>
                 Estudiante: <strong>{selectedStudent.studentName}</strong> • 
                 Fecha: <strong>{dayjs(selectedStudent.attendanceDate).format('DD/MM/YYYY')}</strong>
               </div>
@@ -1626,7 +1827,11 @@ const AttendanceRegister = () => {
         open={justificationModal}
         onCancel={handleCloseJustificationModal}
         footer={null}
-        width={700}
+        width={window.innerWidth < 768 ? '95%' : 700}
+        style={{
+          top: window.innerWidth < 768 ? 20 : undefined,
+          paddingBottom: window.innerWidth < 768 ? 20 : undefined
+        }}
         destroyOnClose
       >
         {/* Steps Indicator */}
@@ -1683,7 +1888,7 @@ const AttendanceRegister = () => {
               >
                 <div style={{ 
                   display: 'grid', 
-                  gridTemplateColumns: 'repeat(3, 1fr)', 
+                  gridTemplateColumns: window.innerWidth < 768 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', 
                   gap: '12px',
                   marginBottom: '20px'
                 }}>
@@ -1779,7 +1984,11 @@ const AttendanceRegister = () => {
                 name="submittedBy"
                 rules={[{ required: true, message: 'Selecciona quién presenta' }]}
               >
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: window.innerWidth < 768 ? 'repeat(1, 1fr)' : 'repeat(3, 1fr)', 
+                  gap: '12px' 
+                }}>
                   {[
                     { value: 'STUDENT', label: 'Estudiante', icon: '👨‍🎓' },
                     { value: 'PARENT', label: 'Padre/Madre', icon: '👨‍👩‍👧' },

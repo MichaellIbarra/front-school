@@ -406,7 +406,7 @@ const StudentList = () => {
           {
             type: 'divider',
           },
-          ...(record.status === 'ACTIVE' ? [
+          ...(record.status === 'A' ? [
             {
               key: 'deactivate',
               label: 'Desactivar',

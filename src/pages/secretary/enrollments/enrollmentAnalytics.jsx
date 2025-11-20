@@ -50,8 +50,8 @@ const EnrollmentAnalytics = () => {
       
       // Calcular estadísticas generales
       const totalEnrollments = allEnrollments.length;
-      const activeEnrollments = allEnrollments.filter(e => e.status === 'active').length;
-      const inactiveEnrollments = allEnrollments.filter(e => e.status === 'inactive').length;
+      const activeEnrollments = allEnrollments.filter(e => e.status === 'A').length;
+      const inactiveEnrollments = allEnrollments.filter(e => e.status === 'I').length;
       const pendingEnrollments = allEnrollments.filter(e => e.status === 'pending').length;
 
       setAnalytics({
@@ -80,9 +80,9 @@ const EnrollmentAnalytics = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'active':
+      case 'A':
         return '#52c41a';
-      case 'inactive':
+      case 'I':
         return '#ff4d4f';
       case 'pending':
         return '#faad14';
@@ -159,8 +159,8 @@ const EnrollmentAnalytics = () => {
                     value={filters.status}
                     onChange={(value) => handleFilterChange('status', value)}
                   >
-                    <Option value="active">Activo</Option>
-                    <Option value="inactive">Inactivo</Option>
+                    <Option value="A">Activo</Option>
+                    <Option value="I">Inactivo</Option>
                     <Option value="pending">Pendiente</Option>
                   </Select>
                 </Col>
@@ -195,7 +195,7 @@ const EnrollmentAnalytics = () => {
                 title="Matrículas Activas"
                 value={analytics.activeEnrollments}
                 prefix={<BookOutlined />}
-                valueStyle={{ color: getStatusColor('active') }}
+                valueStyle={{ color: getStatusColor('A') }}
               />
             </Card>
           </div>
@@ -205,7 +205,7 @@ const EnrollmentAnalytics = () => {
                 title="Matrículas Inactivas"
                 value={analytics.inactiveEnrollments}
                 prefix={<CalendarOutlined />}
-                valueStyle={{ color: getStatusColor('inactive') }}
+                valueStyle={{ color: getStatusColor('I') }}
               />
             </Card>
           </div>

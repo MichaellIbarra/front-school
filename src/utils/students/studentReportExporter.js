@@ -35,11 +35,18 @@ export class StudentReportExporter {
    */
   static getStatusLabel(status) {
     switch(status) {
+      case 'A': return 'Activo';
+      case 'I': return 'Inactivo';
+      case 'T': return 'Transferido';
+      case 'G': return 'Graduado';
+      // Casos de compatibilidad hacia atrás
       case 'ACTIVE': return 'Activo';
       case 'INACTIVE': return 'Inactivo';
       case 'TRANSFER': return 'Transferido';
       case 'GRADUATED': return 'Graduado';
-      default: return 'No especificado';
+      default: 
+        console.log('Estado desconocido:', status); // Debug
+        return status || 'Sin estado';
     }
   }
 
@@ -51,7 +58,13 @@ export class StudentReportExporter {
       case 'MALE': return 'Masculino';
       case 'FEMALE': return 'Femenino';
       case 'OTHER': return 'Otro';
-      default: return 'No especificado';
+      // Casos de compatibilidad hacia atrás
+      case 'M': return 'Masculino';
+      case 'F': return 'Femenino';
+      case 'O': return 'Otro';
+      default: 
+        console.log('Género desconocido:', gender); // Debug
+        return gender || 'Sin especificar';
     }
   }
 
@@ -60,13 +73,42 @@ export class StudentReportExporter {
    */
   static formatDate(dateString) {
     if (!dateString) return 'N/A';
+    
     try {
-      return new Date(dateString).toLocaleDateString('es-ES', {
+      let dateToFormat;
+      
+      // Si viene como array (formato de la API), convertir a fecha
+      if (Array.isArray(dateString)) {
+        // Array formato [año, mes, día] -> convertir a ISO string
+        if (dateString.length >= 3) {
+          const [year, month, day] = dateString;
+          dateToFormat = new Date(year, month - 1, day); // mes es 0-indexed en JS
+        } else {
+          console.log('Array de fecha inválido:', dateString);
+          return 'Fecha inválida';
+        }
+      } else if (typeof dateString === 'string') {
+        // String ISO o formato estándar
+        dateToFormat = new Date(dateString);
+      } else {
+        console.log('Tipo de fecha no reconocido:', typeof dateString, dateString);
+        return 'Formato no válido';
+      }
+      
+      // Verificar si la fecha es válida
+      if (isNaN(dateToFormat.getTime())) {
+        console.log('Fecha inválida después de conversión:', dateString);
+        return 'Fecha inválida';
+      }
+      
+      return dateToFormat.toLocaleDateString('es-ES', {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit'
       });
+      
     } catch (error) {
+      console.log('Error al formatear fecha:', error, dateString);
       return 'Fecha inválida';
     }
   }
@@ -169,8 +211,8 @@ export class StudentReportExporter {
       
       // Calcular estadísticas
       const totalStudents = studentsList.length;
-      const activeStudents = studentsList.filter(s => s.status === 'ACTIVE').length;
-      const inactiveStudents = studentsList.filter(s => s.status === 'INACTIVE').length;
+      const activeStudents = studentsList.filter(s => s.status === 'A' || s.status === 'ACTIVE').length;
+      const inactiveStudents = studentsList.filter(s => s.status === 'I' || s.status === 'INACTIVE').length;
       const maleStudents = studentsList.filter(s => s.gender === 'MALE').length;
       const femaleStudents = studentsList.filter(s => s.gender === 'FEMALE').length;
       
@@ -426,7 +468,7 @@ export class StudentReportExporter {
                   </td>
                   <td class="contact-cell">${this.sanitizeHTML(student.phone || 'N/A')}</td>
                   <td class="address-cell">${this.sanitizeHTML(student.address || 'N/A')}</td>
-                  <td class="${student.status === 'ACTIVE' ? 'active' : 'inactive'}" style="text-align: center;">
+                  <td class="${student.status === 'A' || student.status === 'ACTIVE' ? 'active' : 'inactive'}" style="text-align: center;">
                     ${this.getStatusLabel(student.status)}
                   </td>
                   <td>${this.formatDate(student.createdAt)}</td>
@@ -510,7 +552,9 @@ export class StudentReportExporter {
    * Exporta solo estudiantes activos
    */
   static exportActiveStudents(studentsList, institutionName = '') {
-    const activeStudents = studentsList.filter(student => student.status === 'ACTIVE');
+    const activeStudents = studentsList.filter(student => 
+      student.status === 'A' || student.status === 'ACTIVE'
+    );
     
     if (activeStudents.length === 0) {
       return { success: false, error: 'No hay estudiantes activos para exportar' };
@@ -523,7 +567,9 @@ export class StudentReportExporter {
    * Exporta solo estudiantes inactivos
    */
   static exportInactiveStudents(studentsList, institutionName = '') {
-    const inactiveStudents = studentsList.filter(student => student.status === 'INACTIVE');
+    const inactiveStudents = studentsList.filter(student => 
+      student.status === 'I' || student.status === 'INACTIVE'
+    );
     
     if (inactiveStudents.length === 0) {
       return { success: false, error: 'No hay estudiantes inactivos para exportar' };

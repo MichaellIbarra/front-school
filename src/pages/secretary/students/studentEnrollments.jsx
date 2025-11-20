@@ -367,8 +367,8 @@ const StudentEnrollments = () => {
                         {formatBirthDate(student.birthDate)} ({calculateAge(student.birthDate)} años)
                       </Descriptions.Item>
                       <Descriptions.Item label="Estado">
-                        <Tag color={student.status === 'ACTIVE' ? 'green' : 'red'}>
-                          {student.status === 'ACTIVE' ? 'Activo' : 'Inactivo'}
+                        <Tag color={student.status === 'A' ? 'green' : 'red'}>
+                          {student.status === 'A' ? 'Activo' : 'Inactivo'}
                         </Tag>
                       </Descriptions.Item>
                     </Descriptions>

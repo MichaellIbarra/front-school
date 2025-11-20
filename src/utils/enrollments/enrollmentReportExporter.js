@@ -35,19 +35,20 @@ export class EnrollmentReportExporter {
    */
   static getStatusLabel(status) {
     switch(status) {
-      case 'A': 
+      case 'A': return 'Activa';
+      case 'C': return 'Completada';
+      case 'T': return 'Transferida';
+      case 'R': return 'Retirada';
+      case 'I': return 'Inactiva';
+      // Casos de compatibilidad hacia atrás
       case 'ACTIVE': return 'Activa';
-      case 'C': 
       case 'COMPLETED': return 'Completada';
-      case 'T': 
       case 'TRANSFER': return 'Transferida';
-      case 'R': 
       case 'RETIRED': return 'Retirada';
-      case 'I':
       case 'INACTIVE': return 'Inactiva';
       default: 
         console.log('Estado desconocido:', status); // Debug
-        return `Estado: ${status}`;
+        return status || 'Sin estado';
     }
   }
 
@@ -501,7 +502,7 @@ export class EnrollmentReportExporter {
                   <td>${this.sanitizeHTML(this.getClassroomName(enrollment))}</td>
                   <td style="text-align: center;">${this.sanitizeHTML(enrollment.enrollmentType || 'REGULAR')}</td>
                   <td class="date-cell">${this.formatDate(enrollment.enrollmentDate)}</td>
-                  <td class="status-${enrollment.status === 'A' || enrollment.status === 'ACTIVE' ? 'active' : enrollment.status === 'C' || enrollment.status === 'COMPLETED' ? 'completed' : enrollment.status === 'T' || enrollment.status === 'TRANSFER' ? 'transferred' : 'retired'}" style="text-align: center;">
+                  <td class="status-${enrollment.status === 'A' ? 'active' : enrollment.status === 'C' ? 'completed' : enrollment.status === 'T' ? 'transferred' : 'retired'}" style="text-align: center;">
                     ${this.getStatusLabel(enrollment.status)}
                   </td>
                   <td class="date-cell">${this.formatDate(enrollment.createdAt)}</td>
@@ -586,10 +587,12 @@ export class EnrollmentReportExporter {
    * Exporta solo matriculaciones activas
    */
   static exportActiveEnrollments(enrollmentsList, institutionName = '') {
-    const activeEnrollments = enrollmentsList.filter(enrollment => enrollment.status === 'A');
+    const activeEnrollments = enrollmentsList.filter(enrollment => 
+      enrollment.status === 'A' || enrollment.status === 'ACTIVE'
+    );
     
     if (activeEnrollments.length === 0) {
-      return { success: false, error: 'No hay matriculaciones activas para exportar' };
+      return { success: false, error: 'No hay matrículas activas para exportar' };
     }
 
     return this.exportEnrollmentsToPDF(activeEnrollments, institutionName);

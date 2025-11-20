@@ -99,11 +99,11 @@ export class EnrollmentExportUtils {
           </div>
           <div class="stat-card">
             <div class="stat-title">Matrículas Activas</div>
-            <div class="stat-value">${stats.byStatus.ACTIVE || 0}</div>
+            <div class="stat-value">${stats.byStatus.A || 0}</div>
           </div>
           <div class="stat-card">
             <div class="stat-title">Matrículas Inactivas</div>
-            <div class="stat-value">${stats.byStatus.INACTIVE || 0}</div>
+            <div class="stat-value">${stats.byStatus.I || 0}</div>
           </div>
         </div>
 
@@ -234,10 +234,14 @@ export class EnrollmentExportUtils {
   static getStatusText(status) {
     const statusMap = {
       [EnrollmentStatus.ACTIVE]: 'Activa',
-      [EnrollmentStatus.INACTIVE]: 'Inactiva',
-      [EnrollmentStatus.TRANSFERRED]: 'Transferida',
-      [EnrollmentStatus.WITHDRAWN]: 'Retirada',
-      [EnrollmentStatus.COMPLETED]: 'Completada'
+      [EnrollmentStatus.COMPLETED]: 'Completada',
+      [EnrollmentStatus.TRANSFER]: 'Transferida',
+      [EnrollmentStatus.RETIRED]: 'Retirada',
+      'A': 'Activa',
+      'I': 'Inactiva',
+      'C': 'Completada',
+      'T': 'Transferida',
+      'R': 'Retirada'
     };
     return statusMap[status] || status;
   }

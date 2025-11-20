@@ -211,10 +211,15 @@ export const calculateAge = (birthDate) => {
  */
 export const getStatusText = (status) => {
   const statusTexts = {
-    [StudentStatus.ACTIVE]: 'Activo',
-    [StudentStatus.INACTIVE]: 'Inactivo',
-    [StudentStatus.TRANSFER]: 'Transferido',
-    [StudentStatus.GRADUATED]: 'Graduado'
+    'A': 'Activo',
+    'I': 'Inactivo', 
+    'T': 'Transferido',
+    'G': 'Graduado',
+    // Para compatibilidad hacia atrás
+    'ACTIVE': 'Activo',
+    'INACTIVE': 'Inactivo',
+    'TRANSFER': 'Transferido', 
+    'GRADUATED': 'Graduado'
   };
   
   return statusTexts[status] || status;
@@ -227,10 +232,15 @@ export const getStatusText = (status) => {
  */
 export const getStatusColor = (status) => {
   const statusColors = {
-    [StudentStatus.ACTIVE]: 'green',
-    [StudentStatus.INACTIVE]: 'red',
-    [StudentStatus.TRANSFER]: 'purple',
-    [StudentStatus.GRADUATED]: 'blue'
+    'A': 'green',
+    'I': 'red',
+    'T': 'purple', 
+    'G': 'blue',
+    // Para compatibilidad hacia atrás
+    'ACTIVE': 'green',
+    'INACTIVE': 'red',
+    'TRANSFER': 'purple',
+    'GRADUATED': 'blue'
   };
   
   return statusColors[status] || 'default';
